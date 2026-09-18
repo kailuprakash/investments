@@ -6,6 +6,10 @@ import {
   watchlist,
   weeklyAccountHistory,
   weeklyTransactionHistory,
+  accountDetails,
+  depositDetails,
+  accountDetailsTable,
+  depositDetailsTable,
 } from "@/db/schema";
 
 export {
@@ -16,6 +20,10 @@ export {
   watchlist,
   weeklyAccountHistory,
   weeklyTransactionHistory,
+  accountDetails,
+  depositDetails,
+  accountDetailsTable,
+  depositDetailsTable,
 };
 
 export * from "@/db/portfolio-service";

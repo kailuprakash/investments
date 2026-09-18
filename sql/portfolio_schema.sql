@@ -26,6 +26,57 @@ CREATE TABLE IF NOT EXISTS accounts (
   comments TEXT NOT NULL DEFAULT ''
 );
 
+
+-- ============================================================================
+-- 1B. ACCOUNT DETAILS & DEPOSIT DETAILS TABLES
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS portfolio_account_details (
+  id SERIAL PRIMARY KEY,
+  financial_institute TEXT NOT NULL DEFAULT 'CS',
+  active_status TEXT NOT NULL DEFAULT 'Active',
+  account_type TEXT NOT NULL DEFAULT 'Trading Account',
+  account_number TEXT NOT NULL UNIQUE,
+  start_date TEXT NOT NULL DEFAULT '',
+  comments TEXT NOT NULL DEFAULT '',
+  tax_period TEXT NOT NULL DEFAULT 'Yearly Tax on Profit in US.',
+  order_index INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS portfolio_deposit_details (
+  id SERIAL PRIMARY KEY,
+  account_number TEXT NOT NULL,
+  date_invested TEXT NOT NULL,
+  amount DOUBLE PRECISION NOT NULL DEFAULT 0,
+  comments TEXT NOT NULL DEFAULT '',
+  order_index INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_deposit_details_acc ON portfolio_deposit_details (account_number);
+CREATE TABLE IF NOT EXISTS account_details (
+  id SERIAL PRIMARY KEY,
+  financial_institute TEXT NOT NULL DEFAULT 'CS',
+  active_status TEXT NOT NULL DEFAULT 'Active',
+  account_type TEXT NOT NULL DEFAULT 'Trading Account',
+  account_number TEXT NOT NULL UNIQUE,
+  start_date TEXT NOT NULL DEFAULT '',
+  comments TEXT NOT NULL DEFAULT '',
+  tax_period TEXT NOT NULL DEFAULT 'Yearly Tax on Profit in US.',
+  order_index INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS deposit_details (
+  id SERIAL PRIMARY KEY,
+  account_number TEXT NOT NULL,
+  date_invested TEXT NOT NULL,
+  amount DOUBLE PRECISION NOT NULL DEFAULT 0,
+  comments TEXT NOT NULL DEFAULT '',
+  order_index INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_account_details_acc ON account_details (account_number);
+CREATE INDEX IF NOT EXISTS idx_deposit_details_acc_num ON deposit_details (account_number);
+
+
 -- ============================================================================
 -- 2. CONSOLIDATED VIEW - ACCOUNT LEVEL HOLDINGS (portfolio_holdings & current_holdings)
 -- ============================================================================
@@ -277,5 +328,42 @@ UPDATE portfolio_future_investments
           THEN ROUND((((current_price - price_per_share) / price_per_share) * 100)::NUMERIC, 2)::DOUBLE PRECISION
         ELSE 0
       END;
+
+
+-- Default Account Details & Deposit Details (linking cumulative deposit to amount from hand)
+INSERT INTO portfolio_account_details (financial_institute, active_status, account_type, account_number, start_date, comments, tax_period, order_index) VALUES
+  ('CS', 'Active', 'Trading Account', 'CS 9271', 'Nov-23', '', 'Yearly Tax on Profit in US.', 1),
+  ('CS', 'Active', 'Trading Account', 'CS 9538', 'Aug-24', 'Divided by 2.', 'Yearly Tax on Profit in US.', 2),
+  ('RH', 'Active', 'Trading Account', 'RH 8031', 'Feb-24', '', 'Yearly Tax on Profit in US.', 3),
+  ('ME', 'Active', 'Cash Management', 'ME-CMA 82K32', 'Jan-24', '', 'Yearly Tax on Profit in US.', 4),
+  ('ME', 'Active', 'Traditional IRA', 'ME-IRA 85363', 'Jan-24', '', 'Tax Deferred.', 5),
+  ('ME', 'Active', 'Rollover IRA', 'ME-IRRA 73444', 'Jan-24', '', 'Tax Deferred.', 6),
+  ('ME', 'Active', 'Roth IRA', 'ME-Roth 82T11', 'Jan-24', '', 'Tax Free Growth in US.', 7)
+ON CONFLICT (account_number) DO NOTHING;
+
+INSERT INTO portfolio_deposit_details (account_number, date_invested, amount, comments, order_index) VALUES
+  ('CS 9271', '11/6/2024', 6501.95, 'Transfer of Securities(In/Out)', 1),
+  ('CS 9271', '11/6/2024', 392.06, 'Transfer of Cash', 2),
+  ('CS 9271', '2/22/2024', 15500.00, '', 3),
+  ('CS 9271', '4/3/2024', 10500.00, '', 4),
+  ('CS 9271', '6/25/2024', 15000.00, '', 5),
+
+  ('CS 9538', '7/29/2024', 100.00, 'Savings Money', 6),
+  ('CS 9538', '8/5/2025', 13500.00, 'Money is funded from Dish Shares Sales. Half money each', 7),
+  ('CS 9538', '8/15/2025', 22000.00, 'Transfer from Main Bank', 8),
+
+  ('RH 8031', '2/10/2024', 6553.49, 'Initial Deposit', 9),
+  ('ME-CMA 82K32', '1/15/2024', 50000.00, 'Core Cash Deposit', 10),
+  ('ME-IRA 85363', '1/15/2024', 64000.00, 'Rollover Contribution', 11),
+  ('ME-IRRA 73444', '1/15/2024', 150000.00, '401k Rollover', 12),
+  ('ME-Roth 82T11', '1/15/2024', 200000.00, 'Roth Conversion Deposit', 13);
+
+
+INSERT INTO account_details (financial_institute, active_status, account_type, account_number, start_date, comments, tax_period, order_index)
+SELECT financial_institute, active_status, account_type, account_number, start_date, comments, tax_period, order_index FROM portfolio_account_details
+ON CONFLICT (account_number) DO NOTHING;
+
+INSERT INTO deposit_details (account_number, date_invested, amount, comments, order_index)
+SELECT account_number, date_invested, amount, comments, order_index FROM portfolio_deposit_details;
 
 COMMIT;

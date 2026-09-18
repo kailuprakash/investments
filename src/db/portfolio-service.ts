@@ -6,6 +6,8 @@ import {
   watchlistTable,
   weeklyHistoryTable,
   transactionHistoryTable,
+  accountDetailsTable,
+  depositDetailsTable,
 } from "@/db/schema";
 import { eq, asc, desc } from "drizzle-orm";
 import seedData from "@/db/seed-data.json";
@@ -130,6 +132,25 @@ export async function ensureDbSeeded(): Promise<void> {
         captured_at TEXT NOT NULL,
         source TEXT NOT NULL DEFAULT 'SATURDAY_9PM_ET'
       );
+      CREATE TABLE IF NOT EXISTS portfolio_account_details (
+        id SERIAL PRIMARY KEY,
+        financial_institute TEXT NOT NULL DEFAULT 'CS',
+        active_status TEXT NOT NULL DEFAULT 'Active',
+        account_type TEXT NOT NULL DEFAULT 'Trading Account',
+        account_number TEXT NOT NULL UNIQUE,
+        start_date TEXT NOT NULL DEFAULT '',
+        comments TEXT NOT NULL DEFAULT '',
+        tax_period TEXT NOT NULL DEFAULT 'Yearly Tax on Profit in US.',
+        order_index INTEGER NOT NULL DEFAULT 0
+      );
+      CREATE TABLE IF NOT EXISTS portfolio_deposit_details (
+        id SERIAL PRIMARY KEY,
+        account_number TEXT NOT NULL,
+        date_invested TEXT NOT NULL,
+        amount DOUBLE PRECISION NOT NULL DEFAULT 0,
+        comments TEXT NOT NULL DEFAULT '',
+        order_index INTEGER NOT NULL DEFAULT 0
+      );
     `);
 
     const existingAccounts = await db.select().from(accountsTable);
@@ -235,6 +256,37 @@ export async function ensureDbSeeded(): Promise<void> {
           source: row.source || "SATURDAY_9PM_ET",
         });
       }
+    }
+
+    const existingAccDetails = await db.select().from(accountDetailsTable);
+    if (existingAccDetails.length === 0) {
+      await db.insert(accountDetailsTable).values([
+        { financialInstitute: "CS", activeStatus: "Active", accountType: "Trading Account", accountNumber: "CS 9271", startDate: "Nov-23", comments: "", taxPeriod: "Yearly Tax on Profit in US.", orderIndex: 1 },
+        { financialInstitute: "CS", activeStatus: "Active", accountType: "Trading Account", accountNumber: "CS 9538", startDate: "Aug-24", comments: "Divided by 2.", taxPeriod: "Yearly Tax on Profit in US.", orderIndex: 2 },
+        { financialInstitute: "RH", activeStatus: "Active", accountType: "Trading Account", accountNumber: "RH 8031", startDate: "Feb-24", comments: "", taxPeriod: "Yearly Tax on Profit in US.", orderIndex: 3 },
+        { financialInstitute: "ME", activeStatus: "Active", accountType: "Cash Management", accountNumber: "ME-CMA 82K32", startDate: "Jan-24", comments: "", taxPeriod: "Yearly Tax on Profit in US.", orderIndex: 4 },
+        { financialInstitute: "ME", activeStatus: "Active", accountType: "Traditional IRA", accountNumber: "ME-IRA 85363", startDate: "Jan-24", comments: "", taxPeriod: "Tax Deferred.", orderIndex: 5 },
+        { financialInstitute: "ME", activeStatus: "Active", accountType: "Rollover IRA", accountNumber: "ME-IRRA 73444", startDate: "Jan-24", comments: "", taxPeriod: "Tax Deferred.", orderIndex: 6 },
+        { financialInstitute: "ME", activeStatus: "Active", accountType: "Roth IRA", accountNumber: "ME-Roth 82T11", startDate: "Jan-24", comments: "", taxPeriod: "Tax Free Growth in US.", orderIndex: 7 },
+      ]);
+
+      await db.insert(depositDetailsTable).values([
+        { accountNumber: "CS 9271", dateInvested: "11/6/2024", amount: 6501.95, comments: "Transfer of Securities(In/Out)", orderIndex: 1 },
+        { accountNumber: "CS 9271", dateInvested: "11/6/2024", amount: 392.06, comments: "Transfer of Cash", orderIndex: 2 },
+        { accountNumber: "CS 9271", dateInvested: "2/22/2024", amount: 15500.00, comments: "", orderIndex: 3 },
+        { accountNumber: "CS 9271", dateInvested: "4/3/2024", amount: 10500.00, comments: "", orderIndex: 4 },
+        { accountNumber: "CS 9271", dateInvested: "6/25/2024", amount: 15000.00, comments: "", orderIndex: 5 },
+
+        { accountNumber: "CS 9538", dateInvested: "7/29/2024", amount: 100.00, comments: "Savings Money", orderIndex: 6 },
+        { accountNumber: "CS 9538", dateInvested: "8/5/2025", amount: 13500.00, comments: "Money is funded from Dish Shares Sales. Half money each", orderIndex: 7 },
+        { accountNumber: "CS 9538", dateInvested: "8/15/2025", amount: 22000.00, comments: "Transfer from Main Bank", orderIndex: 8 },
+
+        { accountNumber: "RH 8031", dateInvested: "2/10/2024", amount: 6553.49, comments: "Initial Deposit", orderIndex: 9 },
+        { accountNumber: "ME-CMA 82K32", dateInvested: "1/15/2024", amount: 50000.00, comments: "Core Cash Deposit", orderIndex: 10 },
+        { accountNumber: "ME-IRA 85363", dateInvested: "1/15/2024", amount: 64000.00, comments: "Rollover Contribution", orderIndex: 11 },
+        { accountNumber: "ME-IRRA 73444", dateInvested: "1/15/2024", amount: 150000.00, comments: "401k Rollover", orderIndex: 12 },
+        { accountNumber: "ME-Roth 82T11", dateInvested: "1/15/2024", amount: 200000.00, comments: "Roth Conversion Deposit", orderIndex: 13 },
+      ]);
     }
   })();
   return initializedPromise;
@@ -1220,4 +1272,196 @@ export async function searchMarketSymbols(queryRaw: string) {
       quoteType: "EQUITY",
     },
   ];
+}
+
+export async function getAccountDetailsData() {
+  await ensureDbSeeded();
+
+  const accDetailsRows = await db
+    .select()
+    .from(accountDetailsTable)
+    .orderBy(asc(accountDetailsTable.orderIndex), asc(accountDetailsTable.id));
+
+  const depositRows = await db
+    .select()
+    .from(depositDetailsTable)
+    .orderBy(asc(depositDetailsTable.orderIndex), asc(depositDetailsTable.id));
+
+  // Compute running cumulative sums per account
+  const depositsByAccount: Record<
+    string,
+    Array<{
+      id: number;
+      accountNumber: string;
+      dateInvested: string;
+      amount: number;
+      cumulativeAmt: number;
+      comments: string;
+      orderIndex: number;
+      isFinalForAccount?: boolean;
+    }>
+  > = {};
+
+  const finalCumulativeByAccount: Record<string, number> = {};
+
+  for (const acc of accDetailsRows) {
+    const accDeps = depositRows.filter(
+      (d) => d.accountNumber.trim().toUpperCase() === acc.accountNumber.trim().toUpperCase()
+    );
+    let running = 0;
+    const computed = accDeps.map((d, idx) => {
+      running = round2(running + d.amount);
+      const isFinal = idx === accDeps.length - 1;
+      return {
+        id: d.id,
+        accountNumber: d.accountNumber,
+        dateInvested: d.dateInvested,
+        amount: round2(d.amount),
+        cumulativeAmt: running,
+        comments: d.comments || "",
+        orderIndex: d.orderIndex,
+        isFinalForAccount: isFinal,
+      };
+    });
+    depositsByAccount[acc.accountNumber] = computed;
+    finalCumulativeByAccount[acc.accountNumber] = running;
+  }
+
+  // Map accountDetails with dynamically linked amountFromHand
+  const accountDetails = accDetailsRows.map((acc) => {
+    const finalCumulative = finalCumulativeByAccount[acc.accountNumber] ?? 0;
+    return {
+      id: acc.id,
+      financialInstitute: acc.financialInstitute,
+      activeStatus: acc.activeStatus,
+      accountType: acc.accountType,
+      accountNumber: acc.accountNumber,
+      startDate: acc.startDate,
+      comments: acc.comments || "",
+      taxPeriod: acc.taxPeriod,
+      orderIndex: acc.orderIndex,
+      amountFromHand: finalCumulative, // Dynamically linked!
+    };
+  });
+
+  const totalAmountFromHand = round2(
+    accountDetails.reduce((sum, item) => sum + item.amountFromHand, 0)
+  );
+
+  return {
+    accountDetails,
+    depositsByAccount,
+    totalAmountFromHand,
+  };
+}
+
+export async function addDeposit(data: {
+  accountNumber: string;
+  dateInvested: string;
+  amount: number;
+  comments?: string;
+}) {
+  await ensureDbSeeded();
+  const allDeps = await db.select().from(depositDetailsTable);
+  await db.insert(depositDetailsTable).values({
+    accountNumber: data.accountNumber.trim(),
+    dateInvested: data.dateInvested.trim(),
+    amount: round2(Number(data.amount) || 0),
+    comments: data.comments?.trim() || "",
+    orderIndex: allDeps.length + 1,
+  });
+  return getAccountDetailsData();
+}
+
+export async function editDeposit(data: {
+  id: number;
+  accountNumber?: string;
+  dateInvested?: string;
+  amount?: number;
+  comments?: string;
+}) {
+  await ensureDbSeeded();
+  const updateData: Partial<{
+    accountNumber: string;
+    dateInvested: string;
+    amount: number;
+    comments: string;
+  }> = {};
+  if (data.accountNumber !== undefined) updateData.accountNumber = data.accountNumber.trim();
+  if (data.dateInvested !== undefined) updateData.dateInvested = data.dateInvested.trim();
+  if (data.amount !== undefined) updateData.amount = round2(Number(data.amount) || 0);
+  if (data.comments !== undefined) updateData.comments = data.comments.trim();
+
+  await db
+    .update(depositDetailsTable)
+    .set(updateData)
+    .where(eq(depositDetailsTable.id, Number(data.id)));
+
+  return getAccountDetailsData();
+}
+
+export async function deleteDeposit(id: number) {
+  await ensureDbSeeded();
+  await db.delete(depositDetailsTable).where(eq(depositDetailsTable.id, Number(id)));
+  return getAccountDetailsData();
+}
+
+export async function editAccountDetail(data: {
+  id: number;
+  financialInstitute?: string;
+  activeStatus?: string;
+  accountType?: string;
+  accountNumber?: string;
+  startDate?: string;
+  comments?: string;
+  taxPeriod?: string;
+}) {
+  await ensureDbSeeded();
+  const updateData: Partial<{
+    financialInstitute: string;
+    activeStatus: string;
+    accountType: string;
+    accountNumber: string;
+    startDate: string;
+    comments: string;
+    taxPeriod: string;
+  }> = {};
+  if (data.financialInstitute !== undefined) updateData.financialInstitute = data.financialInstitute.trim();
+  if (data.activeStatus !== undefined) updateData.activeStatus = data.activeStatus.trim();
+  if (data.accountType !== undefined) updateData.accountType = data.accountType.trim();
+  if (data.accountNumber !== undefined) updateData.accountNumber = data.accountNumber.trim();
+  if (data.startDate !== undefined) updateData.startDate = data.startDate.trim();
+  if (data.comments !== undefined) updateData.comments = data.comments.trim();
+  if (data.taxPeriod !== undefined) updateData.taxPeriod = data.taxPeriod.trim();
+
+  await db
+    .update(accountDetailsTable)
+    .set(updateData)
+    .where(eq(accountDetailsTable.id, Number(data.id)));
+
+  return getAccountDetailsData();
+}
+
+export async function addAccountDetail(data: {
+  financialInstitute?: string;
+  activeStatus?: string;
+  accountType?: string;
+  accountNumber: string;
+  startDate?: string;
+  comments?: string;
+  taxPeriod?: string;
+}) {
+  await ensureDbSeeded();
+  const allAccs = await db.select().from(accountDetailsTable);
+  await db.insert(accountDetailsTable).values({
+    financialInstitute: data.financialInstitute?.trim() || "CS",
+    activeStatus: data.activeStatus?.trim() || "Active",
+    accountType: data.accountType?.trim() || "Trading Account",
+    accountNumber: data.accountNumber.trim(),
+    startDate: data.startDate?.trim() || "",
+    comments: data.comments?.trim() || "",
+    taxPeriod: data.taxPeriod?.trim() || "Yearly Tax on Profit in US.",
+    orderIndex: allAccs.length + 1,
+  });
+  return getAccountDetailsData();
 }

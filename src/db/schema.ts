@@ -94,6 +94,27 @@ export const marketCacheTable = pgTable("market_cache", {
   lastUpdated: text("last_updated").notNull(),
 });
 
+export const accountDetailsTable = pgTable("portfolio_account_details", {
+  id: serial("id").primaryKey(),
+  financialInstitute: text("financial_institute").notNull().default("CS"),
+  activeStatus: text("active_status").notNull().default("Active"),
+  accountType: text("account_type").notNull().default("Trading Account"),
+  accountNumber: text("account_number").notNull().unique("portfolio_account_details_account_number_key"),
+  startDate: text("start_date").notNull().default(""),
+  comments: text("comments").notNull().default(""),
+  taxPeriod: text("tax_period").notNull().default("Yearly Tax on Profit in US."),
+  orderIndex: integer("order_index").notNull().default(0),
+});
+
+export const depositDetailsTable = pgTable("portfolio_deposit_details", {
+  id: serial("id").primaryKey(),
+  accountNumber: text("account_number").notNull(),
+  dateInvested: text("date_invested").notNull(),
+  amount: doublePrecision("amount").notNull().default(0),
+  comments: text("comments").notNull().default(""),
+  orderIndex: integer("order_index").notNull().default(0),
+});
+
 // Named export aliases for compatibility across all modules & routes
 export const accounts = accountsTable;
 export const masterAccounts = accountsTable;
@@ -109,3 +130,5 @@ export const weeklyAccountHistory = weeklyHistoryTable;
 export const transactionHistory = transactionHistoryTable;
 export const weeklyTransactionHistory = transactionHistoryTable;
 export const marketCache = marketCacheTable;
+export const accountDetails = accountDetailsTable;
+export const depositDetails = depositDetailsTable;
