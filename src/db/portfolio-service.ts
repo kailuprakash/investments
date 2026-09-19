@@ -362,14 +362,6 @@ export async function getPortfolioState() {
       .replace(/^[0-9]+\.\s*/, "")
       .replace(/[\s_-]+/g, "");
 
-  // Link Principal Amount from Deposit Details directly to Account Value in Account's Summary
-  const depositRows = await db.select().from(depositDetailsTable);
-  const principalByAccount: Record<string, number> = {};
-  for (const d of depositRows) {
-    const key = normAcc(d.accountNumber);
-    principalByAccount[key] = round2((principalByAccount[key] || 0) + d.amount);
-  }
-
   // Active status lookup from accountDetailsTable
   const accDetailsRows = await db.select().from(accountDetailsTable);
   const activeStatusByAccount: Record<string, string> = {};
@@ -405,18 +397,10 @@ export async function getPortfolioState() {
     const amountInvested = round2(accHoldings.reduce((sum, h) => sum + h.investAmount, 0));
     const investmentCurrent = round2(accHoldings.reduce((sum, h) => sum + h.overallCurrentPrice, 0));
 
-    // Linked directly to Principal Amount (amount from hand) in Account Details if configured!
+    // Independent Account Value and Cash Balance calculation in Account's Summary (unlinked from Deposit Details)
     const key = normAcc(acc.accountNumber);
-    const principalAmount = principalByAccount[key];
-    const accountOverallMoney =
-      principalAmount !== undefined && principalAmount > 0
-        ? principalAmount
-        : round2(round2(acc.cashAvailable) + investmentCurrent);
-
-    const cashAvailable =
-      principalAmount !== undefined && principalAmount > 0
-        ? round2(Math.max(0, accountOverallMoney - investmentCurrent))
-        : round2(acc.cashAvailable);
+    const cashAvailable = round2(acc.cashAvailable);
+    const accountOverallMoney = round2(cashAvailable + investmentCurrent);
 
     const gainLoss = round2(investmentCurrent - amountInvested);
     const gainLossPercent = amountInvested > 0 ? round2((gainLoss / amountInvested) * 100) : 0;
@@ -1062,13 +1046,14 @@ export async function saveAccount(data: {
     : allAccounts.find((a) => norm(a.accountNumber) === norm(accountNumber));
 
   if (existing) {
-    const updateObj: Partial<{ accountName: string; cashAvailable: number; comments: string }> = {
-      comments,
-    };
-    if (data.accountName) updateObj.accountName = accountName;
+    const updateObj: Partial<{ accountName: string; cashAvailable: number; comments: string }> = {};
+    if (data.comments !== undefined) updateObj.comments = comments;
+    if (data.accountName !== undefined) updateObj.accountName = accountName;
     if (data.cashAvailable !== undefined) updateObj.cashAvailable = round2(Number(data.cashAvailable));
 
-    await db.update(accountsTable).set(updateObj).where(eq(accountsTable.id, existing.id));
+    if (Object.keys(updateObj).length > 0) {
+      await db.update(accountsTable).set(updateObj).where(eq(accountsTable.id, existing.id));
+    }
   } else {
     await db.insert(accountsTable).values({
       sNo: allAccounts.length + 1,
@@ -1079,14 +1064,16 @@ export async function saveAccount(data: {
     });
   }
 
-  // Also sync comments to accountDetailsTable if matching
-  const allAccDetails = await db.select().from(accountDetailsTable);
-  const matchAd = allAccDetails.find((a) => norm(a.accountNumber) === norm(accountNumber));
-  if (matchAd) {
-    await db
-      .update(accountDetailsTable)
-      .set({ comments })
-      .where(eq(accountDetailsTable.id, matchAd.id));
+  // Also sync comments to accountDetailsTable if comments were provided
+  if (data.comments !== undefined) {
+    const allAccDetails = await db.select().from(accountDetailsTable);
+    const matchAd = allAccDetails.find((a) => norm(a.accountNumber) === norm(accountNumber));
+    if (matchAd) {
+      await db
+        .update(accountDetailsTable)
+        .set({ comments })
+        .where(eq(accountDetailsTable.id, matchAd.id));
+    }
   }
 
   return getPortfolioState();
@@ -1651,14 +1638,13 @@ export async function addAccountDetail(data: {
       sNo: allSummaryAccs.length + 1,
       accountNumber: accNum,
       accountName: accNum,
-      cashAvailable: initialAmt,
+      cashAvailable: 0,
       comments: data.comments?.trim() || "",
     });
   } else {
     await db
       .update(accountsTable)
       .set({
-        cashAvailable: initialAmt > 0 ? initialAmt : exists.cashAvailable,
         comments: data.comments?.trim() || exists.comments,
       })
       .where(eq(accountsTable.id, exists.id));

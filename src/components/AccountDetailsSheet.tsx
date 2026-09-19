@@ -43,13 +43,31 @@ interface AccountDetailsSheetProps {
 
 function formatCurrency(val: number | null | undefined): string {
   if (val === null || val === undefined || isNaN(val)) return "$0.00";
-  return (
-    "$" +
-    Number(val).toLocaleString(undefined, {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    })
-  );
+  const num = Number(val);
+  const formatted = Math.abs(num).toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  return num < 0 ? `-$${formatted}` : `$${formatted}`;
+}
+
+function formatDateOnly(val: string | null | undefined): string {
+  if (!val) return "—";
+  const str = String(val).trim();
+  if (!str || str === "—") return "—";
+  if (/^[A-Za-z]{3}-\d{2,4}$/.test(str)) return str;
+  if (str.includes("T")) {
+    const d = new Date(str);
+    if (!isNaN(d.getTime())) {
+      return `${d.getUTCMonth() + 1}/${d.getUTCDate()}/${d.getUTCFullYear()}`;
+    }
+    return str.split("T")[0];
+  }
+  if (str.includes(",")) return str.split(",")[0].trim();
+  if (/\s+\d{1,2}:\d{2}/.test(str)) {
+    return str.replace(/\s+\d{1,2}:\d{2}(?::\d{2})?(?:\s*[AaPp][Mm])?.*$/, "").trim();
+  }
+  return str;
 }
 
 export default function AccountDetailsSheet({
@@ -65,7 +83,7 @@ export default function AccountDetailsSheet({
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  // In-cell editing state for Deposit Amount
+  // In-cell editing state for Deposit Amount (allows positive and negative amounts)
   const [editingAmountId, setEditingAmountId] = useState<number | null>(null);
   const [editingAmountVal, setEditingAmountVal] = useState<string>("");
   const [isSavingInline, setIsSavingInline] = useState<boolean>(false);
@@ -122,7 +140,7 @@ export default function AccountDetailsSheet({
   const handleOpenAddDeposit = (accountNum?: string) => {
     setEditingDeposit(null);
     setDepAccount(accountNum || accountDetails[0]?.accountNumber || "CS 9271");
-    setDepDate(new Date().toLocaleDateString("en-US"));
+    setDepDate(formatDateOnly(new Date().toLocaleDateString("en-US")));
     setDepAmount("");
     setDepComments("");
     setDepositModalOpen(true);
@@ -131,13 +149,13 @@ export default function AccountDetailsSheet({
   const handleOpenEditDeposit = (deposit: DepositDetail) => {
     setEditingDeposit(deposit);
     setDepAccount(deposit.accountNumber);
-    setDepDate(deposit.dateInvested);
+    setDepDate(formatDateOnly(deposit.dateInvested));
     setDepAmount(String(deposit.amount));
     setDepComments(deposit.comments || "");
     setDepositModalOpen(true);
   };
 
-  // Direct In-Cell Edit for Deposit Amount
+  // Direct In-Cell Edit for Deposit Amount (Allows positive & negative amounts)
   const startInlineEditAmount = (deposit: DepositDetail) => {
     setEditingAmountId(deposit.id);
     setEditingAmountVal(String(deposit.amount));
@@ -150,8 +168,8 @@ export default function AccountDetailsSheet({
 
   const handleSaveInlineAmount = async (deposit: DepositDetail) => {
     const val = parseFloat(editingAmountVal);
-    if (isNaN(val) || val <= 0) {
-      alert("Please enter a valid deposit amount greater than zero.");
+    if (isNaN(val) || !Number.isFinite(val) || val === 0) {
+      alert("Please enter a valid deposit amount (positive or negative, non-zero).");
       return;
     }
 
@@ -179,7 +197,7 @@ export default function AccountDetailsSheet({
         onNotify(
           `Deposit amount updated to ${formatCurrency(
             val
-          )}! Principle amount and Account's Summary updated.`
+          )}! Principle amount in Account Details recalculated.`
         );
       if (onDataChanged) onDataChanged();
     } catch (err) {
@@ -193,12 +211,13 @@ export default function AccountDetailsSheet({
     e.preventDefault();
     if (!depAccount) return alert("Select an account.");
     const amt = parseFloat(depAmount);
-    if (isNaN(amt) || amt <= 0)
-      return alert("Enter a valid deposit amount greater than zero.");
+    if (isNaN(amt) || !Number.isFinite(amt) || amt === 0)
+      return alert("Enter a valid deposit amount (positive or negative, non-zero).");
     if (!depDate.trim()) return alert("Enter a valid investment date.");
 
     try {
       setIsSubmitting(true);
+      const cleanDate = formatDateOnly(depDate.trim());
       if (editingDeposit) {
         const res = await fetch("/api/account-details", {
           method: "POST",
@@ -208,7 +227,7 @@ export default function AccountDetailsSheet({
             data: {
               id: editingDeposit.id,
               accountNumber: depAccount,
-              dateInvested: depDate.trim(),
+              dateInvested: cleanDate,
               amount: amt,
               comments: depComments.trim(),
             },
@@ -230,7 +249,7 @@ export default function AccountDetailsSheet({
             action: "add-deposit",
             data: {
               accountNumber: depAccount,
-              dateInvested: depDate.trim(),
+              dateInvested: cleanDate,
               amount: amt,
               comments: depComments.trim(),
             },
@@ -285,6 +304,7 @@ export default function AccountDetailsSheet({
     if (!accNumber.trim()) return alert("Account # is required");
     try {
       setIsSubmitting(true);
+      const cleanStartDate = formatDateOnly(accStartDate.trim());
       const res = await fetch("/api/account-details", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -295,7 +315,7 @@ export default function AccountDetailsSheet({
             activeStatus: accStatus.trim(),
             accountType: accType.trim(),
             accountNumber: accNumber.trim(),
-            startDate: accStartDate.trim(),
+            startDate: cleanStartDate === "—" ? "" : cleanStartDate,
             comments: accComments.trim(),
             taxPeriod: accTaxPeriod.trim(),
             initialAmount: parseFloat(accInitialAmount) || 0,
@@ -322,9 +342,18 @@ export default function AccountDetailsSheet({
 
   // =========================================================================
   // COLUMN WIDTHS: Strictly aligned to maximum text character size
+  // Comments and Tax period moved AFTER Principal Amount!
   // =========================================================================
 
-  // Table 1 (Account Details) - Exactly 8 columns (NO Action column)
+  // Table 1 (Account Details) - Column order:
+  // 1: Account #
+  // 2: Financial Institute/Bank
+  // 3: Active Status
+  // 4: Account Type
+  // 5: ~Start Date
+  // 6: Amount from Hand (Principle Amount)
+  // 7: Comments
+  // 8: Tax period
   const accColWidths = useMemo(() => {
     const calcMaxContentW = (header: string, values: string[], extraPadding = 22) => {
       const maxLen = Math.max(
@@ -342,9 +371,7 @@ export default function AccountDetailsSheet({
       ),
       calcMaxContentW("Active Status", accountDetails.map((a) => a.activeStatus)),
       calcMaxContentW("Account Type", accountDetails.map((a) => a.accountType)),
-      calcMaxContentW("~Start Date", accountDetails.map((a) => a.startDate)),
-      calcMaxContentW("Comments", accountDetails.map((a) => a.comments || "—")),
-      calcMaxContentW("Tax period", accountDetails.map((a) => a.taxPeriod)),
+      calcMaxContentW("~Start Date", accountDetails.map((a) => formatDateOnly(a.startDate))),
       // Amount from Hand header & values (including Total Amount)
       calcMaxContentW(
         "Amount from Hand (Principle Amount)",
@@ -354,6 +381,8 @@ export default function AccountDetailsSheet({
         ],
         26
       ),
+      calcMaxContentW("Comments", accountDetails.map((a) => a.comments || "—")),
+      calcMaxContentW("Tax period", accountDetails.map((a) => a.taxPeriod)),
     ];
   }, [accountDetails, totalAmountFromHand]);
 
@@ -389,10 +418,10 @@ export default function AccountDetailsSheet({
       ),
       calcMaxContentW(
         "Deposit Date",
-        allDeposits.map((d) => d.dateInvested),
+        allDeposits.map((d) => formatDateOnly(d.dateInvested)),
         22
       ),
-      // Amount column: includes extra space for inline edit controls
+      // Amount column: includes extra space for inline edit controls & negative sign
       calcMaxContentW(
         "Amount",
         allDeposits.map((d) => formatCurrency(d.amount)),
@@ -465,7 +494,7 @@ export default function AccountDetailsSheet({
               ))}
             </colgroup>
             <thead>
-              {/* Header row in Periwinkle Slate Blue #D9E1F2 (NO Action column) */}
+              {/* Table 1 Header: Comments and Tax period moved after Principal Amount */}
               <tr className="border-b border-slate-400 bg-[#D9E1F2] text-center font-bold text-[#1F4E79]">
                 <th className="border border-slate-300 px-3 py-1.5 text-left whitespace-nowrap">
                   Account #
@@ -482,18 +511,18 @@ export default function AccountDetailsSheet({
                 <th className="border border-slate-300 px-3 py-1.5 text-center whitespace-nowrap">
                   ~Start Date
                 </th>
-                <th className="border border-slate-300 px-3 py-1.5 text-left whitespace-nowrap">
-                  Comments
-                </th>
-                <th className="border border-slate-300 px-3 py-1.5 text-left whitespace-nowrap">
-                  Tax period
-                </th>
                 <th className="border border-slate-300 px-3 py-1.5 text-right whitespace-nowrap bg-[#C6D9F1] text-[#1F4E79] font-bold">
                   Amount from Hand
                   <br />
                   <span className="text-[9.5px] font-normal text-slate-700">
                     (Principle Amount)
                   </span>
+                </th>
+                <th className="border border-slate-300 px-3 py-1.5 text-left whitespace-nowrap">
+                  Comments
+                </th>
+                <th className="border border-slate-300 px-3 py-1.5 text-left whitespace-nowrap">
+                  Tax period
                 </th>
               </tr>
             </thead>
@@ -524,16 +553,11 @@ export default function AccountDetailsSheet({
                     <td className="border border-slate-300 px-3 py-1.5 font-semibold text-blue-950 whitespace-nowrap">
                       {acc.accountType}
                     </td>
+                    {/* Column 5: ~Start Date (Date Only, no timestamp) */}
                     <td className="border border-slate-300 px-3 py-1.5 text-center text-slate-700 whitespace-nowrap font-mono text-[11px]">
-                      {acc.startDate || "—"}
+                      {formatDateOnly(acc.startDate)}
                     </td>
-                    <td className="border border-slate-300 px-3 py-1.5 text-slate-600 whitespace-nowrap">
-                      {acc.comments || "—"}
-                    </td>
-                    <td className="border border-slate-300 px-3 py-1.5 text-slate-700 whitespace-nowrap text-[11px]">
-                      {acc.taxPeriod}
-                    </td>
-                    {/* Amount from Hand (Principle Amount) */}
+                    {/* Column 6: Amount from Hand (Principle Amount) */}
                     <td
                       className={`border border-slate-300 px-3 py-1.5 text-right font-mono font-bold whitespace-nowrap ${
                         isGreenHighlight
@@ -551,23 +575,36 @@ export default function AccountDetailsSheet({
                         >
                           <LinkIcon className="h-2.5 w-2.5 inline" />
                         </span>
-                        <span>{formatCurrency(acc.amountFromHand)}</span>
+                        <span className={acc.amountFromHand < 0 ? "text-red-600" : ""}>
+                          {formatCurrency(acc.amountFromHand)}
+                        </span>
                       </div>
+                    </td>
+                    {/* Column 7: Comments (Moved after Principal Amount) */}
+                    <td className="border border-slate-300 px-3 py-1.5 text-slate-600 whitespace-nowrap">
+                      {acc.comments || "—"}
+                    </td>
+                    {/* Column 8: Tax period (Moved after Principal Amount) */}
+                    <td className="border border-slate-300 px-3 py-1.5 text-slate-700 whitespace-nowrap text-[11px]">
+                      {acc.taxPeriod}
                     </td>
                   </tr>
                 );
               })}
 
-              {/* Total Row: "Total Amount" (Exactly 8 columns spanning 7 + 1) */}
+              {/* Total Row: "Total Amount" (Columns 1-5 spanned, col 6 Amount, cols 7-8 spanned) */}
               <tr className="bg-[#E2EFDA] font-extrabold text-slate-900 border-t-2 border-slate-400">
                 <td
-                  colSpan={7}
+                  colSpan={5}
                   className="border border-slate-400 px-3 py-2 text-right uppercase tracking-wider text-[11px]"
                 >
                   Total Amount:
                 </td>
-                <td className="border border-slate-400 px-3 py-2 text-right font-mono text-[13px] text-emerald-950 bg-[#C6E0B4] whitespace-nowrap">
+                <td className={`border border-slate-400 px-3 py-2 text-right font-mono text-[13px] bg-[#C6E0B4] whitespace-nowrap ${totalAmountFromHand < 0 ? "text-red-700" : "text-emerald-950"}`}>
                   {formatCurrency(totalAmountFromHand)}
+                </td>
+                <td colSpan={2} className="border border-slate-400 text-center whitespace-nowrap text-slate-400">
+                  —
                 </td>
               </tr>
             </tbody>
@@ -575,7 +612,7 @@ export default function AccountDetailsSheet({
         </div>
       </div>
 
-      {/* SECTION 2: DEPOSIT DETAILS TABLE (WITH EDITABLE AMOUNT) */}
+      {/* SECTION 2: DEPOSIT DETAILS TABLE (WITH EDITABLE AMOUNT - ALLOWS NEGATIVE) */}
       <div className="overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-[0_12px_32px_-24px_rgba(15,23,42,0.65)]">
         {/* Banner: "Deposit Details" */}
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-blue-950/25 bg-[linear-gradient(110deg,#173f68_0%,#245d8f_55%,#1b4b76_100%)] px-3.5 py-1.5 text-white">
@@ -646,6 +683,8 @@ export default function AccountDetailsSheet({
                       deps.map((dep, depIdx) => {
                         const isFinalRow = depIdx === deps.length - 1;
                         const isEditingThisAmount = editingAmountId === dep.id;
+                        const isNegativeAmount = dep.amount < 0;
+                        const isNegativeCumulative = dep.cumulativeAmt < 0;
 
                         return (
                           <tr
@@ -674,11 +713,13 @@ export default function AccountDetailsSheet({
                                 </span>
                               )}
                             </td>
+
+                            {/* Deposit Date (Date Only, no timestamp) */}
                             <td className="border border-slate-300 px-3 py-1.5 text-center font-mono text-[11px] whitespace-nowrap text-slate-800">
-                              {dep.dateInvested}
+                              {formatDateOnly(dep.dateInvested)}
                             </td>
 
-                            {/* EDITABLE AMOUNT CELL: Direct in-cell edit with double-click or pencil */}
+                            {/* EDITABLE AMOUNT CELL: Direct in-cell edit with double-click or pencil (allows negative) */}
                             <td
                               onDoubleClick={(e) => {
                                 e.stopPropagation();
@@ -689,7 +730,7 @@ export default function AccountDetailsSheet({
                                   ? "bg-amber-50 ring-2 ring-emerald-600 ring-inset"
                                   : "hover:bg-amber-50/50"
                               }`}
-                              title="Double-click or click pencil to edit deposit amount"
+                              title="Double-click or click pencil to edit deposit amount (positive or negative)"
                             >
                               {isEditingThisAmount ? (
                                 <div
@@ -699,7 +740,6 @@ export default function AccountDetailsSheet({
                                   <input
                                     type="number"
                                     step="any"
-                                    min="0.01"
                                     autoFocus
                                     value={editingAmountVal}
                                     onChange={(e) => setEditingAmountVal(e.target.value)}
@@ -713,6 +753,7 @@ export default function AccountDetailsSheet({
                                       }
                                     }}
                                     disabled={isSavingInline}
+                                    placeholder="± Amount"
                                     className="w-24 px-1 py-0.5 bg-white border-2 border-emerald-600 rounded text-right font-mono font-bold text-xs outline-none shadow-xs"
                                   />
                                   <button
@@ -746,7 +787,11 @@ export default function AccountDetailsSheet({
                                   >
                                     <Pencil className="w-3 h-3" />
                                   </button>
-                                  <span className="font-semibold text-slate-900">
+                                  <span
+                                    className={`font-semibold ${
+                                      isNegativeAmount ? "text-red-600 font-bold" : "text-slate-900"
+                                    }`}
+                                  >
                                     {formatCurrency(dep.amount)}
                                   </span>
                                 </div>
@@ -757,7 +802,11 @@ export default function AccountDetailsSheet({
                             <td
                               className={`border border-slate-300 px-3 py-1.5 text-right font-mono font-bold whitespace-nowrap ${
                                 isFinalRow
-                                  ? "bg-[#E2EFDA] text-emerald-950"
+                                  ? isNegativeCumulative
+                                    ? "bg-red-50 text-red-800"
+                                    : "bg-[#E2EFDA] text-emerald-950"
+                                  : isNegativeCumulative
+                                  ? "text-red-600"
                                   : "text-slate-900"
                               }`}
                               title={
@@ -771,7 +820,9 @@ export default function AccountDetailsSheet({
                               <div className="flex items-center justify-end gap-1.5">
                                 {isFinalRow && (
                                   <span
-                                    className="text-[9px] font-sans font-bold text-emerald-700"
+                                    className={`text-[9px] font-sans font-bold ${
+                                      isNegativeCumulative ? "text-red-700" : "text-emerald-700"
+                                    }`}
                                     title="Linked to Account Details table"
                                   >
                                     Linked
@@ -852,26 +903,25 @@ export default function AccountDetailsSheet({
         </div>
       </div>
 
-      {/* Information Banner on Table Architecture & Linking */}
+      {/* Information Banner on Table Architecture */}
       <div className="flex items-start gap-2.5 rounded-lg border border-blue-200/90 bg-blue-50/70 p-3 text-[11px] text-blue-950 shadow-2xs">
         <LinkIcon className="h-4 w-4 shrink-0 text-blue-700 mt-0.5" />
         <div className="space-y-0.5">
           <p className="font-bold text-blue-900">
-            Independent Table Architecture & Strict Deposit-Only Reference:
+            Independent Table Architecture & Deposit-Only Reference:
           </p>
           <p className="text-slate-600 leading-relaxed text-[10.5px]">
             <strong>Account Details</strong> and <strong>Deposit Details</strong> are stored
             in separate, dedicated database tables (<code>portfolio_account_details</code>{" "}
             and <code>portfolio_deposit_details</code>). The{" "}
-            <em>Amount from Hand (Principle Amount)</em> column is calculated and referenced
-            strictly from the cumulative deposits for each matching <strong>Account #</strong>,
-            which simultaneously links directly to the <em>Account Value</em> in
-            Account&apos;s Summary.
+            <em>Amount from Hand (Principle Amount)</em> column in the Account Details section is
+            calculated and referenced strictly from the cumulative deposits for each matching{" "}
+            <strong>Account #</strong>, independent of the Account&apos;s Summary table value.
           </p>
         </div>
       </div>
 
-      {/* MODAL: ADD / EDIT DEPOSIT */}
+      {/* MODAL: ADD / EDIT DEPOSIT (ALLOWS NEGATIVE AMOUNTS) */}
       {depositModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-in fade-in duration-150">
           <div className="bg-white rounded-xl shadow-2xl border border-slate-300 w-full max-w-md overflow-hidden flex flex-col">
@@ -913,7 +963,7 @@ export default function AccountDetailsSheet({
 
               <div>
                 <label className="block text-slate-700 font-bold mb-1">
-                  Deposit Date
+                  Deposit Date (Date Only)
                 </label>
                 <input
                   type="text"
@@ -927,15 +977,14 @@ export default function AccountDetailsSheet({
 
               <div>
                 <label className="block text-slate-700 font-bold mb-1">
-                  Amount ($)
+                  Amount ($) <span className="text-[10px] font-normal text-slate-500">(Negative amounts allowed for withdrawals/adjustments)</span>
                 </label>
                 <input
                   type="number"
                   step="any"
-                  min="0.01"
                   value={depAmount}
                   onChange={(e) => setDepAmount(e.target.value)}
-                  placeholder="e.g. 15000.00"
+                  placeholder="e.g. 15000.00 or -2500.00"
                   className="w-full bg-slate-50 border border-slate-300 rounded p-2 font-mono text-xs focus:ring-2 focus:ring-[#1F4E79] outline-none"
                   required
                 />
@@ -960,8 +1009,7 @@ export default function AccountDetailsSheet({
                 </span>
                 The running cumulative sum will be recalculated automatically and
                 linked to <strong>Amount from Hand (Principle Amount)</strong> in the
-                Account Details table and <strong>Account Value</strong> in Account&apos;s
-                Summary.
+                Account Details table.
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200">
@@ -1066,7 +1114,7 @@ export default function AccountDetailsSheet({
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-slate-700 font-bold mb-1">
-                    ~Start Date
+                    ~Start Date (Date Only)
                   </label>
                   <input
                     type="text"
@@ -1092,18 +1140,18 @@ export default function AccountDetailsSheet({
 
               <div>
                 <label className="block text-slate-700 font-bold mb-1">
-                  Initial Principle Amount / Deposit ($) <span className="text-[10px] font-normal text-slate-500">(Optional - links to Account Value in Account's Summary)</span>
+                  Initial Principle Amount / Deposit ($) <span className="text-[10px] font-normal text-slate-500">(Optional - records initial deposit in Deposit Details)</span>
                 </label>
                 <input
                   type="number"
                   step="any"
-                  min="0"
                   value={accInitialAmount}
                   onChange={(e) => setAccInitialAmount(e.target.value)}
-                  placeholder="e.g. 50000.00 (default: 0.00)"
+                  placeholder="e.g. 50000.00 or -2000.00 (default: 0.00)"
                   className="w-full bg-slate-50 border border-slate-300 rounded p-2 font-mono text-xs focus:ring-2 focus:ring-[#1F4E79] outline-none"
                 />
               </div>
+
               <div>
                 <label className="block text-slate-700 font-bold mb-1">
                   Comments

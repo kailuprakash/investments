@@ -168,6 +168,11 @@ const e = {
   let [commentVal,setCommentVal]=(0,r.useState)("");
   let [isSavingComment,setIsSavingComment]=(0,r.useState)(false);
 
+  // In-cell editing for Cash Balance / Cash Available
+  let [editingCashAccNum,setEditingCashAccNum]=(0,r.useState)(null);
+  let [cashVal,setCashVal]=(0,r.useState)("");
+  let [isSavingCash,setIsSavingCash]=(0,r.useState)(false);
+
   let startEditComment=acc=>{
     setEditingAccNum(acc.accountNumber);
     setCommentVal(acc.comments||"");
@@ -193,6 +198,36 @@ const e = {
     }
   };
 
+  let startEditCash=acc=>{
+    setEditingCashAccNum(acc.accountNumber);
+    setCashVal(String(acc.cashAvailable ?? 0));
+  };
+
+  let cancelEditCash=()=>{
+    setEditingCashAccNum(null);
+    setCashVal("");
+  };
+
+  let handleSaveCash=async acc=>{
+    if(!s)return;
+    let numVal=parseFloat(cashVal);
+    if(isNaN(numVal)||!Number.isFinite(numVal)){
+      alert("Please enter a valid cash balance amount.");
+      return;
+    }
+    try{
+      setIsSavingCash(true);
+      await s({accountNumber:acc.accountNumber,cashAvailable:numVal});
+      setEditingCashAccNum(null);
+      setCashVal("");
+    }catch(err){
+      console.error(err);
+      alert(err instanceof Error?err.message:"Failed to save cash balance");
+    }finally{
+      setIsSavingCash(false);
+    }
+  };
+
   let safeAccounts = Array.isArray(e) ? e : [];
   let safeTotal = gt || {
     accountOverallMoney: 0,
@@ -203,12 +238,12 @@ const e = {
     gainLossPercent: 0
   };
 
-  let calcMaxColW=(header,vals)=>Math.ceil(Math.max(header.length,...vals.map(v=>String(v??"").length))*7.4+22);
+  let calcMaxColW=(header,vals,extraPad=22)=>Math.ceil(Math.max(header.length,...vals.map(v=>String(v??"").length))*7.4+extraPad);
   let summaryColWidths=[
     calcMaxColW("S. No.",[...safeAccounts.map((_,idx)=>String(idx+1)),"Total"]),
     calcMaxColW("Account",[...safeAccounts.map(x=>`${x.accountNumber} (${x.accountName})`),"All Accounts"]),
     calcMaxColW("Account Value",[...safeAccounts.map(x=>D(x.accountOverallMoney).text),D(safeTotal.accountOverallMoney).text]),
-    calcMaxColW("Cash Balance",[...safeAccounts.map(x=>D(x.cashAvailable).text),D(safeTotal.cashAvailable).text]),
+    calcMaxColW("Cash Balance",[...safeAccounts.map(x=>D(x.cashAvailable).text),D(safeTotal.cashAvailable).text],32),
     calcMaxColW("Amount Invested",[...safeAccounts.map(x=>D(x.amountInvested).text),D(safeTotal.amountInvested).text]),
     calcMaxColW("Current Value",[...safeAccounts.map(x=>D(x.investmentCurrent).text),D(safeTotal.investmentCurrent).text]),
     calcMaxColW("Gain / Loss",[...safeAccounts.map(x=>`${M(x.gainLoss).text} (${U(x.gainLossPercent).text})`),`${M(safeTotal.gainLoss).text} (${U(safeTotal.gainLossPercent).text})`]),
@@ -241,7 +276,18 @@ const e = {
                   (0,t.jsx)("th",{className:"border border-slate-300 text-center whitespace-nowrap",children:"S. No."}),
                   (0,t.jsx)("th",{className:"border border-slate-300 text-left whitespace-nowrap",children:"Account"}),
                   (0,t.jsx)("th",{className:"border border-slate-300 text-right whitespace-nowrap",children:"Account Value"}),
-                  (0,t.jsx)("th",{className:"border border-slate-300 text-right whitespace-nowrap",children:"Cash Balance"}),
+                  (0,t.jsxs)("th",{
+                    className:"border border-slate-300 text-right whitespace-nowrap bg-[#FFF2CC] text-[#78350F] font-bold",
+                    children:[
+                      (0,t.jsxs)("div",{
+                        className:"inline-flex items-center justify-end gap-1",
+                        children:[
+                          (0,t.jsx)("span",{children:"Cash Balance"}),
+                          (0,t.jsx)(ea,{className:"h-2.5 w-2.5 text-amber-600 inline"})
+                        ]
+                      })
+                    ]
+                  }),
                   (0,t.jsx)("th",{className:"border border-slate-300 text-right whitespace-nowrap",children:"Amount Invested"}),
                   (0,t.jsx)("th",{className:"border border-slate-300 text-right whitespace-nowrap",children:"Current Value"}),
                   (0,t.jsx)("th",{className:"border border-slate-300 text-right whitespace-nowrap",children:"Gain / Loss"}),
@@ -265,6 +311,7 @@ const e = {
                 safeAccounts.map((item,rowIdx)=>{
                   let a=4+rowIdx,o=D(item.accountOverallMoney),c=D(item.cashAvailable),f=D(item.amountInvested),h=D(item.investmentCurrent),d=M(item.gainLoss),u=U(item.gainLossPercent);
                   let isEditingThisComment = editingAccNum === item.accountNumber;
+                  let isEditingThisCash = editingCashAccNum === item.accountNumber;
                   let isInactive = Boolean(item.isInactive || (item.activeStatus && String(item.activeStatus).toUpperCase() === "INACTIVE"));
                   return(0,t.jsxs)("tr",{
                     className: isInactive
@@ -278,11 +325,66 @@ const e = {
                         (0,t.jsxs)("span",{className:`ml-1 text-[10px] font-normal ${isInactive?"text-slate-400":"text-slate-500"}`,children:["(",item.accountName,")"]})
                       ]}),
                       (0,t.jsx)("td",{onClick:()=>n({cellId:`C${a}`,label:`${item.accountNumber} Account Value`,value:o.text,formula:`=D${a}+F${a}`}),className:`border border-slate-300 px-2.5 py-1 text-right font-mono font-bold whitespace-nowrap ${isInactive?"text-slate-500":""} ${i(`C${a}`)?l:""}`,children:o.text}),
-                      (0,t.jsx)("td",{onClick:()=>n({cellId:`D${a}`,label:`${item.accountNumber} Cash Available`,value:c.text,formula:String(item.cashAvailable)}),className:`border border-slate-300 px-2.5 py-1 text-right font-mono whitespace-nowrap ${isInactive?"text-slate-400":"text-emerald-800"} ${i(`D${a}`)?l:""}`,children:c.text}),
+                      
+                      // EDITABLE CASH BALANCE / CASH AVAILABLE CELL
+                      (0,t.jsx)("td",{
+                        onDoubleClick:ev=>{ev.stopPropagation();startEditCash(item)},
+                        className:`border border-slate-300 px-2 py-1 text-right font-mono whitespace-nowrap group cursor-pointer transition ${isInactive?"text-slate-400":c.isNegative?"text-red-600":"text-emerald-800"} ${isEditingThisCash?"bg-amber-50 ring-2 ring-emerald-600 ring-inset":"hover:bg-amber-50/40"} ${i(`D${a}`)?l:""}`,
+                        title:"Double-click or click pencil to edit cash balance",
+                        children:isEditingThisCash?(0,t.jsxs)("div",{
+                          className:"flex items-center justify-end gap-1",
+                          onClick:ev=>ev.stopPropagation(),
+                          children:[
+                            (0,t.jsx)("input",{
+                              type:"number",
+                              step:"any",
+                              autoFocus:true,
+                              value:cashVal,
+                              onChange:ev=>setCashVal(ev.target.value),
+                              onKeyDown:ev=>{
+                                if("Enter"===ev.key){ev.preventDefault();handleSaveCash(item)}
+                                if("Escape"===ev.key){cancelEditCash()}
+                              },
+                              disabled:isSavingCash,
+                              placeholder:"0.00",
+                              className:"w-24 px-1.5 py-0.5 bg-white border-2 border-emerald-600 rounded text-right font-mono font-bold text-xs outline-none shadow-xs text-slate-900"
+                            }),
+                            (0,t.jsx)("button",{
+                              type:"button",
+                              onClick:()=>handleSaveCash(item),
+                              disabled:isSavingCash,
+                              className:"p-1 text-emerald-700 hover:bg-emerald-100 rounded",
+                              title:"Save Cash Balance (Enter)",
+                              children:(0,t.jsx)(m,{className:"w-3.5 h-3.5"})
+                            }),
+                            (0,t.jsx)("button",{
+                              type:"button",
+                              onClick:cancelEditCash,
+                              className:"p-1 text-red-600 hover:bg-red-100 rounded",
+                              title:"Cancel (Esc)",
+                              children:(0,t.jsx)(I,{className:"w-3.5 h-3.5"})
+                            })
+                          ]
+                        }):(0,t.jsxs)("div",{
+                          className:"flex items-center justify-end gap-1.5",
+                          children:[
+                            (0,t.jsx)("button",{
+                              type:"button",
+                              onClick:ev=>{ev.stopPropagation();startEditCash(item)},
+                              className:"opacity-0 group-hover:opacity-100 text-slate-400 hover:text-emerald-700 transition p-0.5",
+                              title:"Edit cash balance",
+                              children:(0,t.jsx)(ea,{className:"w-3 h-3"})
+                            }),
+                            (0,t.jsx)("span",{className:c.isNegative?"text-red-600 font-bold":"",children:c.text})
+                          ]
+                        })
+                      }),
+
                       (0,t.jsx)("td",{onClick:()=>n({cellId:`E${a}`,label:`${item.accountNumber} Amount Invested`,value:f.text,formula:`=SUMIF('Consolidated View'!B:B,"${item.accountNumber}",'Consolidated View'!E:E)`}),className:`border border-slate-300 px-2.5 py-1 text-right font-mono whitespace-nowrap ${isInactive?"text-slate-400":""} ${i(`E${a}`)?l:""}`,children:f.text}),
                       (0,t.jsx)("td",{onClick:()=>n({cellId:`F${a}`,label:`${item.accountNumber} Current Value`,value:h.text,formula:`=SUMIF('Consolidated View'!B:B,"${item.accountNumber}",'Consolidated View'!G:G)`}),className:`border border-slate-300 px-2.5 py-1 text-right font-mono font-bold whitespace-nowrap ${isInactive?"text-slate-400":"text-blue-900"} ${i(`F${a}`)?l:""}`,children:h.text}),
                       (0,t.jsxs)("td",{onClick:()=>n({cellId:`G${a}`,label:`${item.accountNumber} Gain/Loss`,value:`${d.text} (${u.text})`,formula:`=F${a}-E${a}`}),className:`border border-slate-300 px-2.5 py-1 text-right font-mono font-bold whitespace-nowrap ${isInactive?"text-slate-400":d.isNegative?"text-red-600":"text-emerald-700"} ${i(`G${a}`)?l:""}`,children:[d.text," (",u.text,")"]}),
                       
+                      // EDITABLE COMMENTS CELL
                       (0,t.jsx)("td",{
                         onDoubleClick:ev=>{ev.stopPropagation();startEditComment(item)},
                         className:`border border-slate-300 px-2.5 py-1 whitespace-nowrap group cursor-pointer transition ${isInactive?"text-slate-400 bg-slate-100/60":"text-slate-700"} ${isEditingThisComment?"bg-amber-50 ring-2 ring-emerald-600 ring-inset":"hover:bg-amber-50/40"}`,
@@ -980,7 +1082,27 @@ function ew({entries:e,inventoryAccounts:a,selectedCell:n,onSelectCell:s,onOpenA
   let ad = e.accountDetailsData || { accountDetails: [], depositsByAccount: {}, totalAmountFromHand: 0 };
   let wbRows = [];
 
-  // SECTION 1: ACCOUNT DETAILS
+  // Helper to format date only for Excel export
+  let cleanDateStr = function(val) {
+    if (!val) return "—";
+    let str = String(val).trim();
+    if (!str || str === "—") return "—";
+    if (/^[A-Za-z]{3}-\d{2,4}$/.test(str)) return str;
+    if (str.includes("T")) {
+      let d = new Date(str);
+      if (!isNaN(d.getTime())) {
+        return (d.getUTCMonth() + 1) + "/" + d.getUTCDate() + "/" + d.getUTCFullYear();
+      }
+      return str.split("T")[0];
+    }
+    if (str.includes(",")) return str.split(",")[0].trim();
+    if (/\s+\d{1,2}:\d{2}/.test(str)) {
+      return str.replace(/\s+\d{1,2}:\d{2}(?::\d{2})?(?:\s*[AaPp][Mm])?.*$/, "").trim();
+    }
+    return str;
+  };
+
+  // SECTION 1: ACCOUNT DETAILS (Comments and Tax period moved after Principal Amount)
   wbRows.push(["ACCOUNT DETAILS"]);
   wbRows.push([
     "Account #",
@@ -988,9 +1110,9 @@ function ew({entries:e,inventoryAccounts:a,selectedCell:n,onSelectCell:s,onOpenA
     "Active Status",
     "Account Type",
     "~Start Date",
+    "Amount from Hand (Principle Amount)",
     "Comments",
-    "Tax period",
-    "Amount from Hand (Principle Amount)"
+    "Tax period"
   ]);
 
   let t1StartRow = 2;
@@ -1001,15 +1123,15 @@ function ew({entries:e,inventoryAccounts:a,selectedCell:n,onSelectCell:s,onOpenA
       a.financialInstitute,
       a.activeStatus,
       a.accountType,
-      a.startDate || "—",
+      cleanDateStr(a.startDate),
+      a.amountFromHand,
       a.comments || "—",
-      a.taxPeriod,
-      a.amountFromHand
+      a.taxPeriod
     ]);
   }
 
   let t1TotalRow = wbRows.length;
-  wbRows.push(["Total Amount:", "", "", "", "", "", "", ad.totalAmountFromHand]);
+  wbRows.push(["Total Amount:", "", "", "", "", ad.totalAmountFromHand, "", ""]);
   wbRows.push([]);
 
   // SECTION 2: DEPOSIT DETAILS
@@ -1030,7 +1152,7 @@ function ew({entries:e,inventoryAccounts:a,selectedCell:n,onSelectCell:s,onOpenA
       let rIdx = wbRows.length;
       wbRows.push([
         depIdx === 0 ? d.accountNumber : "",
-        d.dateInvested,
+        cleanDateStr(d.dateInvested),
         d.amount,
         d.cumulativeAmt,
         d.comments || "—"
@@ -1048,7 +1170,8 @@ function ew({entries:e,inventoryAccounts:a,selectedCell:n,onSelectCell:s,onOpenA
 
   s["!merges"] = [
     { s: { r: 0, c: 0 }, e: { r: 0, c: 7 } },
-    { s: { r: t1TotalRow, c: 0 }, e: { r: t1TotalRow, c: 6 } },
+    { s: { r: t1TotalRow, c: 0 }, e: { r: t1TotalRow, c: 4 } },
+    { s: { r: t1TotalRow, c: 6 }, e: { r: t1TotalRow, c: 7 } },
     { s: { r: t2TitleRow, c: 0 }, e: { r: t2TitleRow, c: 4 } }
   ];
 
@@ -1068,9 +1191,9 @@ function ew({entries:e,inventoryAccounts:a,selectedCell:n,onSelectCell:s,onOpenA
     { wch: 16 },
     { wch: 22 },
     { wch: 14 },
+    { wch: 34 },
     { wch: 20 },
-    { wch: 30 },
-    { wch: 34 }
+    { wch: 30 }
   ];
 
   let cBlueHeader = "D9E1F2";
@@ -1088,7 +1211,7 @@ function ew({entries:e,inventoryAccounts:a,selectedCell:n,onSelectCell:s,onOpenA
 
   // Style Table 1 Headers
   for (let c = 0; c <= 7; c++) {
-    let isAmount = c === 7;
+    let isAmount = c === 5;
     tN(s, 1, c, {
       font: { name: tb, sz: 10, bold: true, color: { rgb: cNavyText } },
       fill: { patternType: "solid", fgColor: { rgb: isAmount ? cBlueAccent : cBlueHeader } },
@@ -1103,8 +1226,8 @@ function ew({entries:e,inventoryAccounts:a,selectedCell:n,onSelectCell:s,onOpenA
     let isEven = (r - t1StartRow) % 2 === 1;
     let rowBg = isEven ? "F2F5F9" : tc;
     for (let c = 0; c <= 7; c++) {
-      let align = c === 7 ? "right" : (c === 4 || c === 2 ? "center" : "left");
-      let isAmount = c === 7;
+      let isAmount = c === 5;
+      let align = isAmount ? "right" : (c === 4 || c === 2 ? "center" : "left");
       let cellStyle = {
         font: { name: tb, sz: 10, bold: c === 0 || isAmount, color: { rgb: c === 0 ? cNavyText : tf } },
         fill: { patternType: "solid", fgColor: { rgb: isAmount && acc?.accountNumber === "CS 9271" ? cGreenTotal : rowBg } },
@@ -1121,11 +1244,11 @@ function ew({entries:e,inventoryAccounts:a,selectedCell:n,onSelectCell:s,onOpenA
 
   // Style Table 1 Total Row
   for (let c = 0; c <= 7; c++) {
-    let isAmount = c === 7;
+    let isAmount = c === 5;
     tN(s, t1TotalRow, c, {
       font: { name: tb, sz: 11, bold: true, color: { rgb: tf } },
       fill: { patternType: "solid", fgColor: { rgb: isAmount ? "C6E0B4" : cGreenTotal } },
-      alignment: { horizontal: "right", vertical: "center" },
+      alignment: { horizontal: isAmount ? "right" : (c < 5 ? "right" : "center"), vertical: "center" },
       border: tw(th)
     }, isAmount ? tx : undefined);
   }
