@@ -49,6 +49,49 @@ function round2(n: number): number {
   return Number((Number(n) || 0).toFixed(2));
 }
 
+export function parseDateForSort(val: string | null | undefined): number {
+  if (!val) return 0;
+  const str = String(val).trim();
+  if (!str || str === "—") return 0;
+
+  const months: Record<string, number> = {
+    jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
+    jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11,
+  };
+
+  // Month-YY format like Nov-23, Aug-24, Feb-24, Jan-24
+  const myMatch = str.match(/^([A-Za-z]{3})[-/](\d{2,4})$/);
+  if (myMatch) {
+    const m = months[myMatch[1].toLowerCase()] ?? 0;
+    let y = parseInt(myMatch[2], 10);
+    if (y < 100) y += 2000;
+    return new Date(Date.UTC(y, m, 1)).getTime();
+  }
+
+  // MM/DD/YYYY or M/D/YYYY
+  const slashMatch = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
+  if (slashMatch) {
+    const m = parseInt(slashMatch[1], 10) - 1;
+    const d = parseInt(slashMatch[2], 10);
+    let y = parseInt(slashMatch[3], 10);
+    if (y < 100) y += 2000;
+    return new Date(Date.UTC(y, m, d)).getTime();
+  }
+
+  // YYYY-MM-DD
+  const isoMatch = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (isoMatch) {
+    const y = parseInt(isoMatch[1], 10);
+    const m = parseInt(isoMatch[2], 10) - 1;
+    const d = parseInt(isoMatch[3], 10);
+    return new Date(Date.UTC(y, m, d)).getTime();
+  }
+
+  const d = new Date(str);
+  if (!isNaN(d.getTime())) return d.getTime();
+  return 0;
+}
+
 export async function ensureDbSeeded(): Promise<void> {
   if (initializedPromise) {
     return initializedPromise;
@@ -271,11 +314,11 @@ export async function ensureDbSeeded(): Promise<void> {
       ]);
 
       await db.insert(depositDetailsTable).values([
-        { accountNumber: "CS 9271", dateInvested: "11/6/2024", amount: 6501.95, comments: "Transfer of Securities(In/Out)", orderIndex: 1 },
-        { accountNumber: "CS 9271", dateInvested: "11/6/2024", amount: 392.06, comments: "Transfer of Cash", orderIndex: 2 },
-        { accountNumber: "CS 9271", dateInvested: "2/22/2024", amount: 15500.00, comments: "", orderIndex: 3 },
-        { accountNumber: "CS 9271", dateInvested: "4/3/2024", amount: 10500.00, comments: "", orderIndex: 4 },
-        { accountNumber: "CS 9271", dateInvested: "6/25/2024", amount: 15000.00, comments: "", orderIndex: 5 },
+        { accountNumber: "CS 9271", dateInvested: "2/22/2024", amount: 15500.00, comments: "", orderIndex: 1 },
+        { accountNumber: "CS 9271", dateInvested: "4/3/2024", amount: 10500.00, comments: "", orderIndex: 2 },
+        { accountNumber: "CS 9271", dateInvested: "6/25/2024", amount: 15000.00, comments: "", orderIndex: 3 },
+        { accountNumber: "CS 9271", dateInvested: "11/6/2024", amount: 6501.95, comments: "Transfer of Securities(In/Out)", orderIndex: 4 },
+        { accountNumber: "CS 9271", dateInvested: "11/6/2024", amount: 392.06, comments: "Transfer of Cash", orderIndex: 5 },
 
         { accountNumber: "CS 9538", dateInvested: "7/29/2024", amount: 100.00, comments: "Savings Money", orderIndex: 6 },
         { accountNumber: "CS 9538", dateInvested: "8/5/2025", amount: 13500.00, comments: "Money is funded from Dish Shares Sales. Half money each", orderIndex: 7 },
@@ -1405,10 +1448,31 @@ export async function getAccountDetailsData() {
 
   const finalCumulativeByAccount: Record<string, number> = {};
 
-  for (const acc of accDetailsRows) {
-    const accDeps = depositRows.filter(
-      (d) => d.accountNumber.trim().toUpperCase() === acc.accountNumber.trim().toUpperCase()
-    );
+  const normAcc = (s: string) =>
+    String(s || "")
+      .trim()
+      .toUpperCase()
+      .replace(/^[0-9]+\.\s*/, "")
+      .replace(/[\s_-]+/g, "");
+
+  const allAccNumbers = Array.from(
+    new Set([
+      ...accDetailsRows.map((a) => a.accountNumber),
+      ...depositRows.map((d) => d.accountNumber),
+    ])
+  );
+
+  for (const accNum of allAccNumbers) {
+    // Sort deposits chronologically by deposited date for this specific account
+    const accDeps = depositRows
+      .filter((d) => normAcc(d.accountNumber) === normAcc(accNum))
+      .sort((a, b) => {
+        const tA = parseDateForSort(a.dateInvested);
+        const tB = parseDateForSort(b.dateInvested);
+        if (tA !== tB) return tA - tB;
+        return a.orderIndex !== b.orderIndex ? a.orderIndex - b.orderIndex : a.id - b.id;
+      });
+
     let running = 0;
     const computed = accDeps.map((d, idx) => {
       running = round2(running + d.amount);
@@ -1424,8 +1488,8 @@ export async function getAccountDetailsData() {
         isFinalForAccount: isFinal,
       };
     });
-    depositsByAccount[acc.accountNumber] = computed;
-    finalCumulativeByAccount[acc.accountNumber] = running;
+    depositsByAccount[accNum] = computed;
+    finalCumulativeByAccount[accNum] = running;
   }
 
   // Map accountDetails with dynamically linked amountFromHand

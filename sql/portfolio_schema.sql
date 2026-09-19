@@ -353,11 +353,11 @@ INSERT INTO portfolio_account_details (financial_institute, active_status, accou
 ON CONFLICT (account_number) DO NOTHING;
 
 INSERT INTO portfolio_deposit_details (account_number, date_invested, amount, comments, order_index) VALUES
-  ('CS 9271', '11/6/2024', 6501.95, 'Transfer of Securities(In/Out)', 1),
-  ('CS 9271', '11/6/2024', 392.06, 'Transfer of Cash', 2),
-  ('CS 9271', '2/22/2024', 15500.00, '', 3),
-  ('CS 9271', '4/3/2024', 10500.00, '', 4),
-  ('CS 9271', '6/25/2024', 15000.00, '', 5),
+  ('CS 9271', '2/22/2024', 15500.00, '', 1),
+  ('CS 9271', '4/3/2024', 10500.00, '', 2),
+  ('CS 9271', '6/25/2024', 15000.00, '', 3),
+  ('CS 9271', '11/6/2024', 6501.95, 'Transfer of Securities(In/Out)', 4),
+  ('CS 9271', '11/6/2024', 392.06, 'Transfer of Cash', 5),
 
   ('CS 9538', '7/29/2024', 100.00, 'Savings Money', 6),
   ('CS 9538', '8/5/2025', 13500.00, 'Money is funded from Dish Shares Sales. Half money each', 7),
