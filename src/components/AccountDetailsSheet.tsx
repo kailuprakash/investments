@@ -541,8 +541,10 @@ export default function AccountDetailsSheet({
         ],
         26
       ),
-      calcMaxContentW("Comments", accountDetails.map((a) => a.comments || "—"), 22),
-      calcMaxContentW("Tax period", accountDetails.map((a) => a.taxPeriod), 24),
+      // Reduced Comments column width to fit concisely
+      95,
+      // Reduced Tax period column width to fit concisely
+      125,
     ];
   }, [accountDetails, totalAmountFromHand]);
 
@@ -691,10 +693,10 @@ export default function AccountDetailsSheet({
                     (Principle Amount)
                   </span>
                 </th>
-                <th className="border border-slate-300 px-3 py-1.5 text-left whitespace-nowrap">
+                <th className="border border-slate-300 px-2 py-1.5 text-left whitespace-nowrap">
                   Comments
                 </th>
-                <th className="border border-slate-300 px-3 py-1.5 text-left whitespace-nowrap">
+                <th className="border border-slate-300 px-2 py-1.5 text-left whitespace-nowrap">
                   Tax period
                 </th>
               </tr>
@@ -704,6 +706,7 @@ export default function AccountDetailsSheet({
                 const isEven = idx % 2 === 1;
                 const isGreenHighlight = acc.accountNumber === "CS 9271";
                 const isSelected = selectedAccNum === acc.accountNumber;
+                const isActive = String(acc.activeStatus || "").toUpperCase() === "ACTIVE";
 
                 return (
                   <tr
@@ -713,6 +716,8 @@ export default function AccountDetailsSheet({
                     className={`transition-colors cursor-pointer ${
                       isSelected
                         ? "bg-amber-100/70 ring-1 ring-amber-400 ring-inset"
+                        : !isActive
+                        ? "bg-slate-100/80 text-slate-500 hover:bg-slate-200/50"
                         : isEven
                         ? "bg-[#D9E1F2]/40 hover:bg-blue-50/60"
                         : "bg-white hover:bg-blue-50/60"
@@ -720,7 +725,7 @@ export default function AccountDetailsSheet({
                     title="Click to select, double-click or use Edit Account above to edit"
                   >
                     {/* Column 1: Account # */}
-                    <td className="border border-slate-300 px-3 py-1.5 font-bold text-[#1F4E79] whitespace-nowrap font-mono">
+                    <td className={`border border-slate-300 px-3 py-1.5 font-bold whitespace-nowrap font-mono ${isActive ? "text-[#1F4E79]" : "text-slate-600"}`}>
                       {acc.accountNumber}
                     </td>
 
@@ -729,13 +734,22 @@ export default function AccountDetailsSheet({
                       {acc.financialInstitute}
                     </td>
 
-                    <td className="border border-slate-300 px-3 py-1.5 text-slate-700 whitespace-nowrap">
-                      <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800 bg-emerald-100/70 border border-emerald-300/40">
-                        <Check className="h-2.5 w-2.5 text-emerald-600" />
-                        {acc.activeStatus}
-                      </span>
+                    {/* Column 3: Differentiated Active vs Inactive Status Color Coding */}
+                    <td className="border border-slate-300 px-2.5 py-1.5 text-center whitespace-nowrap">
+                      {isActive ? (
+                        <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9.5px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 shadow-2xs">
+                          <Check className="h-2.5 w-2.5 text-emerald-600" />
+                          Active
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9.5px] font-bold text-rose-800 bg-rose-100 border border-rose-300 shadow-2xs">
+                          <X className="h-2.5 w-2.5 text-rose-600" />
+                          Inactive
+                        </span>
+                      )}
                     </td>
-                    <td className="border border-slate-300 px-3 py-1.5 font-semibold text-blue-950 whitespace-nowrap">
+
+                    <td className={`border border-slate-300 px-3 py-1.5 font-semibold whitespace-nowrap ${isActive ? "text-blue-950" : "text-slate-600"}`}>
                       {acc.accountType}
                     </td>
 
@@ -749,6 +763,8 @@ export default function AccountDetailsSheet({
                       className={`border border-slate-300 px-3 py-1.5 text-right font-mono font-bold whitespace-nowrap ${
                         isGreenHighlight
                           ? "bg-[#E2EFDA] text-emerald-950"
+                          : !isActive
+                          ? "bg-slate-100 text-slate-700"
                           : isEven
                           ? "bg-[#D9E1F2]/60 text-slate-900"
                           : "text-slate-900"
@@ -768,13 +784,19 @@ export default function AccountDetailsSheet({
                       </div>
                     </td>
 
-                    {/* Column 7: Comments (Moved after Principal Amount) */}
-                    <td className="border border-slate-300 px-3 py-1.5 text-slate-600 whitespace-nowrap">
+                    {/* Column 7: Comments (Reduced Column Width) */}
+                    <td
+                      className="border border-slate-300 px-2.5 py-1.5 text-slate-600 whitespace-nowrap truncate max-w-[95px]"
+                      title={acc.comments || "—"}
+                    >
                       {acc.comments || "—"}
                     </td>
 
-                    {/* Column 8: Tax period (Moved after Principal Amount) */}
-                    <td className="border border-slate-300 px-3 py-1.5 text-slate-700 whitespace-nowrap text-[11px]">
+                    {/* Column 8: Tax period (Reduced Column Width) */}
+                    <td
+                      className="border border-slate-300 px-2.5 py-1.5 text-slate-700 whitespace-nowrap text-[11px] truncate max-w-[125px]"
+                      title={acc.taxPeriod}
+                    >
                       {acc.taxPeriod}
                     </td>
                   </tr>

@@ -1216,8 +1216,8 @@ function ew({entries:e,inventoryAccounts:a,selectedCell:n,onSelectCell:s,onOpenA
     { wch: 22 },
     { wch: 14 },
     { wch: 34 },
-    { wch: 20 },
-    { wch: 30 }
+    { wch: 14 },
+    { wch: 18 }
   ];
 
   let cBlueHeader = "D9E1F2";
@@ -1249,12 +1249,28 @@ function ew({entries:e,inventoryAccounts:a,selectedCell:n,onSelectCell:s,onOpenA
     let acc = (ad.accountDetails || [])[r - t1StartRow];
     let isEven = (r - t1StartRow) % 2 === 1;
     let rowBg = isEven ? "F2F5F9" : tc;
+    let isInactiveAcc = String(acc?.activeStatus || "").toUpperCase() === "INACTIVE";
     for (let c = 0; c <= 7; c++) {
       let isAmount = c === 5;
+      let isStatus = c === 2;
       let align = isAmount ? "right" : (c === 4 || c === 2 ? "center" : "left");
       let cellStyle = {
-        font: { name: tb, sz: 10, bold: c === 0 || isAmount, color: { rgb: c === 0 ? cNavyText : tf } },
-        fill: { patternType: "solid", fgColor: { rgb: isAmount && acc?.accountNumber === "CS 9271" ? cGreenTotal : rowBg } },
+        font: {
+          name: tb,
+          sz: 10,
+          bold: c === 0 || isAmount || isStatus,
+          color: { rgb: isStatus ? (isInactiveAcc ? td : tp) : (c === 0 ? cNavyText : tf) }
+        },
+        fill: {
+          patternType: "solid",
+          fgColor: {
+            rgb: isAmount && acc?.accountNumber === "CS 9271"
+              ? cGreenTotal
+              : isStatus
+              ? (isInactiveAcc ? "FDE8E8" : "DEF7EC")
+              : rowBg
+          }
+        },
         alignment: { horizontal: align, vertical: "center" },
         border: tw("CBD5E1")
       };
