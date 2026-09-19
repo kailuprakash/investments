@@ -125,6 +125,35 @@ export default function AccountDetailsSheet({
   // Selected account for highlighting
   const [selectedAccNum, setSelectedAccNum] = useState<string | null>(null);
 
+  // Filter for Active Status column
+  const [statusFilter, setStatusFilter] = useState<"ALL" | "ACTIVE" | "INACTIVE">("ALL");
+
+  const activeCount = useMemo(
+    () => accountDetails.filter((a) => String(a.activeStatus || "").toUpperCase() === "ACTIVE").length,
+    [accountDetails]
+  );
+  const inactiveCount = useMemo(
+    () => accountDetails.filter((a) => String(a.activeStatus || "").toUpperCase() === "INACTIVE").length,
+    [accountDetails]
+  );
+
+  const filteredAccountDetails = useMemo(() => {
+    if (statusFilter === "ACTIVE") {
+      return accountDetails.filter((a) => String(a.activeStatus || "").toUpperCase() === "ACTIVE");
+    }
+    if (statusFilter === "INACTIVE") {
+      return accountDetails.filter((a) => String(a.activeStatus || "").toUpperCase() === "INACTIVE");
+    }
+    return accountDetails;
+  }, [accountDetails, statusFilter]);
+
+  const filteredTotalAmount = useMemo(() => {
+    return filteredAccountDetails.reduce(
+      (sum, a) => sum + (Number(a.amountFromHand) || 0),
+      0
+    );
+  }, [filteredAccountDetails]);
+
   // Expand / collapse state for deposit details accounts
   const [collapsedAccounts, setCollapsedAccounts] = useState<Set<string>>(new Set());
 
@@ -141,7 +170,7 @@ export default function AccountDetailsSheet({
   };
 
   const expandAllAccounts = () => setCollapsedAccounts(new Set());
-  const collapseAllAccounts = () => setCollapsedAccounts(new Set(accountsList));
+  const collapseAllAccounts = () => setCollapsedAccounts(new Set(allAccountsList));
 
   // In-cell editing state for Deposit Amount (allows negative numbers)
   const [editingAmountId, setEditingAmountId] = useState<number | null>(null);
@@ -530,31 +559,31 @@ export default function AccountDetailsSheet({
       calcMaxContentW("Account #", accountDetails.map((a) => a.accountNumber), 26),
       // Reduced Financial Institute/Bank column width to fit text tightly
       100,
-      calcMaxContentW("Active Status", accountDetails.map((a) => a.activeStatus), 22),
+      // Active Status column width
+      105,
       calcMaxContentW("Account Type", accountDetails.map((a) => a.accountType), 22),
       calcMaxContentW("~Start Date", accountDetails.map((a) => formatMDDYYYY(a.startDate)), 22),
-      calcMaxContentW(
-        "Amount from Hand (Principle Amount)",
-        [
-          ...accountDetails.map((a) => formatCurrency(a.amountFromHand)),
-          formatCurrency(totalAmountFromHand),
-        ],
-        26
-      ),
-      // Reduced Comments column width to fit concisely
-      95,
-      // Reduced Tax period column width to fit concisely
-      125,
+      // Amount from Hand (Principle Amount) column width to fit max content size
+      155,
+      // Increased Comments column width bit more
+      165,
+      // Increased Tax period column width bit more
+      210,
     ];
-  }, [accountDetails, totalAmountFromHand]);
+  }, [accountDetails]);
 
   const accTotalWidth = useMemo(
     () => accColWidths.reduce((s, w) => s + w, 0),
     [accColWidths]
   );
 
-  // Distinct accounts list
+  // Accounts list for Deposit Details (filtered when status filter active)
   const accountsList = useMemo(() => {
+    return filteredAccountDetails.map((a) => a.accountNumber);
+  }, [filteredAccountDetails]);
+
+  // All accounts list for modal dropdowns and collapse all
+  const allAccountsList = useMemo(() => {
     return accountDetails.map((a) => a.accountNumber);
   }, [accountDetails]);
 
@@ -619,10 +648,38 @@ export default function AccountDetailsSheet({
               Account Details
             </h2>
             <span className="rounded bg-white/15 px-2 py-0.5 text-[9px] font-semibold text-blue-100">
-              {accountDetails.length} Accounts
+              {statusFilter === "ALL"
+                ? `${accountDetails.length} Accounts`
+                : `${filteredAccountDetails.length} / ${accountDetails.length} (${statusFilter.toLowerCase()})`}
             </span>
+            {statusFilter !== "ALL" && (
+              <button
+                type="button"
+                onClick={() => setStatusFilter("ALL")}
+                className="inline-flex items-center gap-0.5 rounded bg-white/20 hover:bg-rose-500 hover:text-white text-blue-100 px-1.5 py-0.5 text-[8.5px] font-bold transition"
+                title="Reset status filter to show all accounts"
+              >
+                <X className="h-2.5 w-2.5" />
+                Reset
+              </button>
+            )}
           </div>
           <div className="flex items-center gap-2">
+            {/* Filter option in Account Details section */}
+            <div className="flex items-center gap-1.5 normal-case bg-white/10 border border-white/20 rounded px-2 py-1 shadow-xs">
+              <span className="text-[9.5px] font-medium text-blue-100 hidden sm:inline">Filter Status:</span>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as "ALL" | "ACTIVE" | "INACTIVE")}
+                className="cursor-pointer bg-transparent text-white font-bold text-[9.5px] sm:text-[10px] outline-none [&>option]:text-slate-900 [&>option]:bg-white"
+                title="Filter accounts by active status"
+              >
+                <option value="ALL">All ({accountDetails.length})</option>
+                <option value="ACTIVE">Active ({activeCount})</option>
+                <option value="INACTIVE">Inactive ({inactiveCount})</option>
+              </select>
+            </div>
+
             {/* Edit Account button placed near Add Account */}
             <button
               type="button"
@@ -676,7 +733,7 @@ export default function AccountDetailsSheet({
                   <div>Financial Institute/</div>
                   <div>Bank</div>
                 </th>
-                <th className="border border-slate-300 px-3 py-1.5 text-left whitespace-nowrap">
+                <th className="border border-slate-300 px-3 py-1.5 text-center whitespace-nowrap">
                   Active Status
                 </th>
                 <th className="border border-slate-300 px-3 py-1.5 text-left whitespace-nowrap">
@@ -686,23 +743,42 @@ export default function AccountDetailsSheet({
                 <th className="border border-slate-300 px-3 py-1.5 text-center whitespace-nowrap">
                   ~Start Date
                 </th>
-                <th className="border border-slate-300 px-3 py-1.5 text-right whitespace-nowrap bg-[#C6D9F1] text-[#1F4E79] font-bold">
-                  Amount from Hand
-                  <br />
-                  <span className="text-[9.5px] font-normal text-slate-700">
+                {/* Reduced Amount from Hand to fit max content size */}
+                <th className="border border-slate-300 px-2.5 py-1 text-right whitespace-nowrap bg-[#C6D9F1] text-[#1F4E79] font-bold">
+                  <div>Amount from Hand</div>
+                  <div className="text-[9px] font-normal text-slate-700">
                     (Principle Amount)
-                  </span>
+                  </div>
                 </th>
-                <th className="border border-slate-300 px-2 py-1.5 text-left whitespace-nowrap">
+                {/* Slightly increased Comments */}
+                <th className="border border-slate-300 px-2.5 py-1.5 text-left whitespace-nowrap">
                   Comments
                 </th>
-                <th className="border border-slate-300 px-2 py-1.5 text-left whitespace-nowrap">
+                {/* Slightly increased Tax period */}
+                <th className="border border-slate-300 px-2.5 py-1.5 text-left whitespace-nowrap">
                   Tax period
                 </th>
               </tr>
             </thead>
             <tbody>
-              {accountDetails.map((acc, idx) => {
+              {filteredAccountDetails.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={8}
+                    className="border border-slate-300 px-3 py-6 text-center text-slate-400 italic text-[11px] bg-slate-50/50"
+                  >
+                    No accounts found matching the &quot;{statusFilter.toLowerCase()}&quot; status filter.
+                    <button
+                      type="button"
+                      onClick={() => setStatusFilter("ALL")}
+                      className="ml-2 font-bold text-blue-700 hover:underline"
+                    >
+                      Show all accounts
+                    </button>
+                  </td>
+                </tr>
+              ) : (
+                filteredAccountDetails.map((acc, idx) => {
                 const isEven = idx % 2 === 1;
                 const isGreenHighlight = acc.accountNumber === "CS 9271";
                 const isSelected = selectedAccNum === acc.accountNumber;
@@ -784,24 +860,25 @@ export default function AccountDetailsSheet({
                       </div>
                     </td>
 
-                    {/* Column 7: Comments (Reduced Column Width) */}
+                    {/* Column 7: Comments (Increased Column Width) */}
                     <td
-                      className="border border-slate-300 px-2.5 py-1.5 text-slate-600 whitespace-nowrap truncate max-w-[95px]"
+                      className="border border-slate-300 px-2.5 py-1.5 text-slate-600 whitespace-nowrap truncate max-w-[165px]"
                       title={acc.comments || "—"}
                     >
                       {acc.comments || "—"}
                     </td>
 
-                    {/* Column 8: Tax period (Reduced Column Width) */}
+                    {/* Column 8: Tax period (Increased Column Width) */}
                     <td
-                      className="border border-slate-300 px-2.5 py-1.5 text-slate-700 whitespace-nowrap text-[11px] truncate max-w-[125px]"
+                      className="border border-slate-300 px-2.5 py-1.5 text-slate-700 whitespace-nowrap text-[11px] truncate max-w-[210px]"
                       title={acc.taxPeriod}
                     >
                       {acc.taxPeriod}
                     </td>
                   </tr>
                 );
-              })}
+              })
+              )}
 
               {/* Total Row: "Total Amount" */}
               <tr className="bg-[#E2EFDA] font-extrabold text-slate-900 border-t-2 border-slate-400">
@@ -812,7 +889,7 @@ export default function AccountDetailsSheet({
                   Total Amount:
                 </td>
                 <td className={`border border-slate-400 px-3 py-2 text-right font-mono text-[13px] bg-[#C6E0B4] whitespace-nowrap ${totalAmountFromHand < 0 ? "text-red-700" : "text-emerald-950"}`}>
-                  {formatCurrency(totalAmountFromHand)}
+                  {formatCurrency(filteredTotalAmount)}
                 </td>
                 <td colSpan={2} className="border border-slate-400 text-center whitespace-nowrap text-slate-400">
                   —
@@ -1187,7 +1264,7 @@ export default function AccountDetailsSheet({
                   className="w-full bg-slate-50 border border-slate-300 rounded p-2 text-xs font-semibold focus:ring-2 focus:ring-[#1F4E79] outline-none"
                   required
                 >
-                  {accountsList.map((num) => (
+                  {allAccountsList.map((num) => (
                     <option key={num} value={num}>
                       {num}
                     </option>

@@ -1215,9 +1215,9 @@ function ew({entries:e,inventoryAccounts:a,selectedCell:n,onSelectCell:s,onOpenA
     { wch: 16 },
     { wch: 22 },
     { wch: 14 },
-    { wch: 34 },
-    { wch: 14 },
-    { wch: 18 }
+    { wch: 22 },
+    { wch: 22 },
+    { wch: 30 }
   ];
 
   let cBlueHeader = "D9E1F2";
