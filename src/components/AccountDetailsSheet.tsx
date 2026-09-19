@@ -94,9 +94,15 @@ function formatMDDYYYY(val: string | null | undefined): string {
 
   const d = new Date(str);
   if (!isNaN(d.getTime())) {
-    const m = d.getUTCMonth() + 1;
-    const day = d.getUTCDate().toString().padStart(2, "0");
-    const y = d.getUTCFullYear();
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/New_York",
+      year: "numeric",
+      month: "numeric",
+      day: "2-digit",
+    }).formatToParts(d);
+    const m = parts.find((p) => p.type === "month")?.value || "";
+    const day = parts.find((p) => p.type === "day")?.value || "";
+    const y = parts.find((p) => p.type === "year")?.value || "";
     return `${m}/${day}/${y}`;
   }
 
@@ -203,7 +209,7 @@ export default function AccountDetailsSheet({
   const handleOpenAddDeposit = (accountNum?: string) => {
     setEditingDeposit(null);
     setDepAccount(accountNum || accountDetails[0]?.accountNumber || "CS 9271");
-    setDepDate(formatMDDYYYY(new Date().toLocaleDateString("en-US")));
+    setDepDate(formatMDDYYYY(new Date().toLocaleDateString("en-US", { timeZone: "America/New_York" })));
     setDepAmount("");
     setDepComments("");
     setDepositModalOpen(true);

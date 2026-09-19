@@ -242,6 +242,9 @@ select:focus-visible {
 
 .workbook-shell .freeze-header-table thead .frozen-symbol-column,
 .workbook-shell .freeze-header-table thead .frozen-history-column {
+  position: sticky !important;
+  top: 0 !important;
+  left: 0 !important;
   z-index: 45 !important;
 }
 

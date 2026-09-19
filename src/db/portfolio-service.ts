@@ -1716,7 +1716,7 @@ export async function addAccountDetail(data: {
     const allDeps = await db.select().from(depositDetailsTable);
     await db.insert(depositDetailsTable).values({
       accountNumber: accNum,
-      dateInvested: data.startDate?.trim() || new Date().toLocaleDateString("en-US"),
+      dateInvested: data.startDate?.trim() || new Date().toLocaleDateString("en-US", { timeZone: "America/New_York" }),
       amount: initialAmt,
       comments: "Initial Deposit",
       orderIndex: allDeps.length + 1,
