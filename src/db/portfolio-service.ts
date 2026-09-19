@@ -355,9 +355,24 @@ export async function getPortfolioState() {
     .from(futureInvestmentsTable)
     .orderBy(desc(futureInvestmentsTable.dateTime), desc(futureInvestmentsTable.id));
 
+  const normAcc = (s: string) =>
+    String(s || "")
+      .trim()
+      .toUpperCase()
+      .replace(/^[0-9]+\.\s*/, "")
+      .replace(/[\s_-]+/g, "");
+
+  // Link Principal Amount from Deposit Details directly to Account Value in Account's Summary
+  const depositRows = await db.select().from(depositDetailsTable);
+  const principalByAccount: Record<string, number> = {};
+  for (const d of depositRows) {
+    const key = normAcc(d.accountNumber);
+    principalByAccount[key] = round2((principalByAccount[key] || 0) + d.amount);
+  }
+
   const accounts = accountsRows.map((acc, idx) => {
     const accHoldings = holdingsRows
-      .filter((h) => h.accountNumber === acc.accountNumber)
+      .filter((h) => normAcc(h.accountNumber) === normAcc(acc.accountNumber))
       .map((h) => {
         const investAmount = round2(h.quantity * h.purchasePrice);
         const overallCurrentPrice = round2(h.quantity * h.currentPrice);
@@ -382,8 +397,20 @@ export async function getPortfolioState() {
 
     const amountInvested = round2(accHoldings.reduce((sum, h) => sum + h.investAmount, 0));
     const investmentCurrent = round2(accHoldings.reduce((sum, h) => sum + h.overallCurrentPrice, 0));
-    const cashAvailable = round2(acc.cashAvailable);
-    const accountOverallMoney = round2(cashAvailable + investmentCurrent);
+
+    // Linked directly to Principal Amount (amount from hand) in Account Details if configured!
+    const key = normAcc(acc.accountNumber);
+    const principalAmount = principalByAccount[key];
+    const accountOverallMoney =
+      principalAmount !== undefined && principalAmount > 0
+        ? principalAmount
+        : round2(round2(acc.cashAvailable) + investmentCurrent);
+
+    const cashAvailable =
+      principalAmount !== undefined && principalAmount > 0
+        ? round2(Math.max(0, accountOverallMoney - investmentCurrent))
+        : round2(acc.cashAvailable);
+
     const gainLoss = round2(investmentCurrent - amountInvested);
     const gainLossPercent = amountInvested > 0 ? round2((gainLoss / amountInvested) * 100) : 0;
 
@@ -1417,6 +1444,9 @@ export async function editAccountDetail(data: {
   taxPeriod?: string;
 }) {
   await ensureDbSeeded();
+  const existing = (await db.select().from(accountDetailsTable).where(eq(accountDetailsTable.id, Number(data.id))))[0];
+  if (!existing) throw new Error("Account Detail record not found");
+
   const updateData: Partial<{
     financialInstitute: string;
     activeStatus: string;
@@ -1439,6 +1469,45 @@ export async function editAccountDetail(data: {
     .set(updateData)
     .where(eq(accountDetailsTable.id, Number(data.id)));
 
+  // If accountNumber or comments changed, update portfolio_accounts and depositDetailsTable
+  const norm = (s: string) =>
+    String(s || "")
+      .trim()
+      .toUpperCase()
+      .replace(/^[0-9]+\.\s*/, "")
+      .replace(/[\s_-]+/g, "");
+
+  const newAccNum = data.accountNumber ? data.accountNumber.trim() : existing.accountNumber;
+  const oldAccNum = existing.accountNumber;
+
+  if (newAccNum !== oldAccNum) {
+    await db
+      .update(depositDetailsTable)
+      .set({ accountNumber: newAccNum })
+      .where(eq(depositDetailsTable.accountNumber, oldAccNum));
+  }
+
+  const allSummaryAccs = await db.select().from(accountsTable);
+  const targetSummary = allSummaryAccs.find((a) => norm(a.accountNumber) === norm(oldAccNum));
+  if (targetSummary) {
+    await db
+      .update(accountsTable)
+      .set({
+        accountNumber: newAccNum,
+        accountName: newAccNum,
+        comments: data.comments !== undefined ? data.comments.trim() : targetSummary.comments,
+      })
+      .where(eq(accountsTable.id, targetSummary.id));
+  } else {
+    await db.insert(accountsTable).values({
+      sNo: allSummaryAccs.length + 1,
+      accountNumber: newAccNum,
+      accountName: newAccNum,
+      cashAvailable: 0,
+      comments: data.comments !== undefined ? data.comments.trim() : "",
+    });
+  }
+
   return getAccountDetailsData();
 }
 
@@ -1452,16 +1521,72 @@ export async function addAccountDetail(data: {
   taxPeriod?: string;
 }) {
   await ensureDbSeeded();
+  const accNum = data.accountNumber.trim();
   const allAccs = await db.select().from(accountDetailsTable);
   await db.insert(accountDetailsTable).values({
     financialInstitute: data.financialInstitute?.trim() || "CS",
     activeStatus: data.activeStatus?.trim() || "Active",
     accountType: data.accountType?.trim() || "Trading Account",
-    accountNumber: data.accountNumber.trim(),
+    accountNumber: accNum,
     startDate: data.startDate?.trim() || "",
     comments: data.comments?.trim() || "",
     taxPeriod: data.taxPeriod?.trim() || "Yearly Tax on Profit in US.",
     orderIndex: allAccs.length + 1,
   });
+
+  // When added in Account Details, automatically add/update in Account's Summary (portfolio_accounts)!
+  const norm = (s: string) =>
+    String(s || "")
+      .trim()
+      .toUpperCase()
+      .replace(/^[0-9]+\.\s*/, "")
+      .replace(/[\s_-]+/g, "");
+
+  const allSummaryAccs = await db.select().from(accountsTable);
+  const exists = allSummaryAccs.find((a) => norm(a.accountNumber) === norm(accNum));
+  if (!exists) {
+    await db.insert(accountsTable).values({
+      sNo: allSummaryAccs.length + 1,
+      accountNumber: accNum,
+      accountName: accNum,
+      cashAvailable: 0,
+      comments: data.comments?.trim() || "",
+    });
+  } else {
+    await db
+      .update(accountsTable)
+      .set({
+        comments: data.comments?.trim() || exists.comments,
+      })
+      .where(eq(accountsTable.id, exists.id));
+  }
+
+  return getAccountDetailsData();
+}
+
+export async function deleteAccountDetail(id: number) {
+  await ensureDbSeeded();
+  const existing = (await db.select().from(accountDetailsTable).where(eq(accountDetailsTable.id, Number(id))))[0];
+  if (existing) {
+    const norm = (s: string) =>
+      String(s || "")
+        .trim()
+        .toUpperCase()
+        .replace(/^[0-9]+\.\s*/, "")
+        .replace(/[\s_-]+/g, "");
+
+    // 1. Delete from accountDetailsTable
+    await db.delete(accountDetailsTable).where(eq(accountDetailsTable.id, Number(id)));
+
+    // 2. Delete linked deposits
+    await db.delete(depositDetailsTable).where(eq(depositDetailsTable.accountNumber, existing.accountNumber));
+
+    // 3. Delete from accountsTable (Account's Summary)
+    const allSummaryAccs = await db.select().from(accountsTable);
+    const targetSummary = allSummaryAccs.find((a) => norm(a.accountNumber) === norm(existing.accountNumber));
+    if (targetSummary) {
+      await db.delete(accountsTable).where(eq(accountsTable.id, targetSummary.id));
+    }
+  }
   return getAccountDetailsData();
 }

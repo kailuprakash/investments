@@ -1,7 +1,15 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { Plus, Pencil, Trash2, Check, RefreshCw, X, Link as LinkIcon, ArrowRight } from "lucide-react";
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  Check,
+  X,
+  Link as LinkIcon,
+  ArrowRight,
+} from "lucide-react";
 
 interface AccountDetail {
   id: number;
@@ -29,6 +37,7 @@ interface DepositDetail {
 
 interface AccountDetailsSheetProps {
   onNotify?: (msg: string, type?: "success" | "error" | "info") => void;
+  onDataChanged?: () => void;
 }
 
 function formatCurrency(val: number | null | undefined): string {
@@ -42,14 +51,24 @@ function formatCurrency(val: number | null | undefined): string {
   );
 }
 
-export default function AccountDetailsSheet({ onNotify }: AccountDetailsSheetProps) {
+export default function AccountDetailsSheet({
+  onNotify,
+  onDataChanged,
+}: AccountDetailsSheetProps) {
   const [accountDetails, setAccountDetails] = useState<AccountDetail[]>([]);
-  const [depositsByAccount, setDepositsByAccount] = useState<Record<string, DepositDetail[]>>({});
+  const [depositsByAccount, setDepositsByAccount] = useState<
+    Record<string, DepositDetail[]>
+  >({});
   const [totalAmountFromHand, setTotalAmountFromHand] = useState<number>(0);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Modals state
+  // In-cell editing state for Deposit Amount
+  const [editingAmountId, setEditingAmountId] = useState<number | null>(null);
+  const [editingAmountVal, setEditingAmountVal] = useState<string>("");
+  const [isSavingInline, setIsSavingInline] = useState<boolean>(false);
+
+  // Modal state for Deposit
   const [depositModalOpen, setDepositModalOpen] = useState<boolean>(false);
   const [editingDeposit, setEditingDeposit] = useState<DepositDetail | null>(null);
   const [depAccount, setDepAccount] = useState<string>("");
@@ -58,35 +77,39 @@ export default function AccountDetailsSheet({ onNotify }: AccountDetailsSheetPro
   const [depComments, setDepComments] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
-  // Edit Account Detail Modal
+  // Modal state for Add Account Detail
   const [accModalOpen, setAccModalOpen] = useState<boolean>(false);
-  const [editingAcc, setEditingAcc] = useState<AccountDetail | null>(null);
   const [accBank, setAccBank] = useState<string>("CS");
   const [accStatus, setAccStatus] = useState<string>("Active");
   const [accType, setAccType] = useState<string>("Trading Account");
   const [accNumber, setAccNumber] = useState<string>("");
   const [accStartDate, setAccStartDate] = useState<string>("");
   const [accComments, setAccComments] = useState<string>("");
-  const [accTaxPeriod, setAccTaxPeriod] = useState<string>("Yearly Tax on Profit in US.");
+  const [accTaxPeriod, setAccTaxPeriod] = useState<string>(
+    "Yearly Tax on Profit in US."
+  );
 
-  const fetchData = useCallback(async (silent = false) => {
-    try {
-      if (!silent) setIsLoading(true);
-      const res = await fetch("/api/account-details", { cache: "no-store" });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Failed to load account details");
-      setAccountDetails(json.accountDetails || []);
-      setDepositsByAccount(json.depositsByAccount || {});
-      setTotalAmountFromHand(json.totalAmountFromHand || 0);
-      setError(null);
-    } catch (err) {
-      console.error(err);
-      setError(err instanceof Error ? err.message : "Failed to load data");
-      if (onNotify) onNotify("Failed to load Account Details", "error");
-    } finally {
-      if (!silent) setIsLoading(false);
-    }
-  }, [onNotify]);
+  const fetchData = useCallback(
+    async (silent = false) => {
+      try {
+        if (!silent) setIsLoading(true);
+        const res = await fetch("/api/account-details", { cache: "no-store" });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || "Failed to load account details");
+        setAccountDetails(json.accountDetails || []);
+        setDepositsByAccount(json.depositsByAccount || {});
+        setTotalAmountFromHand(json.totalAmountFromHand || 0);
+        setError(null);
+      } catch (err) {
+        console.error(err);
+        setError(err instanceof Error ? err.message : "Failed to load data");
+        if (onNotify) onNotify("Failed to load Account Details", "error");
+      } finally {
+        if (!silent) setIsLoading(false);
+      }
+    },
+    [onNotify]
+  );
 
   useEffect(() => {
     fetchData();
@@ -111,11 +134,64 @@ export default function AccountDetailsSheet({ onNotify }: AccountDetailsSheetPro
     setDepositModalOpen(true);
   };
 
-  const handleSaveDeposit = async (e: React.FormEvent) => {
+  // Direct In-Cell Edit for Deposit Amount
+  const startInlineEditAmount = (deposit: DepositDetail) => {
+    setEditingAmountId(deposit.id);
+    setEditingAmountVal(String(deposit.amount));
+  };
+
+  const cancelInlineEditAmount = () => {
+    setEditingAmountId(null);
+    setEditingAmountVal("");
+  };
+
+  const handleSaveInlineAmount = async (deposit: DepositDetail) => {
+    const val = parseFloat(editingAmountVal);
+    if (isNaN(val) || val <= 0) {
+      alert("Please enter a valid deposit amount greater than zero.");
+      return;
+    }
+
+    try {
+      setIsSavingInline(true);
+      const res = await fetch("/api/account-details", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "edit-deposit",
+          data: {
+            id: deposit.id,
+            amount: val,
+          },
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to update deposit amount");
+      setAccountDetails(json.accountDetails || []);
+      setDepositsByAccount(json.depositsByAccount || {});
+      setTotalAmountFromHand(json.totalAmountFromHand || 0);
+      setEditingAmountId(null);
+      setEditingAmountVal("");
+      if (onNotify)
+        onNotify(
+          `Deposit amount updated to ${formatCurrency(
+            val
+          )}! Principle amount and Account's Summary updated.`
+        );
+      if (onDataChanged) onDataChanged();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to update amount");
+    } finally {
+      setIsSavingInline(false);
+    }
+  };
+
+  const handleSaveDepositModal = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!depAccount) return alert("Select an account.");
     const amt = parseFloat(depAmount);
-    if (isNaN(amt) || amt <= 0) return alert("Enter a valid deposit amount greater than zero.");
+    if (isNaN(amt) || amt <= 0)
+      return alert("Enter a valid deposit amount greater than zero.");
     if (!depDate.trim()) return alert("Enter a valid investment date.");
 
     try {
@@ -140,7 +216,9 @@ export default function AccountDetailsSheet({ onNotify }: AccountDetailsSheetPro
         setAccountDetails(json.accountDetails || []);
         setDepositsByAccount(json.depositsByAccount || {});
         setTotalAmountFromHand(json.totalAmountFromHand || 0);
-        if (onNotify) onNotify(`Deposit updated and linked to Account ${depAccount}!`);
+        if (onNotify)
+          onNotify(`Deposit updated and linked to Account ${depAccount}!`);
+        if (onDataChanged) onDataChanged();
       } else {
         const res = await fetch("/api/account-details", {
           method: "POST",
@@ -160,7 +238,9 @@ export default function AccountDetailsSheet({ onNotify }: AccountDetailsSheetPro
         setAccountDetails(json.accountDetails || []);
         setDepositsByAccount(json.depositsByAccount || {});
         setTotalAmountFromHand(json.totalAmountFromHand || 0);
-        if (onNotify) onNotify(`New deposit added and linked to Account ${depAccount}!`);
+        if (onNotify)
+          onNotify(`New deposit added and linked to Account ${depAccount}!`);
+        if (onDataChanged) onDataChanged();
       }
       setDepositModalOpen(false);
     } catch (err) {
@@ -171,7 +251,8 @@ export default function AccountDetailsSheet({ onNotify }: AccountDetailsSheetPro
   };
 
   const handleDeleteDeposit = async (id: number, accNum: string) => {
-    if (!window.confirm("Are you sure you want to delete this deposit record?")) return;
+    if (!window.confirm("Are you sure you want to delete this deposit record?"))
+      return;
     try {
       const res = await fetch("/api/account-details", {
         method: "POST",
@@ -186,26 +267,17 @@ export default function AccountDetailsSheet({ onNotify }: AccountDetailsSheetPro
       setAccountDetails(json.accountDetails || []);
       setDepositsByAccount(json.depositsByAccount || {});
       setTotalAmountFromHand(json.totalAmountFromHand || 0);
-      if (onNotify) onNotify(`Deposit deleted. Account ${accNum} principle amount recalculated!`);
+      if (onNotify)
+        onNotify(
+          `Deposit deleted. Account ${accNum} principle amount recalculated!`
+        );
+      if (onDataChanged) onDataChanged();
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to delete deposit");
     }
   };
 
-  // Open Edit Account Modal
-  const handleOpenEditAccount = (acc: AccountDetail) => {
-    setEditingAcc(acc);
-    setAccBank(acc.financialInstitute);
-    setAccStatus(acc.activeStatus);
-    setAccType(acc.accountType);
-    setAccNumber(acc.accountNumber);
-    setAccStartDate(acc.startDate);
-    setAccComments(acc.comments);
-    setAccTaxPeriod(acc.taxPeriod);
-    setAccModalOpen(true);
-  };
-
-  const handleSaveAccount = async (e: React.FormEvent) => {
+  const handleSaveAddAccount = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!accNumber.trim()) return alert("Account # is required");
     try {
@@ -214,9 +286,8 @@ export default function AccountDetailsSheet({ onNotify }: AccountDetailsSheetPro
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          action: editingAcc ? "edit-account-detail" : "add-account-detail",
+          action: "add-account-detail",
           data: {
-            id: editingAcc?.id,
             financialInstitute: accBank.trim(),
             activeStatus: accStatus.trim(),
             accountType: accType.trim(),
@@ -233,7 +304,11 @@ export default function AccountDetailsSheet({ onNotify }: AccountDetailsSheetPro
       setDepositsByAccount(json.depositsByAccount || {});
       setTotalAmountFromHand(json.totalAmountFromHand || 0);
       setAccModalOpen(false);
-      if (onNotify) onNotify(`Account ${accNumber} details saved!`);
+      if (onNotify)
+        onNotify(
+          `Account ${accNumber} details saved and linked to Account's Summary!`
+        );
+      if (onDataChanged) onDataChanged();
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to save account");
     } finally {
@@ -241,61 +316,113 @@ export default function AccountDetailsSheet({ onNotify }: AccountDetailsSheetPro
     }
   };
 
-  // Calculate dynamic max column widths for Account Details table
+  // =========================================================================
+  // COLUMN WIDTHS: Strictly aligned to maximum text character size
+  // =========================================================================
+
+  // Table 1 (Account Details) - Exactly 8 columns (NO Action column)
   const accColWidths = useMemo(() => {
-    const calcW = (header: string, values: string[]) =>
-      Math.ceil(Math.max(header.length, ...values.map((v) => String(v || "").length)) * 7.4 + 24);
+    const calcMaxContentW = (header: string, values: string[], extraPadding = 22) => {
+      const maxLen = Math.max(
+        header.length,
+        ...values.map((v) => String(v || "").length)
+      );
+      return Math.ceil(maxLen * 7.4 + extraPadding);
+    };
+
     return [
-      calcW("Financial Institute/Bank", accountDetails.map((a) => a.financialInstitute)),
-      calcW("Active Status", accountDetails.map((a) => a.activeStatus)),
-      calcW("Account Type", accountDetails.map((a) => a.accountType)),
-      calcW("Account #", accountDetails.map((a) => a.accountNumber)),
-      calcW("~Start Date", accountDetails.map((a) => a.startDate)),
-      calcW("Comments", accountDetails.map((a) => a.comments || "—")),
-      calcW("Tax period", accountDetails.map((a) => a.taxPeriod)),
-      calcW("Amount from Hand (Principle Amount)", [
-        ...accountDetails.map((a) => formatCurrency(a.amountFromHand)),
-        formatCurrency(totalAmountFromHand),
-      ]),
-      80, // Actions column
+      calcMaxContentW("Account #", accountDetails.map((a) => a.accountNumber)),
+      calcMaxContentW(
+        "Financial Institute/Bank",
+        accountDetails.map((a) => a.financialInstitute)
+      ),
+      calcMaxContentW("Active Status", accountDetails.map((a) => a.activeStatus)),
+      calcMaxContentW("Account Type", accountDetails.map((a) => a.accountType)),
+      calcMaxContentW("~Start Date", accountDetails.map((a) => a.startDate)),
+      calcMaxContentW("Comments", accountDetails.map((a) => a.comments || "—")),
+      calcMaxContentW("Tax period", accountDetails.map((a) => a.taxPeriod)),
+      // Amount from Hand header & values (including Total Amount)
+      calcMaxContentW(
+        "Amount from Hand (Principle Amount)",
+        [
+          ...accountDetails.map((a) => formatCurrency(a.amountFromHand)),
+          formatCurrency(totalAmountFromHand),
+        ],
+        26
+      ),
     ];
   }, [accountDetails, totalAmountFromHand]);
 
-  const accTotalWidth = useMemo(() => accColWidths.reduce((s, w) => s + w, 0), [accColWidths]);
+  const accTotalWidth = useMemo(
+    () => accColWidths.reduce((s, w) => s + w, 0),
+    [accColWidths]
+  );
 
-  // Distinct accounts that have deposits or are configured
+  // Distinct accounts list
   const accountsList = useMemo(() => {
     return accountDetails.map((a) => a.accountNumber);
   }, [accountDetails]);
 
-  // Compute Deposit Details columns width
+  // Table 2 (Deposit Details) - Column widths strictly aligned to max content
   const allDeposits = useMemo(() => {
     return Object.values(depositsByAccount).flat();
   }, [depositsByAccount]);
 
   const depColWidths = useMemo(() => {
-    const calcW = (header: string, values: string[], min = 70) =>
-      Math.ceil(Math.max(min, Math.max(header.length, ...values.map((v) => String(v || "").length)) * 7.4 + 24));
-    return [
-      calcW("ACC#", allDeposits.map((d) => d.accountNumber), 95),
-      calcW("& Date Invested", allDeposits.map((d) => d.dateInvested), 125),
-      calcW("Amount", allDeposits.map((d) => formatCurrency(d.amount)), 125),
-      calcW("Cumulative Amt", allDeposits.map((d) => formatCurrency(d.cumulativeAmt)), 135),
-      calcW("Comments", allDeposits.map((d) => d.comments || "—"), 240),
-      85, // Actions
-    ];
-  }, [allDeposits]);
+    const calcMaxContentW = (header: string, values: string[], extraPadding = 22) => {
+      const maxLen = Math.max(
+        header.length,
+        ...values.map((v) => String(v || "").length)
+      );
+      return Math.ceil(maxLen * 7.4 + extraPadding);
+    };
 
-  const depTotalWidth = useMemo(() => depColWidths.reduce((s, w) => s + w, 0), [depColWidths]);
+    return [
+      calcMaxContentW(
+        "Account #",
+        [...allDeposits.map((d) => d.accountNumber), ...accountsList],
+        26
+      ),
+      calcMaxContentW(
+        "Deposit Date",
+        allDeposits.map((d) => d.dateInvested),
+        22
+      ),
+      // Amount column: includes extra space for inline edit controls
+      calcMaxContentW(
+        "Amount",
+        allDeposits.map((d) => formatCurrency(d.amount)),
+        32
+      ),
+      calcMaxContentW(
+        "Cumulative Amt",
+        allDeposits.map((d) => `Linked -> ${formatCurrency(d.cumulativeAmt)}`),
+        24
+      ),
+      calcMaxContentW(
+        "Comments",
+        allDeposits.map((d) => d.comments || "—"),
+        24
+      ),
+      76, // Actions column (Edit full & Delete)
+    ];
+  }, [allDeposits, accountsList]);
+
+  const depTotalWidth = useMemo(
+    () => depColWidths.reduce((s, w) => s + w, 0),
+    [depColWidths]
+  );
 
   return (
     <div className="section-font-summary space-y-6 pb-12 animate-in fade-in duration-150">
-      {/* SECTION 1: ACCOUNT DETAILS TABLE */}
+      {/* SECTION 1: ACCOUNT DETAILS TABLE (NO ACTION COLUMN) */}
       <div className="overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-[0_12px_32px_-24px_rgba(15,23,42,0.65)]">
-        {/* Table Title Bar: Unified Navy Linear Gradient matching Account's Summary */}
+        {/* Table Title Bar: Unified Navy Linear Gradient */}
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-blue-950/25 bg-[linear-gradient(110deg,#173f68_0%,#245d8f_55%,#1b4b76_100%)] px-3.5 py-1.5 text-white">
           <div className="flex items-center gap-2">
-            <h2 className="text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.07em]">Account Details</h2>
+            <h2 className="text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.07em]">
+              Account Details
+            </h2>
             <span className="rounded bg-white/15 px-2 py-0.5 text-[9px] font-semibold text-blue-100">
               {accountDetails.length} Accounts
             </span>
@@ -304,7 +431,6 @@ export default function AccountDetailsSheet({ onNotify }: AccountDetailsSheetPro
             <button
               type="button"
               onClick={() => {
-                setEditingAcc(null);
                 setAccBank("CS");
                 setAccStatus("Active");
                 setAccType("Trading Account");
@@ -319,18 +445,10 @@ export default function AccountDetailsSheet({ onNotify }: AccountDetailsSheetPro
               <Plus className="h-3 w-3" />
               Add Account
             </button>
-            <button
-              type="button"
-              onClick={() => fetchData(true)}
-              className="grid h-6 w-6 place-items-center rounded bg-white/20 hover:bg-white/30 text-white transition"
-              title="Refresh data"
-            >
-              <RefreshCw className={`h-3 w-3 ${isLoading ? "animate-spin" : ""}`} />
-            </button>
           </div>
         </div>
 
-        {/* Account Details Spreadsheet Table */}
+        {/* Account Details Spreadsheet Table: strictly fitted to max column width */}
         <div className="freeze-header-scroll relative max-h-[50vh] overflow-auto">
           <table
             className="freeze-header-table table-fixed border-separate border-spacing-0 text-xs"
@@ -342,8 +460,11 @@ export default function AccountDetailsSheet({ onNotify }: AccountDetailsSheetPro
               ))}
             </colgroup>
             <thead>
-              {/* Header row in Periwinkle Slate Blue #D9E1F2 matching Account's Summary */}
+              {/* Header row in Periwinkle Slate Blue #D9E1F2 (NO Action column) */}
               <tr className="border-b border-slate-400 bg-[#D9E1F2] text-center font-bold text-[#1F4E79]">
+                <th className="border border-slate-300 px-3 py-1.5 text-left whitespace-nowrap">
+                  Account #
+                </th>
                 <th className="border border-slate-300 px-3 py-1.5 text-left whitespace-nowrap">
                   Financial Institute/Bank
                 </th>
@@ -352,9 +473,6 @@ export default function AccountDetailsSheet({ onNotify }: AccountDetailsSheetPro
                 </th>
                 <th className="border border-slate-300 px-3 py-1.5 text-left whitespace-nowrap">
                   Account Type
-                </th>
-                <th className="border border-slate-300 px-3 py-1.5 text-left whitespace-nowrap">
-                  Account #
                 </th>
                 <th className="border border-slate-300 px-3 py-1.5 text-center whitespace-nowrap">
                   ~Start Date
@@ -368,10 +486,9 @@ export default function AccountDetailsSheet({ onNotify }: AccountDetailsSheetPro
                 <th className="border border-slate-300 px-3 py-1.5 text-right whitespace-nowrap bg-[#C6D9F1] text-[#1F4E79] font-bold">
                   Amount from Hand
                   <br />
-                  <span className="text-[9.5px] font-normal text-slate-700">(Principle Amount)</span>
-                </th>
-                <th className="border border-slate-300 px-2 py-1.5 text-center whitespace-nowrap">
-                  Action
+                  <span className="text-[9.5px] font-normal text-slate-700">
+                    (Principle Amount)
+                  </span>
                 </th>
               </tr>
             </thead>
@@ -386,6 +503,10 @@ export default function AccountDetailsSheet({ onNotify }: AccountDetailsSheetPro
                       isEven ? "bg-[#D9E1F2]/40" : "bg-white"
                     }`}
                   >
+                    {/* Column 1: Account # */}
+                    <td className="border border-slate-300 px-3 py-1.5 font-bold text-[#1F4E79] whitespace-nowrap font-mono">
+                      {acc.accountNumber}
+                    </td>
                     <td className="border border-slate-300 px-3 py-1.5 font-bold text-slate-800 whitespace-nowrap">
                       {acc.financialInstitute}
                     </td>
@@ -398,9 +519,6 @@ export default function AccountDetailsSheet({ onNotify }: AccountDetailsSheetPro
                     <td className="border border-slate-300 px-3 py-1.5 font-semibold text-blue-950 whitespace-nowrap">
                       {acc.accountType}
                     </td>
-                    <td className="border border-slate-300 px-3 py-1.5 font-bold text-[#1F4E79] whitespace-nowrap font-mono">
-                      {acc.accountNumber}
-                    </td>
                     <td className="border border-slate-300 px-3 py-1.5 text-center text-slate-700 whitespace-nowrap font-mono text-[11px]">
                       {acc.startDate || "—"}
                     </td>
@@ -410,7 +528,7 @@ export default function AccountDetailsSheet({ onNotify }: AccountDetailsSheetPro
                     <td className="border border-slate-300 px-3 py-1.5 text-slate-700 whitespace-nowrap text-[11px]">
                       {acc.taxPeriod}
                     </td>
-                    {/* Amount from Hand (Principle Amount) - dynamically linked strictly to final cumulative deposit! */}
+                    {/* Amount from Hand (Principle Amount) */}
                     <td
                       className={`border border-slate-300 px-3 py-1.5 text-right font-mono font-bold whitespace-nowrap ${
                         isGreenHighlight
@@ -422,48 +540,43 @@ export default function AccountDetailsSheet({ onNotify }: AccountDetailsSheetPro
                       title={`Referenced strictly from the final Cumulative Amount in Deposit Details for ${acc.accountNumber}`}
                     >
                       <div className="flex items-center justify-end gap-1.5">
-                        <span className="text-[9px] text-emerald-700 font-sans" title="Linked from Deposit Details table">
+                        <span
+                          className="text-[9px] text-emerald-700 font-sans"
+                          title="Linked from Deposit Details table"
+                        >
                           <LinkIcon className="h-2.5 w-2.5 inline" />
                         </span>
                         <span>{formatCurrency(acc.amountFromHand)}</span>
                       </div>
                     </td>
-                    <td className="border border-slate-300 px-2 py-1.5 text-center whitespace-nowrap">
-                      <button
-                        type="button"
-                        onClick={() => handleOpenEditAccount(acc)}
-                        className="p-1 text-blue-700 hover:text-blue-950 rounded hover:bg-blue-100/50"
-                        title="Edit Account Details"
-                      >
-                        <Pencil className="h-3 w-3" />
-                      </button>
-                    </td>
                   </tr>
                 );
               })}
 
-              {/* Total Row matching standard workbook style: Green background #E2EFDA */}
+              {/* Total Row: "Total Amount" (Exactly 8 columns spanning 7 + 1) */}
               <tr className="bg-[#E2EFDA] font-extrabold text-slate-900 border-t-2 border-slate-400">
-                <td colSpan={7} className="border border-slate-400 px-3 py-2 text-right uppercase tracking-wider text-[11px]">
-                  Total Principle Amount (Amount from Hand):
+                <td
+                  colSpan={7}
+                  className="border border-slate-400 px-3 py-2 text-right uppercase tracking-wider text-[11px]"
+                >
+                  Total Amount:
                 </td>
                 <td className="border border-slate-400 px-3 py-2 text-right font-mono text-[13px] text-emerald-950 bg-[#C6E0B4] whitespace-nowrap">
                   {formatCurrency(totalAmountFromHand)}
                 </td>
-                <td className="border border-slate-400 text-center whitespace-nowrap">—</td>
               </tr>
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* SECTION 2: DEPOSIT DETAILS - AMOUNT FROM HAND */}
+      {/* SECTION 2: DEPOSIT DETAILS TABLE (WITH EDITABLE AMOUNT) */}
       <div className="overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-[0_12px_32px_-24px_rgba(15,23,42,0.65)]">
-        {/* Banner: Matching Navy Linear Gradient */}
+        {/* Banner: "Deposit Details" */}
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-blue-950/25 bg-[linear-gradient(110deg,#173f68_0%,#245d8f_55%,#1b4b76_100%)] px-3.5 py-1.5 text-white">
           <div className="flex items-center gap-2">
             <h2 className="text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.07em]">
-              Deposit Details - Amount from Hand
+              Deposit Details
             </h2>
             <span className="rounded bg-white/15 px-2 py-0.5 text-[9px] font-semibold text-blue-100">
               Linked by Account # Reference
@@ -481,7 +594,7 @@ export default function AccountDetailsSheet({ onNotify }: AccountDetailsSheetPro
           </div>
         </div>
 
-        {/* Deposit Details Table: Sized and styled with the exact same header color coding (#D9E1F2) in par with Account Details */}
+        {/* Deposit Details Table: strictly fitted to max column width */}
         <div className="freeze-header-scroll relative max-h-[60vh] overflow-auto">
           <table
             className="freeze-header-table table-fixed border-separate border-spacing-0 text-xs"
@@ -493,16 +606,19 @@ export default function AccountDetailsSheet({ onNotify }: AccountDetailsSheetPro
               ))}
             </colgroup>
             <thead>
-              {/* Table 2 Header: EXACT same Periwinkle Slate Blue #D9E1F2 matching Account Details and Account's Summary */}
               <tr className="border-b border-slate-400 bg-[#D9E1F2] text-center font-bold text-[#1F4E79]">
                 <th className="border border-slate-300 px-3 py-1.5 text-left whitespace-nowrap">
-                  ACC#
+                  Account #
                 </th>
                 <th className="border border-slate-300 px-3 py-1.5 text-center whitespace-nowrap">
-                  & Date Invested
+                  Deposit Date
                 </th>
-                <th className="border border-slate-300 px-3 py-1.5 text-right whitespace-nowrap">
-                  Amount
+                {/* Amount column header highlighted in light amber with edit indication */}
+                <th className="border border-slate-300 px-3 py-1.5 text-right whitespace-nowrap bg-[#FFF2CC] text-[#78350F] font-bold">
+                  <div className="inline-flex items-center justify-end gap-1">
+                    <span>Amount</span>
+                    <Pencil className="h-2.5 w-2.5 text-amber-600 inline" />
+                  </div>
                 </th>
                 <th className="border border-slate-300 px-3 py-1.5 text-right whitespace-nowrap bg-[#C6D9F1] text-[#1F4E79] font-bold">
                   Cumulative Amt
@@ -521,10 +637,11 @@ export default function AccountDetailsSheet({ onNotify }: AccountDetailsSheetPro
 
                 return (
                   <React.Fragment key={accNum}>
-                    {/* If there are deposit rows for this account */}
                     {deps.length > 0 ? (
                       deps.map((dep, depIdx) => {
                         const isFinalRow = depIdx === deps.length - 1;
+                        const isEditingThisAmount = editingAmountId === dep.id;
+
                         return (
                           <tr
                             key={dep.id}
@@ -532,7 +649,7 @@ export default function AccountDetailsSheet({ onNotify }: AccountDetailsSheetPro
                               isFinalRow ? "font-semibold bg-white" : "bg-white"
                             }`}
                           >
-                            {/* ACC# shown cleanly on first row */}
+                            {/* Account # */}
                             <td className="border border-slate-300 px-3 py-1.5 font-mono font-bold text-[#1F4E79] bg-white whitespace-nowrap">
                               {depIdx === 0 ? (
                                 <div className="flex items-center gap-1.5">
@@ -547,19 +664,96 @@ export default function AccountDetailsSheet({ onNotify }: AccountDetailsSheetPro
                                   </button>
                                 </div>
                               ) : (
-                                <span className="text-slate-300 font-normal select-none">·</span>
+                                <span className="text-slate-300 font-normal select-none">
+                                  ·
+                                </span>
                               )}
                             </td>
                             <td className="border border-slate-300 px-3 py-1.5 text-center font-mono text-[11px] whitespace-nowrap text-slate-800">
                               {dep.dateInvested}
                             </td>
-                            <td className="border border-slate-300 px-3 py-1.5 text-right font-mono whitespace-nowrap text-slate-900">
-                              {formatCurrency(dep.amount)}
+
+                            {/* EDITABLE AMOUNT CELL: Direct in-cell edit with double-click or pencil */}
+                            <td
+                              onDoubleClick={(e) => {
+                                e.stopPropagation();
+                                startInlineEditAmount(dep);
+                              }}
+                              className={`border border-slate-300 px-2 py-1 text-right font-mono whitespace-nowrap group cursor-pointer transition ${
+                                isEditingThisAmount
+                                  ? "bg-amber-50 ring-2 ring-emerald-600 ring-inset"
+                                  : "hover:bg-amber-50/50"
+                              }`}
+                              title="Double-click or click pencil to edit deposit amount"
+                            >
+                              {isEditingThisAmount ? (
+                                <div
+                                  className="flex items-center justify-end gap-1"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <input
+                                    type="number"
+                                    step="any"
+                                    min="0.01"
+                                    autoFocus
+                                    value={editingAmountVal}
+                                    onChange={(e) => setEditingAmountVal(e.target.value)}
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Enter") {
+                                        e.preventDefault();
+                                        handleSaveInlineAmount(dep);
+                                      }
+                                      if (e.key === "Escape") {
+                                        cancelInlineEditAmount();
+                                      }
+                                    }}
+                                    disabled={isSavingInline}
+                                    className="w-24 px-1 py-0.5 bg-white border-2 border-emerald-600 rounded text-right font-mono font-bold text-xs outline-none shadow-xs"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSaveInlineAmount(dep)}
+                                    disabled={isSavingInline}
+                                    className="p-1 text-emerald-700 hover:bg-emerald-100 rounded"
+                                    title="Save Amount (Enter)"
+                                  >
+                                    <Check className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={cancelInlineEditAmount}
+                                    className="p-1 text-red-600 hover:bg-red-100 rounded"
+                                    title="Cancel (Esc)"
+                                  >
+                                    <X className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="flex items-center justify-end gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      startInlineEditAmount(dep);
+                                    }}
+                                    className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-emerald-700 transition"
+                                    title="Edit Amount"
+                                  >
+                                    <Pencil className="w-3 h-3" />
+                                  </button>
+                                  <span className="font-semibold text-slate-900">
+                                    {formatCurrency(dep.amount)}
+                                  </span>
+                                </div>
+                              )}
                             </td>
-                            {/* Cumulative Amt - final row highlighted in light green #E2EFDA matching screenshot */}
+
+                            {/* Cumulative Amt */}
                             <td
                               className={`border border-slate-300 px-3 py-1.5 text-right font-mono font-bold whitespace-nowrap ${
-                                isFinalRow ? "bg-[#E2EFDA] text-emerald-950" : "text-slate-900"
+                                isFinalRow
+                                  ? "bg-[#E2EFDA] text-emerald-950"
+                                  : "text-slate-900"
                               }`}
                               title={
                                 isFinalRow
@@ -591,7 +785,7 @@ export default function AccountDetailsSheet({ onNotify }: AccountDetailsSheetPro
                                   type="button"
                                   onClick={() => handleOpenEditDeposit(dep)}
                                   className="p-1 text-blue-700 hover:text-blue-900 rounded hover:bg-blue-50"
-                                  title="Edit Deposit"
+                                  title="Edit Deposit Details"
                                 >
                                   <Pencil className="h-3 w-3" />
                                 </button>
@@ -614,7 +808,10 @@ export default function AccountDetailsSheet({ onNotify }: AccountDetailsSheetPro
                         <td className="border border-slate-300 px-3 py-2 font-mono font-bold text-[#1F4E79] whitespace-nowrap">
                           {accNum}
                         </td>
-                        <td colSpan={4} className="border border-slate-300 px-3 py-2 text-slate-400 italic text-[11px]">
+                        <td
+                          colSpan={4}
+                          className="border border-slate-300 px-3 py-2 text-slate-400 italic text-[11px]"
+                        >
                           No deposit records yet. Final Cumulative: $0.00
                         </td>
                         <td className="border border-slate-300 px-2 py-2 text-center whitespace-nowrap">
@@ -630,10 +827,16 @@ export default function AccountDetailsSheet({ onNotify }: AccountDetailsSheetPro
                       </tr>
                     )}
 
-                    {/* Clean subtle separator row between accounts */}
+                    {/* Separator row between accounts */}
                     {accIdx < accountsList.length - 1 && (
-                      <tr key={`sep-${accNum}`} className="bg-slate-200/80 select-none pointer-events-none">
-                        <td colSpan={6} className="h-1.5 bg-slate-200 border-y border-slate-300 p-0" />
+                      <tr
+                        key={`sep-${accNum}`}
+                        className="bg-slate-200/80 select-none pointer-events-none"
+                      >
+                        <td
+                          colSpan={6}
+                          className="h-1.5 bg-slate-200 border-y border-slate-300 p-0"
+                        />
                       </tr>
                     )}
                   </React.Fragment>
@@ -652,8 +855,13 @@ export default function AccountDetailsSheet({ onNotify }: AccountDetailsSheetPro
             Independent Table Architecture & Strict Deposit-Only Reference:
           </p>
           <p className="text-slate-600 leading-relaxed text-[10.5px]">
-            <strong>Account Details</strong> and <strong>Deposit Details</strong> are stored in separate, dedicated database tables (<code>portfolio_account_details</code> and <code>portfolio_deposit_details</code>).
-            The <em>Amount from Hand (Principle Amount)</em> column in the Account Details section is calculated and referenced strictly from the cumulative deposits for each matching <strong>Account #</strong> (e.g. <code>CS 9271 → $47,894.01</code>, <code>CS 9538 → $35,600.00</code>), completely independent of the Account&apos;s Summary table.
+            <strong>Account Details</strong> and <strong>Deposit Details</strong> are stored
+            in separate, dedicated database tables (<code>portfolio_account_details</code>{" "}
+            and <code>portfolio_deposit_details</code>). The{" "}
+            <em>Amount from Hand (Principle Amount)</em> column is calculated and referenced
+            strictly from the cumulative deposits for each matching <strong>Account #</strong>,
+            which simultaneously links directly to the <em>Account Value</em> in
+            Account&apos;s Summary.
           </p>
         </div>
       </div>
@@ -666,7 +874,9 @@ export default function AccountDetailsSheet({ onNotify }: AccountDetailsSheetPro
               <div className="flex items-center gap-2">
                 <Plus className="w-4 h-4 text-blue-200" />
                 <h3 className="font-bold text-xs uppercase tracking-wide">
-                  {editingDeposit ? `Edit Deposit #${editingDeposit.id}` : "Add Deposit - Amount from Hand"}
+                  {editingDeposit
+                    ? `Edit Deposit #${editingDeposit.id}`
+                    : "Add Deposit - Amount from Hand"}
                 </h3>
               </div>
               <button
@@ -677,9 +887,11 @@ export default function AccountDetailsSheet({ onNotify }: AccountDetailsSheetPro
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <form onSubmit={handleSaveDeposit} className="p-5 space-y-3.5 text-xs">
+            <form onSubmit={handleSaveDepositModal} className="p-5 space-y-3.5 text-xs">
               <div>
-                <label className="block text-slate-700 font-bold mb-1">Account #</label>
+                <label className="block text-slate-700 font-bold mb-1">
+                  Account #
+                </label>
                 <select
                   value={depAccount}
                   onChange={(e) => setDepAccount(e.target.value)}
@@ -695,7 +907,9 @@ export default function AccountDetailsSheet({ onNotify }: AccountDetailsSheetPro
               </div>
 
               <div>
-                <label className="block text-slate-700 font-bold mb-1">& Date Invested</label>
+                <label className="block text-slate-700 font-bold mb-1">
+                  Deposit Date
+                </label>
                 <input
                   type="text"
                   value={depDate}
@@ -707,7 +921,9 @@ export default function AccountDetailsSheet({ onNotify }: AccountDetailsSheetPro
               </div>
 
               <div>
-                <label className="block text-slate-700 font-bold mb-1">Amount ($)</label>
+                <label className="block text-slate-700 font-bold mb-1">
+                  Amount ($)
+                </label>
                 <input
                   type="number"
                   step="any"
@@ -721,7 +937,9 @@ export default function AccountDetailsSheet({ onNotify }: AccountDetailsSheetPro
               </div>
 
               <div>
-                <label className="block text-slate-700 font-bold mb-1">Comments</label>
+                <label className="block text-slate-700 font-bold mb-1">
+                  Comments
+                </label>
                 <input
                   type="text"
                   value={depComments}
@@ -732,9 +950,13 @@ export default function AccountDetailsSheet({ onNotify }: AccountDetailsSheetPro
               </div>
 
               <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-2.5 text-[11px] text-emerald-900">
-                <span className="font-bold block mb-0.5">Automatic Account Linking:</span>
-                The running cumulative sum will be recalculated automatically and linked to{" "}
-                <strong>Amount from Hand (Principle Amount)</strong> in the Account Details table.
+                <span className="font-bold block mb-0.5">
+                  Automatic Account Linking:
+                </span>
+                The running cumulative sum will be recalculated automatically and
+                linked to <strong>Amount from Hand (Principle Amount)</strong> in the
+                Account Details table and <strong>Account Value</strong> in Account&apos;s
+                Summary.
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200">
@@ -758,15 +980,15 @@ export default function AccountDetailsSheet({ onNotify }: AccountDetailsSheetPro
         </div>
       )}
 
-      {/* MODAL: EDIT ACCOUNT DETAIL */}
+      {/* MODAL: ADD ACCOUNT DETAIL */}
       {accModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-in fade-in duration-150">
           <div className="bg-white rounded-xl shadow-2xl border border-slate-300 w-full max-w-lg overflow-hidden flex flex-col">
             <div className="bg-[#1F4E79] text-white px-5 py-3 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Pencil className="w-4 h-4 text-blue-200" />
+                <Plus className="w-4 h-4 text-blue-200" />
                 <h3 className="font-bold text-xs uppercase tracking-wide">
-                  {editingAcc ? `Edit Account ${editingAcc.accountNumber}` : "Add Account Detail"}
+                  Add Account Detail
                 </h3>
               </div>
               <button
@@ -777,10 +999,25 @@ export default function AccountDetailsSheet({ onNotify }: AccountDetailsSheetPro
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <form onSubmit={handleSaveAccount} className="p-5 space-y-3.5 text-xs">
+            <form onSubmit={handleSaveAddAccount} className="p-5 space-y-3.5 text-xs">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-700 font-bold mb-1">Financial Institute / Bank</label>
+                  <label className="block text-slate-700 font-bold mb-1">
+                    Account #
+                  </label>
+                  <input
+                    type="text"
+                    value={accNumber}
+                    onChange={(e) => setAccNumber(e.target.value)}
+                    placeholder="e.g. CS 9271, RH 8031"
+                    className="w-full bg-slate-50 border border-slate-300 rounded p-2 font-mono font-bold text-xs focus:ring-2 focus:ring-[#1F4E79] outline-none"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">
+                    Financial Institute / Bank
+                  </label>
                   <input
                     type="text"
                     value={accBank}
@@ -790,8 +1027,13 @@ export default function AccountDetailsSheet({ onNotify }: AccountDetailsSheetPro
                     required
                   />
                 </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-700 font-bold mb-1">Active Status</label>
+                  <label className="block text-slate-700 font-bold mb-1">
+                    Active Status
+                  </label>
                   <select
                     value={accStatus}
                     onChange={(e) => setAccStatus(e.target.value)}
@@ -801,11 +1043,10 @@ export default function AccountDetailsSheet({ onNotify }: AccountDetailsSheetPro
                     <option value="Inactive">Inactive</option>
                   </select>
                 </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-700 font-bold mb-1">Account Type</label>
+                  <label className="block text-slate-700 font-bold mb-1">
+                    Account Type
+                  </label>
                   <input
                     type="text"
                     value={accType}
@@ -815,23 +1056,13 @@ export default function AccountDetailsSheet({ onNotify }: AccountDetailsSheetPro
                     required
                   />
                 </div>
-                <div>
-                  <label className="block text-slate-700 font-bold mb-1">Account #</label>
-                  <input
-                    type="text"
-                    value={accNumber}
-                    disabled={!!editingAcc}
-                    onChange={(e) => setAccNumber(e.target.value)}
-                    placeholder="e.g. CS 9271, RH 8031"
-                    className="w-full bg-slate-50 border border-slate-300 rounded p-2 font-mono font-bold text-xs focus:ring-2 focus:ring-[#1F4E79] outline-none disabled:bg-slate-100"
-                    required
-                  />
-                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-700 font-bold mb-1">~Start Date</label>
+                  <label className="block text-slate-700 font-bold mb-1">
+                    ~Start Date
+                  </label>
                   <input
                     type="text"
                     value={accStartDate}
@@ -841,7 +1072,9 @@ export default function AccountDetailsSheet({ onNotify }: AccountDetailsSheetPro
                   />
                 </div>
                 <div>
-                  <label className="block text-slate-700 font-bold mb-1">Tax period</label>
+                  <label className="block text-slate-700 font-bold mb-1">
+                    Tax period
+                  </label>
                   <input
                     type="text"
                     value={accTaxPeriod}
@@ -853,7 +1086,9 @@ export default function AccountDetailsSheet({ onNotify }: AccountDetailsSheetPro
               </div>
 
               <div>
-                <label className="block text-slate-700 font-bold mb-1">Comments</label>
+                <label className="block text-slate-700 font-bold mb-1">
+                  Comments
+                </label>
                 <input
                   type="text"
                   value={accComments}

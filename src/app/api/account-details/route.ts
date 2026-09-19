@@ -6,6 +6,7 @@ import {
   deleteDeposit,
   editAccountDetail,
   addAccountDetail,
+  deleteAccountDetail,
 } from "@/db/portfolio-service";
 
 export async function GET() {
@@ -48,6 +49,11 @@ export async function POST(req: NextRequest) {
 
     if (action === "add-account-detail") {
       const result = await addAccountDetail(data);
+      return NextResponse.json(result);
+    }
+
+    if (action === "delete-account-detail") {
+      const result = await deleteAccountDetail(Number(data?.id));
       return NextResponse.json(result);
     }
 
