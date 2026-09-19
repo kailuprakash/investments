@@ -8,6 +8,7 @@ import {
   transactionHistoryTable,
   accountDetailsTable,
   depositDetailsTable,
+  settingsTable,
 } from "@/db/schema";
 import { eq, asc, desc } from "drizzle-orm";
 import seedData from "@/db/seed-data.json";
@@ -140,11 +141,6 @@ export async function ensureDbSeeded(): Promise<void> {
         remaining_quantity DOUBLE PRECISION NOT NULL DEFAULT 0,
         source_transaction_id INTEGER
       );
-      ALTER TABLE portfolio_future_investments
-        ADD COLUMN IF NOT EXISTS average_cost DOUBLE PRECISION NOT NULL DEFAULT 0;
-      UPDATE portfolio_future_investments
-        SET average_cost = COALESCE(NULLIF(average_cost, 0), NULLIF(cost_basis_per_share, 0), price_per_share)
-        WHERE average_cost = 0 OR average_cost IS NULL;
       CREATE TABLE IF NOT EXISTS portfolio_watchlist (
         symbol TEXT PRIMARY KEY,
         name TEXT NOT NULL,
@@ -194,7 +190,25 @@ export async function ensureDbSeeded(): Promise<void> {
         comments TEXT NOT NULL DEFAULT '',
         order_index INTEGER NOT NULL DEFAULT 0
       );
+      CREATE TABLE IF NOT EXISTS portfolio_settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at TEXT NOT NULL DEFAULT ''
+      );
     `);
+
+    // Ensure default settings exist in DB
+    const autoRefreshRows = await db
+      .select()
+      .from(settingsTable)
+      .where(eq(settingsTable.key, "auto_refresh_interval"));
+    if (autoRefreshRows.length === 0) {
+      await db.insert(settingsTable).values({
+        key: "auto_refresh_interval",
+        value: "60",
+        updatedAt: new Date().toISOString(),
+      });
+    }
 
     const existingAccounts = await db.select().from(accountsTable);
     if (existingAccounts.length === 0) {
@@ -516,13 +530,35 @@ export async function getPortfolioState() {
     };
   });
 
+  const autoRefreshIntervalStr = await getSetting("auto_refresh_interval", "60");
+  const autoRefreshInterval = Number(autoRefreshIntervalStr) || 60;
+
   return {
     accounts,
     grandTotal,
     futureInvestments,
     marketCache: marketCacheStore,
+    autoRefreshInterval,
     lastRefreshed: new Date().toISOString(),
   };
+}
+
+export async function getSetting(key: string, defaultValue = ""): Promise<string> {
+  await ensureDbSeeded();
+  const rows = await db.select().from(settingsTable).where(eq(settingsTable.key, key));
+  return rows[0]?.value ?? defaultValue;
+}
+
+export async function setSetting(key: string, value: string): Promise<string> {
+  await ensureDbSeeded();
+  const existing = await db.select().from(settingsTable).where(eq(settingsTable.key, key));
+  const nowIso = new Date().toISOString();
+  if (existing[0]) {
+    await db.update(settingsTable).set({ value, updatedAt: nowIso }).where(eq(settingsTable.key, key));
+  } else {
+    await db.insert(settingsTable).values({ key, value, updatedAt: nowIso });
+  }
+  return value;
 }
 
 export async function refreshAllMarketPrices() {

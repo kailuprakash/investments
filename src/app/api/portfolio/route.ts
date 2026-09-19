@@ -9,6 +9,7 @@ import {
   saveHolding,
   saveAccount,
   importExcelWorkbookData,
+  setSetting,
 } from "@/db/portfolio-service";
 
 export async function GET(req: NextRequest) {
@@ -67,6 +68,20 @@ export async function POST(req: NextRequest) {
     if (action === "import-excel-data") {
       const res = await importExcelWorkbookData(data);
       return NextResponse.json(res);
+    }
+
+    if (action === "set-auto-refresh-interval" || action === "update-settings") {
+      const interval =
+        data?.autoRefreshInterval !== undefined
+          ? data.autoRefreshInterval
+          : data?.interval !== undefined
+          ? data.interval
+          : data;
+      if (interval !== undefined && !isNaN(Number(interval))) {
+        await setSetting("auto_refresh_interval", String(Number(interval)));
+      }
+      const portfolio = await getPortfolioState();
+      return NextResponse.json({ portfolio });
     }
 
     const portfolio = await getPortfolioState();

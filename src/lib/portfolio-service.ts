@@ -10,6 +10,9 @@ import {
   depositDetails,
   accountDetailsTable,
   depositDetailsTable,
+  settingsTable,
+  settings,
+  portfolioSettings,
 } from "@/db/schema";
 
 export {
@@ -24,6 +27,9 @@ export {
   depositDetails,
   accountDetailsTable,
   depositDetailsTable,
+  settingsTable,
+  settings,
+  portfolioSettings,
 };
 
 export * from "@/db/portfolio-service";

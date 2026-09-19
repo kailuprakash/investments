@@ -115,6 +115,12 @@ export const depositDetailsTable = pgTable("portfolio_deposit_details", {
   orderIndex: integer("order_index").notNull().default(0),
 });
 
+export const settingsTable = pgTable("portfolio_settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+  updatedAt: text("updated_at").notNull().default(""),
+});
+
 // Named export aliases for compatibility across all modules & routes
 export const accounts = accountsTable;
 export const masterAccounts = accountsTable;
@@ -132,3 +138,5 @@ export const weeklyTransactionHistory = transactionHistoryTable;
 export const marketCache = marketCacheTable;
 export const accountDetails = accountDetailsTable;
 export const depositDetails = depositDetailsTable;
+export const settings = settingsTable;
+export const portfolioSettings = settingsTable;
