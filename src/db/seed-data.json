@@ -3,9 +3,84 @@
     "accounts": [
       {
         "sNo": 1,
+        "id": 19,
+        "accountNumber": "CS 9271",
+        "accountName": "CS 9271",
+        "accountOverallMoney": 65924.2,
+        "cashAvailable": 64205.8,
+        "amountInvested": 1925.7,
+        "investmentCurrent": 1718.4,
+        "gainLoss": -207.3,
+        "gainLossPercent": -10.76,
+        "comments": "",
+        "holdings": [
+          {
+            "id": 17,
+            "accountNumber": "CS 9271",
+            "symbol": "GOOG",
+            "quantity": 5,
+            "purchasePrice": 385.14,
+            "investAmount": 1925.7,
+            "currentPrice": 343.68,
+            "overallCurrentPrice": 1718.4,
+            "comments": "",
+            "highlight": "",
+            "profitLossAmt": -207.3,
+            "gainLossPercent": -10.76,
+            "updatedAt": "2026-09-17T03:00:46.539Z"
+          }
+        ]
+      },
+      {
+        "sNo": 2,
+        "id": 20,
+        "accountNumber": "CS 9538",
+        "accountName": "CS 9538",
+        "accountOverallMoney": 61984.41,
+        "cashAvailable": 34572.59,
+        "amountInvested": 43642.14,
+        "investmentCurrent": 27411.82,
+        "gainLoss": -16230.32,
+        "gainLossPercent": -37.19,
+        "comments": "Divided by 2.",
+        "holdings": [
+          {
+            "id": 21,
+            "accountNumber": "CS 9538",
+            "symbol": "SOXL",
+            "quantity": 1,
+            "purchasePrice": 108.11,
+            "investAmount": 108.11,
+            "currentPrice": 114.82,
+            "overallCurrentPrice": 114.82,
+            "comments": "",
+            "highlight": "",
+            "profitLossAmt": 6.71,
+            "gainLossPercent": 6.21,
+            "updatedAt": "2026-09-17T03:00:46.576Z"
+          },
+          {
+            "id": 23,
+            "accountNumber": "CS 9538",
+            "symbol": "AAPL",
+            "quantity": 81,
+            "purchasePrice": 537.4572,
+            "investAmount": 43534.03,
+            "currentPrice": 337,
+            "overallCurrentPrice": 27297,
+            "comments": "",
+            "highlight": "",
+            "profitLossAmt": -16237.03,
+            "gainLossPercent": -37.3,
+            "updatedAt": "2026-09-17T11:28:42.392Z"
+          }
+        ]
+      },
+      {
+        "sNo": 3,
         "id": 14,
         "accountNumber": "RH 8031",
-        "accountName": "3. RH 8031",
+        "accountName": "RH 8031",
         "accountOverallMoney": 6538.49,
         "cashAvailable": 3068.81,
         "amountInvested": 2679.51,
@@ -77,7 +152,7 @@
         ]
       },
       {
-        "sNo": 2,
+        "sNo": 4,
         "id": 15,
         "accountNumber": "ME-CMA 82K32",
         "accountName": "ME-CMA 82K32",
@@ -91,7 +166,7 @@
         "holdings": []
       },
       {
-        "sNo": 3,
+        "sNo": 5,
         "id": 16,
         "accountNumber": "ME-IRA 85363",
         "accountName": "ME-IRA 85363",
@@ -105,7 +180,7 @@
         "holdings": []
       },
       {
-        "sNo": 4,
+        "sNo": 6,
         "id": 17,
         "accountNumber": "ME-IRRA 73444",
         "accountName": "ME-IRRA 73444",
@@ -119,7 +194,7 @@
         "holdings": []
       },
       {
-        "sNo": 5,
+        "sNo": 7,
         "id": 18,
         "accountNumber": "ME-Roth 82T11",
         "accountName": "ME-Roth 82T11",
@@ -145,81 +220,6 @@
             "profitLossAmt": 33.6,
             "gainLossPercent": 6.22,
             "updatedAt": "2026-09-17T03:00:46.563Z"
-          }
-        ]
-      },
-      {
-        "sNo": 6,
-        "id": 19,
-        "accountNumber": "CS 9271",
-        "accountName": "CS  9271",
-        "accountOverallMoney": 65924.2,
-        "cashAvailable": 64205.8,
-        "amountInvested": 1925.7,
-        "investmentCurrent": 1718.4,
-        "gainLoss": -207.3,
-        "gainLossPercent": -10.76,
-        "comments": "",
-        "holdings": [
-          {
-            "id": 17,
-            "accountNumber": "CS 9271",
-            "symbol": "GOOG",
-            "quantity": 5,
-            "purchasePrice": 385.14,
-            "investAmount": 1925.7,
-            "currentPrice": 343.68,
-            "overallCurrentPrice": 1718.4,
-            "comments": "",
-            "highlight": "",
-            "profitLossAmt": -207.3,
-            "gainLossPercent": -10.76,
-            "updatedAt": "2026-09-17T03:00:46.539Z"
-          }
-        ]
-      },
-      {
-        "sNo": 7,
-        "id": 20,
-        "accountNumber": "CS 9538",
-        "accountName": "CS - 9538",
-        "accountOverallMoney": 61984.41,
-        "cashAvailable": 34572.59,
-        "amountInvested": 43642.14,
-        "investmentCurrent": 27411.82,
-        "gainLoss": -16230.32,
-        "gainLossPercent": -37.19,
-        "comments": "",
-        "holdings": [
-          {
-            "id": 21,
-            "accountNumber": "CS 9538",
-            "symbol": "SOXL",
-            "quantity": 1,
-            "purchasePrice": 108.11,
-            "investAmount": 108.11,
-            "currentPrice": 114.82,
-            "overallCurrentPrice": 114.82,
-            "comments": "",
-            "highlight": "",
-            "profitLossAmt": 6.71,
-            "gainLossPercent": 6.21,
-            "updatedAt": "2026-09-17T03:00:46.576Z"
-          },
-          {
-            "id": 23,
-            "accountNumber": "CS 9538",
-            "symbol": "AAPL",
-            "quantity": 81,
-            "purchasePrice": 537.4572,
-            "investAmount": 43534.03,
-            "currentPrice": 337,
-            "overallCurrentPrice": 27297,
-            "comments": "",
-            "highlight": "",
-            "profitLossAmt": -16237.03,
-            "gainLossPercent": -37.3,
-            "updatedAt": "2026-09-17T11:28:42.392Z"
           }
         ]
       }

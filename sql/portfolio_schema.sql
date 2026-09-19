@@ -283,6 +283,17 @@ CREATE INDEX IF NOT EXISTS idx_weekly_tx_hist_week ON weekly_transaction_history
 -- 8. DEFAULT VALUES & SEED DATA
 -- ============================================================================
 
+-- Default Accounts in Account's Summary (matching Account Details order & numbers)
+INSERT INTO portfolio_accounts (s_no, account_number, account_name, cash_available, comments) VALUES
+  (1, 'CS 9271', 'CS 9271', 46163.81, ''),
+  (2, 'CS 9538', 'CS 9538', 8382.22, 'Divided by 2.'),
+  (3, 'RH 8031', 'RH 8031', 5434.53, ''),
+  (4, 'ME-CMA 82K32', 'ME-CMA 82K32', 50000.00, ''),
+  (5, 'ME-IRA 85363', 'ME-IRA 85363', 64000.00, ''),
+  (6, 'ME-IRRA 73444', 'ME-IRRA 73444', 150000.00, ''),
+  (7, 'ME-Roth 82T11', 'ME-Roth 82T11', 199411.95, '')
+ON CONFLICT (account_number) DO NOTHING;
+
 -- Default Watchlist Symbols
 INSERT INTO portfolio_watchlist (symbol, name, exchange, quote_type, created_at) VALUES
   ('AAPL', 'Apple Inc.', 'NASDAQ', 'Equity', '2026-09-16T05:46:05.050Z'),

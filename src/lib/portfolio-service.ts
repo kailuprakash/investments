@@ -27,3 +27,5 @@ export {
 };
 
 export * from "@/db/portfolio-service";
+
+export { importAccountDetailsData } from "@/db/portfolio-service";

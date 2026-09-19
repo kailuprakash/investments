@@ -38,6 +38,7 @@ interface DepositDetail {
 interface AccountDetailsSheetProps {
   onNotify?: (msg: string, type?: "success" | "error" | "info") => void;
   onDataChanged?: () => void;
+  refreshKey?: number;
 }
 
 function formatCurrency(val: number | null | undefined): string {
@@ -54,6 +55,7 @@ function formatCurrency(val: number | null | undefined): string {
 export default function AccountDetailsSheet({
   onNotify,
   onDataChanged,
+  refreshKey,
 }: AccountDetailsSheetProps) {
   const [accountDetails, setAccountDetails] = useState<AccountDetail[]>([]);
   const [depositsByAccount, setDepositsByAccount] = useState<
@@ -88,6 +90,7 @@ export default function AccountDetailsSheet({
   const [accTaxPeriod, setAccTaxPeriod] = useState<string>(
     "Yearly Tax on Profit in US."
   );
+  const [accInitialAmount, setAccInitialAmount] = useState<string>("");
 
   const fetchData = useCallback(
     async (silent = false) => {
@@ -112,8 +115,8 @@ export default function AccountDetailsSheet({
   );
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    fetchData(true);
+  }, [refreshKey, fetchData]);
 
   // Open Deposit Modal
   const handleOpenAddDeposit = (accountNum?: string) => {
@@ -295,6 +298,7 @@ export default function AccountDetailsSheet({
             startDate: accStartDate.trim(),
             comments: accComments.trim(),
             taxPeriod: accTaxPeriod.trim(),
+            initialAmount: parseFloat(accInitialAmount) || 0,
           },
         }),
       });
@@ -438,6 +442,7 @@ export default function AccountDetailsSheet({
                 setAccStartDate("");
                 setAccComments("");
                 setAccTaxPeriod("Yearly Tax on Profit in US.");
+                setAccInitialAmount("");
                 setAccModalOpen(true);
               }}
               className="inline-flex items-center gap-1 rounded bg-emerald-600 px-2.5 py-1 text-[10px] sm:text-[10.5px] font-semibold normal-case text-white transition hover:bg-emerald-700"
@@ -1085,6 +1090,20 @@ export default function AccountDetailsSheet({
                 </div>
               </div>
 
+              <div>
+                <label className="block text-slate-700 font-bold mb-1">
+                  Initial Principle Amount / Deposit ($) <span className="text-[10px] font-normal text-slate-500">(Optional - links to Account Value in Account's Summary)</span>
+                </label>
+                <input
+                  type="number"
+                  step="any"
+                  min="0"
+                  value={accInitialAmount}
+                  onChange={(e) => setAccInitialAmount(e.target.value)}
+                  placeholder="e.g. 50000.00 (default: 0.00)"
+                  className="w-full bg-slate-50 border border-slate-300 rounded p-2 font-mono text-xs focus:ring-2 focus:ring-[#1F4E79] outline-none"
+                />
+              </div>
               <div>
                 <label className="block text-slate-700 font-bold mb-1">
                   Comments

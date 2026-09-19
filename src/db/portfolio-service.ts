@@ -370,6 +370,13 @@ export async function getPortfolioState() {
     principalByAccount[key] = round2((principalByAccount[key] || 0) + d.amount);
   }
 
+  // Active status lookup from accountDetailsTable
+  const accDetailsRows = await db.select().from(accountDetailsTable);
+  const activeStatusByAccount: Record<string, string> = {};
+  for (const ad of accDetailsRows) {
+    activeStatusByAccount[normAcc(ad.accountNumber)] = ad.activeStatus;
+  }
+
   const accounts = accountsRows.map((acc, idx) => {
     const accHoldings = holdingsRows
       .filter((h) => normAcc(h.accountNumber) === normAcc(acc.accountNumber))
@@ -413,12 +420,16 @@ export async function getPortfolioState() {
 
     const gainLoss = round2(investmentCurrent - amountInvested);
     const gainLossPercent = amountInvested > 0 ? round2((gainLoss / amountInvested) * 100) : 0;
+    const activeStatus = activeStatusByAccount[key] || "Active";
+    const isInactive = String(activeStatus).toUpperCase() === "INACTIVE";
 
     return {
       sNo: idx + 1,
       id: acc.id,
       accountNumber: acc.accountNumber,
       accountName: acc.accountName,
+      activeStatus,
+      isInactive,
       accountOverallMoney,
       cashAvailable,
       amountInvested,
@@ -1036,44 +1047,50 @@ export async function saveAccount(data: {
   await ensureDbSeeded();
   const accountNumber = data.accountNumber.trim();
   const accountName = (data.accountName || accountNumber).trim();
-  const cashAvailable = round2(Number(data.cashAvailable) || 0);
-  const comments = data.comments || "";
+  const comments = data.comments !== undefined ? data.comments.trim() : "";
 
-  if (data.id) {
-    await db
-      .update(accountsTable)
-      .set({
-        accountNumber,
-        accountName,
-        cashAvailable,
-        comments,
-      })
-      .where(eq(accountsTable.id, Number(data.id)));
+  const norm = (s: string) =>
+    String(s || "")
+      .trim()
+      .toUpperCase()
+      .replace(/^[0-9]+\.\s*/, "")
+      .replace(/[\s_-]+/g, "");
+
+  const allAccounts = await db.select().from(accountsTable);
+  const existing = data.id
+    ? allAccounts.find((a) => a.id === Number(data.id))
+    : allAccounts.find((a) => norm(a.accountNumber) === norm(accountNumber));
+
+  if (existing) {
+    const updateObj: Partial<{ accountName: string; cashAvailable: number; comments: string }> = {
+      comments,
+    };
+    if (data.accountName) updateObj.accountName = accountName;
+    if (data.cashAvailable !== undefined) updateObj.cashAvailable = round2(Number(data.cashAvailable));
+
+    await db.update(accountsTable).set(updateObj).where(eq(accountsTable.id, existing.id));
   } else {
-    const existing = await db
-      .select()
-      .from(accountsTable)
-      .where(eq(accountsTable.accountNumber, accountNumber));
-    if (existing[0]) {
-      await db
-        .update(accountsTable)
-        .set({ accountName, cashAvailable, comments })
-        .where(eq(accountsTable.id, existing[0].id));
-    } else {
-      const all = await db.select().from(accountsTable);
-      await db.insert(accountsTable).values({
-        sNo: all.length + 1,
-        accountNumber,
-        accountName,
-        cashAvailable,
-        comments,
-      });
-    }
+    await db.insert(accountsTable).values({
+      sNo: allAccounts.length + 1,
+      accountNumber,
+      accountName,
+      cashAvailable: data.cashAvailable !== undefined ? round2(Number(data.cashAvailable)) : 0,
+      comments,
+    });
+  }
+
+  // Also sync comments to accountDetailsTable if matching
+  const allAccDetails = await db.select().from(accountDetailsTable);
+  const matchAd = allAccDetails.find((a) => norm(a.accountNumber) === norm(accountNumber));
+  if (matchAd) {
+    await db
+      .update(accountDetailsTable)
+      .set({ comments })
+      .where(eq(accountDetailsTable.id, matchAd.id));
   }
 
   return getPortfolioState();
 }
-
 export async function importExcelWorkbookData(data: {
   accounts: Array<{ accountNumber: string; accountName?: string; cashAvailable?: number; comments?: string }>;
   holdings: Array<{
@@ -1118,6 +1135,21 @@ export async function importExcelWorkbookData(data: {
     sellCount: number;
     capturedAt?: string;
     source?: string;
+  }>;
+  accountDetails?: Array<{
+    financialInstitute?: string;
+    activeStatus?: string;
+    accountType?: string;
+    accountNumber: string;
+    startDate?: string;
+    comments?: string;
+    taxPeriod?: string;
+  }>;
+  depositDetails?: Array<{
+    accountNumber: string;
+    dateInvested: string;
+    amount: number;
+    comments?: string;
   }>;
 }) {
   await ensureDbSeeded();
@@ -1235,6 +1267,59 @@ export async function importExcelWorkbookData(data: {
     }
   }
 
+  // Import Account Details if present in workbook
+  let adCount = 0;
+  if (data.accountDetails && data.accountDetails.length > 0) {
+    await db.delete(accountDetailsTable);
+    for (const [idx, ad] of data.accountDetails.entries()) {
+      await db.insert(accountDetailsTable).values({
+        financialInstitute: ad.financialInstitute || "CS",
+        activeStatus: ad.activeStatus || "Active",
+        accountType: ad.accountType || "Trading Account",
+        accountNumber: ad.accountNumber.trim(),
+        startDate: ad.startDate || "",
+        comments: ad.comments || "",
+        taxPeriod: ad.taxPeriod || "Yearly Tax on Profit in US.",
+        orderIndex: idx + 1,
+      }).onConflictDoNothing();
+      adCount++;
+    }
+  } else if (data.accounts && data.accounts.length > 0) {
+    const existing = await db.select().from(accountDetailsTable);
+    const existingSet = new Set(existing.map((a) => a.accountNumber.trim().toUpperCase()));
+    for (const [idx, acc] of data.accounts.entries()) {
+      if (!existingSet.has(acc.accountNumber.trim().toUpperCase())) {
+        await db.insert(accountDetailsTable).values({
+          financialInstitute: "CS",
+          activeStatus: "Active",
+          accountType: "Trading Account",
+          accountNumber: acc.accountNumber.trim(),
+          startDate: "",
+          comments: acc.comments || "",
+          taxPeriod: "Yearly Tax on Profit in US.",
+          orderIndex: existing.length + idx + 1,
+        }).onConflictDoNothing();
+        adCount++;
+      }
+    }
+  }
+
+  // Import Deposit Details if present in workbook
+  let depCount = 0;
+  if (data.depositDetails && data.depositDetails.length > 0) {
+    await db.delete(depositDetailsTable);
+    for (const [idx, dep] of data.depositDetails.entries()) {
+      await db.insert(depositDetailsTable).values({
+        accountNumber: dep.accountNumber.trim(),
+        dateInvested: dep.dateInvested.trim(),
+        amount: round2(dep.amount),
+        comments: dep.comments || "",
+        orderIndex: idx + 1,
+      });
+      depCount++;
+    }
+  }
+
   const portfolio = await getPortfolioState();
   return {
     portfolio,
@@ -1244,6 +1329,8 @@ export async function importExcelWorkbookData(data: {
       transactions: txCount,
       weeklyHistory: whCount,
       transactionHistory: thCount,
+      accountDetails: adCount,
+      depositDetails: depCount,
     },
   };
 }
@@ -1519,9 +1606,12 @@ export async function addAccountDetail(data: {
   startDate?: string;
   comments?: string;
   taxPeriod?: string;
+  initialAmount?: number;
+  amount?: number;
 }) {
   await ensureDbSeeded();
   const accNum = data.accountNumber.trim();
+  const initialAmt = round2(Number(data.initialAmount !== undefined ? data.initialAmount : data.amount) || 0);
   const allAccs = await db.select().from(accountDetailsTable);
   await db.insert(accountDetailsTable).values({
     financialInstitute: data.financialInstitute?.trim() || "CS",
@@ -1533,6 +1623,18 @@ export async function addAccountDetail(data: {
     taxPeriod: data.taxPeriod?.trim() || "Yearly Tax on Profit in US.",
     orderIndex: allAccs.length + 1,
   });
+
+  // If initial amount / deposit is provided, insert it into depositDetailsTable immediately
+  if (initialAmt > 0) {
+    const allDeps = await db.select().from(depositDetailsTable);
+    await db.insert(depositDetailsTable).values({
+      accountNumber: accNum,
+      dateInvested: data.startDate?.trim() || new Date().toLocaleDateString("en-US"),
+      amount: initialAmt,
+      comments: "Initial Deposit",
+      orderIndex: allDeps.length + 1,
+    });
+  }
 
   // When added in Account Details, automatically add/update in Account's Summary (portfolio_accounts)!
   const norm = (s: string) =>
@@ -1549,13 +1651,14 @@ export async function addAccountDetail(data: {
       sNo: allSummaryAccs.length + 1,
       accountNumber: accNum,
       accountName: accNum,
-      cashAvailable: 0,
+      cashAvailable: initialAmt,
       comments: data.comments?.trim() || "",
     });
   } else {
     await db
       .update(accountsTable)
       .set({
+        cashAvailable: initialAmt > 0 ? initialAmt : exists.cashAvailable,
         comments: data.comments?.trim() || exists.comments,
       })
       .where(eq(accountsTable.id, exists.id));
@@ -1563,7 +1666,6 @@ export async function addAccountDetail(data: {
 
   return getAccountDetailsData();
 }
-
 export async function deleteAccountDetail(id: number) {
   await ensureDbSeeded();
   const existing = (await db.select().from(accountDetailsTable).where(eq(accountDetailsTable.id, Number(id))))[0];
@@ -1589,4 +1691,64 @@ export async function deleteAccountDetail(id: number) {
     }
   }
   return getAccountDetailsData();
+}
+
+export async function importAccountDetailsData(data: {
+  accountDetails?: Array<{
+    financialInstitute?: string;
+    activeStatus?: string;
+    accountType?: string;
+    accountNumber: string;
+    startDate?: string;
+    comments?: string;
+    taxPeriod?: string;
+  }>;
+  depositDetails?: Array<{
+    accountNumber: string;
+    dateInvested: string;
+    amount: number;
+    comments?: string;
+  }>;
+}) {
+  await ensureDbSeeded();
+  let adCount = 0;
+  if (data.accountDetails && data.accountDetails.length > 0) {
+    await db.delete(accountDetailsTable);
+    for (const [idx, ad] of data.accountDetails.entries()) {
+      await db.insert(accountDetailsTable).values({
+        financialInstitute: ad.financialInstitute || "CS",
+        activeStatus: ad.activeStatus || "Active",
+        accountType: ad.accountType || "Trading Account",
+        accountNumber: ad.accountNumber.trim(),
+        startDate: ad.startDate || "",
+        comments: ad.comments || "",
+        taxPeriod: ad.taxPeriod || "Yearly Tax on Profit in US.",
+        orderIndex: idx + 1,
+      }).onConflictDoNothing();
+      adCount++;
+    }
+  }
+
+  let depCount = 0;
+  if (data.depositDetails && data.depositDetails.length > 0) {
+    await db.delete(depositDetailsTable);
+    for (const [idx, dep] of data.depositDetails.entries()) {
+      await db.insert(depositDetailsTable).values({
+        accountNumber: dep.accountNumber.trim(),
+        dateInvested: dep.dateInvested.trim(),
+        amount: round2(dep.amount),
+        comments: dep.comments || "",
+        orderIndex: idx + 1,
+      });
+      depCount++;
+    }
+  }
+
+  return {
+    ...(await getAccountDetailsData()),
+    result: {
+      accountDetails: adCount,
+      depositDetails: depCount,
+    },
+  };
 }

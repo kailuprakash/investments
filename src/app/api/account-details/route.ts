@@ -7,6 +7,7 @@ import {
   editAccountDetail,
   addAccountDetail,
   deleteAccountDetail,
+  importAccountDetailsData,
 } from "@/db/portfolio-service";
 
 export async function GET() {
@@ -49,6 +50,11 @@ export async function POST(req: NextRequest) {
 
     if (action === "add-account-detail") {
       const result = await addAccountDetail(data);
+      return NextResponse.json(result);
+    }
+
+    if (action === "import-excel-data") {
+      const result = await importAccountDetailsData(data);
       return NextResponse.json(result);
     }
 
