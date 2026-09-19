@@ -1087,17 +1087,35 @@ function ew({entries:e,inventoryAccounts:a,selectedCell:n,onSelectCell:s,onOpenA
     if (!val) return "—";
     let str = String(val).trim();
     if (!str || str === "—") return "—";
-    if (/^[A-Za-z]{3}-\d{2,4}$/.test(str)) return str;
-    if (str.includes("T")) {
-      let d = new Date(str);
-      if (!isNaN(d.getTime())) {
-        return (d.getUTCMonth() + 1) + "/" + d.getUTCDate() + "/" + d.getUTCFullYear();
-      }
-      return str.split("T")[0];
+    let months = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
+    let myMatch = str.match(/^([A-Za-z]{3})[-/](\d{2,4})$/);
+    if (myMatch) {
+      let m = months[myMatch[1].toLowerCase()] || 1;
+      let y = parseInt(myMatch[2], 10);
+      if (y < 100) y += 2000;
+      return m + "/01/" + y;
     }
-    if (str.includes(",")) return str.split(",")[0].trim();
-    if (/\s+\d{1,2}:\d{2}/.test(str)) {
-      return str.replace(/\s+\d{1,2}:\d{2}(?::\d{2})?(?:\s*[AaPp][Mm])?.*$/, "").trim();
+    let slashMatch = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
+    if (slashMatch) {
+      let m = parseInt(slashMatch[1], 10);
+      let d = parseInt(slashMatch[2], 10).toString().padStart(2, "0");
+      let y = parseInt(slashMatch[3], 10);
+      if (y < 100) y += 2000;
+      return m + "/" + d + "/" + y;
+    }
+    let isoMatch = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (isoMatch) {
+      let y = parseInt(isoMatch[1], 10);
+      let m = parseInt(isoMatch[2], 10);
+      let d = parseInt(isoMatch[3], 10).toString().padStart(2, "0");
+      return m + "/" + d + "/" + y;
+    }
+    let d = new Date(str);
+    if (!isNaN(d.getTime())) {
+      let m = d.getUTCMonth() + 1;
+      let day = d.getUTCDate().toString().padStart(2, "0");
+      let y = d.getUTCFullYear();
+      return m + "/" + day + "/" + y;
     }
     return str;
   };
@@ -1187,7 +1205,7 @@ function ew({entries:e,inventoryAccounts:a,selectedCell:n,onSelectCell:s,onOpenA
 
   s["!cols"] = [
     { wch: 18 },
-    { wch: 24 },
+    { wch: 14 },
     { wch: 16 },
     { wch: 22 },
     { wch: 14 },
