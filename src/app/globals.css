@@ -286,102 +286,69 @@ select:focus-visible {
   z-index: 20 !important;
 }
 
-/* Tab-scoped viewport freeze. The separate ScreenFreezeBoundary locks only
-   manual controls in the active frozen tab; React data refreshes and derived
-   calculations still render normally. */
-html[data-portfolio-view-freeze="off"] .workbook-shell .freeze-header-table thead,
-html[data-portfolio-view-freeze="off"] .workbook-shell .freeze-header-table thead th,
-html[data-portfolio-view-freeze="off"] .workbook-shell .frozen-symbol-column,
-html[data-portfolio-view-freeze="off"] .workbook-shell .frozen-history-column {
-  position: static !important;
-  inset: auto !important;
-  top: auto !important;
-  right: auto !important;
-  bottom: auto !important;
-  left: auto !important;
-  z-index: auto !important;
-  box-shadow: none !important;
+/* Freeze/unfreeze indicator embedded inside each workbook tab button.
+   The per-screen interaction lock itself is enforced by ScreenFreezeBoundary;
+   React data refreshes and derived calculations always keep rendering. */
+.workbook-shell .portfolio-tab-button {
+  cursor: pointer;
 }
 
-.workbook-shell .screen-freeze-control {
-  position: sticky;
-  top: 0.35rem;
-  z-index: 45;
-  display: flex;
-  min-height: 30px;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 0.5rem;
-  margin: 0 0 0.45rem auto;
-  padding: 0.28rem 0.42rem;
-  width: fit-content;
-  max-width: 100%;
-  border: 1px solid rgb(148 163 184 / 0.42);
-  border-radius: 0.55rem;
-  background: rgb(255 255 255 / 0.96);
-  box-shadow: 0 5px 18px -12px rgb(15 23 42 / 0.75);
-  backdrop-filter: blur(8px);
-  font-size: 10px;
-  line-height: 1.2;
-}
-
-.workbook-shell .screen-freeze-status {
+.workbook-shell .tab-freeze-toggle {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
-  color: #334155;
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.workbook-shell .screen-freeze-dot {
-  width: 0.45rem;
-  height: 0.45rem;
+  justify-content: center;
+  width: 1.05rem;
+  height: 1.05rem;
   border-radius: 999px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease,
+    transform 0.12s ease;
 }
 
-.workbook-shell .screen-freeze-dot.is-frozen {
-  background: #0b7041;
-  box-shadow: 0 0 0 3px rgb(16 185 129 / 0.16);
+.workbook-shell .tab-freeze-toggle:active {
+  transform: scale(0.9);
 }
 
-.workbook-shell .screen-freeze-dot.is-unfrozen {
-  background: #64748b;
-  box-shadow: 0 0 0 3px rgb(100 116 139 / 0.16);
+.workbook-shell .tab-freeze-toggle:focus-visible {
+  outline: 2px solid #0b7041;
+  outline-offset: 1px;
 }
 
-.workbook-shell .screen-freeze-control button {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  border: 0;
-  border-radius: 0.35rem;
-  background: #0b7041;
-  color: #fff;
-  padding: 0.3rem 0.5rem;
-  font-size: 10px;
-  font-weight: 700;
-  transition: background-color 0.15s ease, transform 0.15s ease;
+/* Frozen: solid amber padlock so the locked tab is obvious at a glance. */
+.workbook-shell .tab-freeze-toggle.is-frozen {
+  background: #f59e0b;
+  border-color: #b45309;
+  color: #3f2600;
 }
 
-.workbook-shell .screen-freeze-control button:hover:not(:disabled) {
-  background: #075c36;
+.workbook-shell .tab-freeze-toggle.is-frozen:hover {
+  background: #fbbf24;
 }
 
-.workbook-shell .screen-freeze-control button:active:not(:disabled) {
-  transform: translateY(1px);
-}
-
-.workbook-shell .screen-freeze-control button:disabled {
-  cursor: wait;
-  opacity: 0.6;
-}
-
-.workbook-shell .screen-freeze-note {
+/* Unfrozen on the active (light) tab: muted open lock. */
+.workbook-shell .tab-freeze-toggle.is-unfrozen.is-active-tab {
   color: #64748b;
-  font-size: 9px;
-  white-space: nowrap;
+  border-color: rgb(100 116 139 / 0.4);
+}
+
+.workbook-shell .tab-freeze-toggle.is-unfrozen.is-active-tab:hover {
+  color: #0b7041;
+  border-color: #0b7041;
+}
+
+/* Unfrozen on an inactive (dark) tab: subtle light open lock. */
+.workbook-shell .tab-freeze-toggle.is-unfrozen:not(.is-active-tab) {
+  color: rgb(236 253 245 / 0.8);
+  border-color: rgb(255 255 255 / 0.28);
+}
+
+.workbook-shell .tab-freeze-toggle.is-unfrozen:not(.is-active-tab):hover {
+  color: #fff;
+  border-color: rgb(255 255 255 / 0.6);
 }
 
 .workbook-shell .screen-freeze-boundary {
@@ -399,12 +366,6 @@ html[data-portfolio-view-freeze="off"] .workbook-shell .frozen-history-column {
 
 .workbook-shell .screen-freeze-boundary.is-screen-frozen table {
   user-select: none;
-}
-
-html[data-portfolio-view-freeze="on"] .workbook-shell .screen-freeze-header-action {
-  pointer-events: none;
-  cursor: not-allowed !important;
-  opacity: 0.5;
 }
 
 .workbook-shell .screen-freeze-lock-message {
@@ -431,17 +392,6 @@ html[data-portfolio-view-freeze="on"] .workbook-shell .screen-freeze-header-acti
   font-size: 9px;
   font-weight: 600;
   white-space: nowrap;
-}
-
-@media (max-width: 640px) {
-  .workbook-shell .screen-freeze-control {
-    justify-content: flex-start;
-    margin-left: 0;
-  }
-
-  .workbook-shell .screen-freeze-note {
-    display: none;
-  }
 }
 
 .workbook-shell tbody tr {

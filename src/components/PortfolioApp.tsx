@@ -8,7 +8,7 @@ import DailyTransactionsSheet from "@/components/DailyTransactionsSheet";
 import HoldingsPerformanceTable from "@/components/HoldingsPerformanceTable";
 import LogoutButton from "@/components/LogoutButton";
 import ScreenFreezeBoundary from "@/components/ScreenFreezeBoundary";
-import ScreenFreezeToggle from "@/components/ScreenFreezeToggle";
+import TabFreezeToggle from "@/components/TabFreezeToggle";
 import WorkbookSearch from "@/components/WorkbookSearch";
 import {
   buildWorkbookIndex,
@@ -540,7 +540,7 @@ const e = {
                           value: s,
                           onChange: (e) => o(Number(e.target.value)),
                           className:
-                            "screen-freeze-header-action cursor-pointer bg-transparent font-medium text-white outline-none [&>option]:text-gray-900",
+                            "cursor-pointer bg-transparent font-medium text-white outline-none [&>option]:text-gray-900",
                           "aria-label": "Market refresh interval",
                           children: AUTO_REFRESH_OPTIONS.map((option) =>
                             (0, t.jsx)("option", {
@@ -637,9 +637,10 @@ const e = {
               {
                 type: "button",
                 onClick: () => g(e.id),
-                className: `relative shrink-0 rounded-t-md px-3 py-1.5 text-[10px] sm:px-3.5 sm:text-[11px] font-semibold tracking-[0.015em] transition-all ${r ? "bg-[#f5f7f6] text-emerald-950 shadow-[0_-2px_8px_-4px_rgba(0,0,0,0.7)] font-bold" : "text-emerald-50/85 hover:bg-white/10 hover:text-white"}`,
+                className: `portfolio-tab-button relative shrink-0 inline-flex items-center gap-1.5 rounded-t-md px-3 py-1.5 text-[10px] sm:px-3.5 sm:text-[11px] font-semibold tracking-[0.015em] transition-all ${r ? "bg-[#f5f7f6] text-emerald-950 shadow-[0_-2px_8px_-4px_rgba(0,0,0,0.7)] font-bold" : "text-emerald-50/85 hover:bg-white/10 hover:text-white"}`,
                 children: [
-                  e.label,
+                  (0, t.jsx)("span", { children: e.label }),
+                  (0, t.jsx)(TabFreezeToggle, { screen: e.id, active: r }),
                   r &&
                     (0, t.jsx)("span", {
                       className:
@@ -8156,7 +8157,6 @@ This replaces the current accounts, inventory, and transactions.`)
             (0, t.jsxs)("main", {
               className: `flex-1 w-full mx-auto ${"future" === g || "buy" === g || "sell" === g ? "max-w-none px-1 sm:px-2 py-1" : "max-w-[1700px] p-2 sm:p-4"}`,
               children: [
-                (0, t.jsx)(ScreenFreezeToggle, { screen: g }),
                 (0, t.jsx)(ScreenFreezeBoundary, {
                   screen: g,
                   children: f
