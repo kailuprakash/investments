@@ -10,7 +10,8 @@
      the OS/Office install is present; Carlito (self-hosted via @fontsource) is
      metric-compatible with Calibri, so Linux/Android get identical advance
      widths instead of an arbitrary system-sans substitution. */
-  --font-calibri: "Calibri", "Carlito", "Segoe UI", "Trebuchet MS", Arial, sans-serif;
+  --font-calibri:
+    "Calibri", "Carlito", "Segoe UI", "Trebuchet MS", Arial, sans-serif;
 
   /* Calibri 10-point throughout, matching the Excel export font size. */
   --workbook-font-size: 10pt;
@@ -49,8 +50,12 @@ body {
   font-size: var(--workbook-font-size);
   line-height: 1.35;
   color: #1e293b;
-  font-feature-settings: "tnum" 1, "cv02" 1, "cv03" 1;
-  background: radial-gradient(circle at 10% 5%, #10b98112, #0000 27rem),
+  font-feature-settings:
+    "tnum" 1,
+    "cv02" 1,
+    "cv03" 1;
+  background:
+    radial-gradient(circle at 10% 5%, #10b98112, #0000 27rem),
     radial-gradient(circle at 92% 18%, #3b82f60e, #0000 30rem),
     linear-gradient(#f8faf9 0%, #f1f5f3 54%, #edf2ef 100%);
   min-height: 100vh;
@@ -177,7 +182,8 @@ select:focus-visible {
   pointer-events: none;
   content: "";
   opacity: 0.42;
-  background-image: linear-gradient(#0f764806 1px, #0000 1px),
+  background-image:
+    linear-gradient(#0f764806 1px, #0000 1px),
     linear-gradient(90deg, #0f764806 1px, #0000 1px);
   background-size: 32px 32px;
   position: fixed;
@@ -281,12 +287,17 @@ select:focus-visible {
 }
 
 .workbook-shell tbody tr {
-  transition: background-color 0.14s, box-shadow 0.14s;
+  transition:
+    background-color 0.14s,
+    box-shadow 0.14s;
 }
 
 .workbook-shell input,
 .workbook-shell select {
-  transition: border-color 0.14s, box-shadow 0.14s, background-color 0.14s;
+  transition:
+    border-color 0.14s,
+    box-shadow 0.14s,
+    background-color 0.14s;
 }
 
 /* ==========================================================================
@@ -299,11 +310,44 @@ select:focus-visible {
   font-family: var(--font-calibri) !important;
 }
 
-.workbook-shell :is(
-  div, span, p, a, ul, ol, li, td, th, tr, button, input, select, textarea,
-  label, legend, fieldset, h1, h2, h3, h4, h5, h6, strong, b, em, i, small,
-  code, pre, caption, summary, details, output, option
-) {
+.workbook-shell
+  :is(
+    div,
+    span,
+    p,
+    a,
+    ul,
+    ol,
+    li,
+    td,
+    th,
+    tr,
+    button,
+    input,
+    select,
+    textarea,
+    label,
+    legend,
+    fieldset,
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6,
+    strong,
+    b,
+    em,
+    i,
+    small,
+    code,
+    pre,
+    caption,
+    summary,
+    details,
+    output,
+    option
+  ) {
   font-size: var(--workbook-font-size) !important;
 }
 
@@ -328,8 +372,13 @@ select:focus-visible {
 }
 
 /* Consistent spreadsheet semantics across every tab. */
-.workbook-shell main { min-width: 0; }
-.workbook-shell :is(h1, h2, h3, h4, h5, h6) { text-align: center; justify-content: center; }
+.workbook-shell main {
+  min-width: 0;
+}
+.workbook-shell :is(h1, h2, h3, h4, h5, h6) {
+  text-align: center;
+  justify-content: center;
+}
 .workbook-shell table thead th {
   font-family: var(--font-calibri) !important;
   font-size: var(--workbook-font-size) !important;
@@ -354,67 +403,303 @@ select:focus-visible {
   background-color: var(--field-calculated) !important;
   color: #22593f !important;
 }
-.workbook-shell table :is(td, th) { font-variant-numeric: tabular-nums; }
-.workbook-shell table tbody :is(td, th) { padding-top: 9px; padding-bottom: 9px; line-height: 1.35; }
-.workbook-shell table td[data-field-kind="editable"] { background-color: #fffdf4; }
-.workbook-shell table td[data-field-kind="calculated"] { background-color: #f4faf6; }
-.workbook-shell table td[data-field-kind="readonly"] { background-color: #fbfcfe; }
-.workbook-shell table :is(td, th)[data-align="right"] { text-align: right !important; }
-.workbook-shell table td[data-align="right"] > .flex { justify-content: flex-end !important; }
-.workbook-shell table td[data-align="right"] input { text-align: right !important; }
-.workbook-shell table td[data-align="center"] { text-align: center !important; }
-.workbook-shell table td[data-align="center"] > .flex { justify-content: center !important; }
-.workbook-shell table td[data-align="center"] input { text-align: center !important; }
-.workbook-shell table td input:not([type="checkbox"]) { min-width: 0; width: 100%; }
-.workbook-shell table input:not([type="checkbox"]),
-.workbook-shell select, .workbook-shell textarea { min-height: 30px; }
-.workbook-shell .portfolio-app-header button { min-height: 30px; }
-.workbook-shell .portfolio-app-header nav { flex-wrap: wrap; }
-.workbook-shell button:disabled { cursor: not-allowed; opacity: .55; }
-.workbook-shell .field-label { display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
-.workbook-shell .field-pencil { flex-shrink: 0; color: #997027; width: 14px; height: 14px; }
-.workbook-shell .field-label .sr-only { font-size: inherit !important; }
-.workbook-shell .gain-loss-value {
-  display: flex; width: 100%; flex-direction: column; align-items: flex-end;
-  gap: 2px; text-align: right; font-weight: 600; font-variant-numeric: tabular-nums;
-  white-space: nowrap; line-height: 1.3;
+.workbook-shell table :is(td, th) {
+  font-variant-numeric: tabular-nums;
 }
-.workbook-shell .gain-loss-value.is-negative { color: #be3344; }
-.workbook-shell .gain-loss-value.is-positive { color: #147447; }
-.workbook-shell .gain-loss-percent { font-weight: 400; }
-
-
-
-
-
-
-
+.workbook-shell table tbody :is(td, th) {
+  padding-top: 9px;
+  padding-bottom: 9px;
+  line-height: 1.35;
+}
+.workbook-shell table td[data-field-kind="editable"] {
+  background-color: #fffdf4;
+}
+.workbook-shell table td[data-field-kind="calculated"] {
+  background-color: #f4faf6;
+}
+.workbook-shell table td[data-field-kind="readonly"] {
+  background-color: #fbfcfe;
+}
+.workbook-shell table :is(td, th)[data-align="right"] {
+  text-align: right !important;
+}
+.workbook-shell table td[data-align="right"] > .flex {
+  justify-content: flex-end !important;
+}
+.workbook-shell table td[data-align="right"] input {
+  text-align: right !important;
+}
+.workbook-shell table td[data-align="center"] {
+  text-align: center !important;
+}
+.workbook-shell table td[data-align="center"] > .flex {
+  justify-content: center !important;
+}
+.workbook-shell table td[data-align="center"] input {
+  text-align: center !important;
+}
+.workbook-shell table td input:not([type="checkbox"]) {
+  min-width: 0;
+  width: 100%;
+}
+.workbook-shell table input:not([type="checkbox"]),
+.workbook-shell select,
+.workbook-shell textarea {
+  min-height: 30px;
+}
+.workbook-shell .portfolio-app-header button {
+  min-height: 30px;
+}
+.workbook-shell .portfolio-app-header nav {
+  flex-wrap: wrap;
+}
+.workbook-shell button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.workbook-shell .field-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+.workbook-shell .field-pencil {
+  flex-shrink: 0;
+  color: #997027;
+  width: 14px;
+  height: 14px;
+}
+.workbook-shell .field-label .sr-only {
+  font-size: inherit !important;
+}
+.workbook-shell .gain-loss-value {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  text-align: right;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  line-height: 1.3;
+}
+.workbook-shell .gain-loss-value.is-negative {
+  color: #be3344;
+}
+.workbook-shell .gain-loss-value.is-positive {
+  color: #147447;
+}
+.workbook-shell .gain-loss-percent {
+  font-weight: 400;
+}
 
 .workbook-shell .delete-holding-button {
-  display: inline-flex; align-items: center; justify-content: center;
-  border: 1px solid #e6bdc2; border-radius: 5px; padding: 0;
-  width: 32px; height: 32px; min-height: 32px; flex-shrink: 0;
-  background: #fff8f8; color: #aa3042;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #e6bdc2;
+  border-radius: 5px;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  min-height: 32px;
+  flex-shrink: 0;
+  background: #fff8f8;
+  color: #aa3042;
 }
-.workbook-shell .delete-holding-button:hover:not(:disabled) { background: #ffe9ed; border-color: #cf6c7b; }
-.workbook-shell .holding-delete-control { display: inline-flex; flex-direction: column; align-items: center; gap: 6px; }
-.workbook-shell .holding-delete-error { white-space: normal; color: #be3344; max-width: 220px; }
-.workbook-shell .consolidated-table .account-total td { background-color: var(--field-calculated) !important; }
-.workbook-shell .consolidated-table .account-group td { background: #eef2f5; padding-block: 10px; }
-.workbook-shell .consolidated-table td[data-field="symbol"] { min-width: 200px; }
-.workbook-shell table td[data-field="quantity"] { position: relative; }
-.workbook-shell table td[data-field="quantity"] button[title^="Edit"] { position: absolute; left: 8px; }
-.workbook-shell .history-table tbody td:not([colspan]) { background-color: #f4faf6; }
-.workbook-shell .history-table thead tr:last-child th:not([rowspan]) { background-color: var(--field-calculated) !important; color: #22593f !important; }
-.workbook-shell .summary-table tbody tr:last-child td { background-color: var(--field-calculated); }
-.workbook-shell .text-lg.font-mono { text-align: right; }
-.workbook-shell .consolidated-table :is(th, td)[data-field="actions"]:last-child {
-  position: sticky !important; right: 0; z-index: 21;
+.workbook-shell .delete-holding-button:hover:not(:disabled) {
+  background: #ffe9ed;
+  border-color: #cf6c7b;
+}
+.workbook-shell .holding-delete-control {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.workbook-shell .holding-delete-error {
+  white-space: normal;
+  color: #be3344;
+  max-width: 220px;
+}
+.workbook-shell .consolidated-table .account-total td {
+  background-color: var(--field-calculated) !important;
+}
+.workbook-shell .consolidated-table .account-group td {
+  background: #eef2f5;
+  padding-block: 10px;
+}
+.workbook-shell .consolidated-table td[data-field="symbol"] {
+  min-width: 200px;
+}
+.workbook-shell table td[data-field="quantity"] {
+  position: relative;
+}
+.workbook-shell table td[data-field="quantity"] button[title^="Edit"] {
+  position: absolute;
+  left: 8px;
+}
+.workbook-shell .history-table tbody td:not([colspan]) {
+  background-color: #f4faf6;
+}
+.workbook-shell .history-table thead tr:last-child th:not([rowspan]) {
+  background-color: var(--field-calculated) !important;
+  color: #22593f !important;
+}
+.workbook-shell .summary-table tbody tr:last-child td {
+  background-color: var(--field-calculated);
+}
+.workbook-shell .text-lg.font-mono {
+  text-align: right;
+}
+.workbook-shell
+  .consolidated-table
+  :is(th, td)[data-field="actions"]:last-child {
+  position: sticky !important;
+  right: 0;
+  z-index: 21;
   box-shadow: -3px 0 5px -3px #33415555;
 }
-.workbook-shell .consolidated-table thead th[data-field="actions"]:last-child { z-index: 46; }
+.workbook-shell .consolidated-table thead th[data-field="actions"]:last-child {
+  z-index: 46;
+}
+.workbook-shell .holdings-performance-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.workbook-shell .analytics-filter {
+  position: relative;
+  min-width: min(240px, 100%);
+}
+.workbook-shell .analytics-combobox {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-height: 32px;
+  padding: 3px 6px;
+  border: 1px solid #c5d0da;
+  border-radius: 4px;
+  background: #fff;
+}
+.workbook-shell .analytics-combobox:focus-within {
+  border-color: #1f4e79;
+  box-shadow: 0 0 0 2px #1f4e7933;
+}
+.workbook-shell .analytics-combobox input {
+  min-width: 140px;
+  flex: 1;
+  min-height: 24px !important;
+  width: auto !important;
+  border: 0;
+  padding: 2px 4px;
+  background: transparent;
+  outline: none;
+}
+.workbook-shell .analytics-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  padding: 2px 6px;
+  border: 1px solid #c5d0da;
+  border-radius: 999px;
+  background: #eef4f8;
+  color: #1f4e79;
+}
+.workbook-shell .analytics-filter-reset {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 4px 9px;
+  border: 1px solid #c5d0da;
+  border-radius: 4px;
+  background: #f8fafc;
+  color: #1f4e79;
+}
+.workbook-shell .analytics-filter-reset:hover {
+  background: #eef4f8;
+}
+.workbook-shell .analytics-filter-menu {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 4px);
+  z-index: 30;
+  width: min(280px, calc(100vw - 32px));
+  max-height: 260px;
+  overflow: auto;
+  padding: 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 8px 20px #0f172a22;
+}
+.workbook-shell .analytics-filter-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #e2e8f0;
+  color: #1f4e79;
+}
+.workbook-shell .analytics-filter-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  text-align: left;
+  color: #1f4e79;
+}
+.workbook-shell .analytics-filter-option.is-active,
+.workbook-shell .analytics-filter-option:hover {
+  background: #e8f1f8;
+}
+.workbook-shell .analytics-filter-option.is-checked {
+  background: #ecfdf5;
+}
+.workbook-shell .analytics-filter-selected-mark {
+  color: #147447;
+}
+.workbook-shell .analytics-filter-empty {
+  margin: 8px 0;
+  color: #64748b;
+}
+.workbook-shell .holdings-performance-count {
+  margin-left: auto;
+  color: #5b6b78;
+}
+.workbook-shell .analytics-sort-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: inherit;
+  gap: 4px;
+  width: 100%;
+  min-height: 24px;
+  color: inherit;
+}
+.workbook-shell .analytics-sort-icon {
+  color: #94a3b8;
+  display: inline-flex;
+}
+.workbook-shell .analytics-sort-icon.is-active {
+  color: #1f4e79;
+}
 @media (max-width: 640px) {
-
-
-  .workbook-shell .freeze-header-scroll { max-width: 100%; }
+  .workbook-shell .holdings-performance-count {
+    margin-left: 0;
+    flex-basis: 100%;
+  }
+  .workbook-shell .freeze-header-scroll {
+    max-width: 100%;
+  }
 }

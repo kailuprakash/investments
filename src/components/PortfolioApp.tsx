@@ -5,6 +5,7 @@ import * as jsxRuntime from "react/jsx-runtime";
 import * as XLSX from "xlsx-js-style";
 import AccountDetailsSheet from "@/components/AccountDetailsSheet";
 import DailyTransactionsSheet from "@/components/DailyTransactionsSheet";
+import HoldingsPerformanceTable from "@/components/HoldingsPerformanceTable";
 import {
   AUTO_REFRESH_OPTIONS,
   formatAutoRefreshInterval,
@@ -5049,148 +5050,7 @@ const e = {
                 }),
               ],
             }),
-            (0, t.jsx)("div", {
-              className: "overflow-x-auto",
-              children: (0, t.jsxs)("table", {
-                className: "w-full text-xs",
-                children: [
-                  (0, t.jsx)("thead", {
-                    children: (0, t.jsxs)("tr", {
-                      className:
-                        "border-b border-gray-200 text-gray-500 font-medium",
-                      children: [
-                        (0, t.jsx)("th", {
-                          "data-field-kind": "readonly",
-
-                          className: "py-2 text-left",
-                          children: (0, t.jsx)(FieldHeader, {
-                            label: "Holding",
-                            kind: "readonly",
-                          }),
-                        }),
-                        (0, t.jsx)("th", {
-                          "data-field-kind": "readonly",
-
-                          className: "py-2 text-left",
-                          children: (0, t.jsx)(FieldHeader, {
-                            label: "Account",
-                            kind: "readonly",
-                          }),
-                        }),
-                        (0, t.jsx)("th", {
-                          "data-field-kind": "readonly",
-
-                          className: "py-2 text-right",
-                          children: (0, t.jsx)(FieldHeader, {
-                            label: "Shares",
-                            kind: "readonly",
-                          }),
-                        }),
-                        (0, t.jsx)("th", {
-                          "data-field-kind": "calculated",
-
-                          className: "py-2 text-right",
-                          children: (0, t.jsx)(FieldHeader, {
-                            label: "Cost Basis",
-                            kind: "calculated",
-                          }),
-                        }),
-                        (0, t.jsx)("th", {
-                          "data-field-kind": "calculated",
-
-                          className: "py-2 text-right",
-                          children: (0, t.jsx)(FieldHeader, {
-                            label: "Market Value",
-                            kind: "calculated",
-                          }),
-                        }),
-                        (0, t.jsx)("th", {
-                          "data-field-kind": "calculated",
-
-                          className: "py-2 text-right",
-                          children: (0, t.jsx)(FieldHeader, {
-                            label: "Profit / Loss",
-                            kind: "calculated",
-                          }),
-                        }),
-                        (0, t.jsx)("th", {
-                          "data-field-kind": "calculated",
-
-                          className: "py-2 text-right",
-                          children: (0, t.jsx)(FieldHeader, {
-                            label: "Gain / Loss %",
-                            kind: "calculated",
-                          }),
-                        }),
-                      ],
-                    }),
-                  }),
-                  (0, t.jsx)("tbody", {
-                    className: "divide-y divide-gray-100",
-                    children: a.map((e) => {
-                      let r = e.profitLossAmt < 0;
-                      return (0, t.jsxs)(
-                        "tr",
-                        {
-                          className: "hover:bg-gray-50",
-                          children: [
-                            (0, t.jsxs)("td", {
-                              className:
-                                "py-2 font-bold text-gray-900 font-mono",
-                              children: [
-                                e.symbol,
-                                e.comments &&
-                                  (0, t.jsxs)("span", {
-                                    className:
-                                      "ml-1.5 text-[10px] text-red-600 font-normal",
-                                    children: ["(", e.comments, ")"],
-                                  }),
-                              ],
-                            }),
-                            (0, t.jsx)("td", {
-                              className: "py-2 text-blue-900 font-semibold",
-                              children: e.accountNumber,
-                            }),
-                            (0, t.jsx)("td", {
-                              "data-align": "right",
-
-                              className: "py-2 text-right font-mono",
-                              children: e.quantity,
-                            }),
-                            (0, t.jsx)("td", {
-                              "data-align": "right",
-
-                              className: "py-2 text-right font-mono",
-                              children: D(e.investAmount).text,
-                            }),
-                            (0, t.jsx)("td", {
-                              "data-align": "right",
-
-                              className:
-                                "py-2 text-right font-mono font-bold text-blue-900",
-                              children: D(e.overallCurrentPrice).text,
-                            }),
-                            (0, t.jsx)("td", {
-                              "data-align": "right",
-
-                              className: `py-2 text-right font-mono font-bold ${r ? "text-red-600" : "text-emerald-700"}`,
-                              children: D(e.profitLossAmt).text,
-                            }),
-                            (0, t.jsx)("td", {
-                              "data-align": "right",
-
-                              className: `py-2 text-right font-mono font-semibold ${r ? "text-red-600" : "text-emerald-700"}`,
-                              children: U(e.gainLossPercent).text,
-                            }),
-                          ],
-                        },
-                        e.id,
-                      );
-                    }),
-                  }),
-                ],
-              }),
-            }),
+            (0, t.jsx)(HoldingsPerformanceTable, { holdings: a }),
           ],
         }),
       ],
