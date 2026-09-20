@@ -1078,6 +1078,18 @@ export async function editFutureTransaction(data: {
 
   return getPortfolioState();
 }
+/** Remove exactly one consolidated holding. This is NOT a sell operation:
+ * cash, trade lots, deposits, and historical snapshots remain untouched. */
+export async function deleteHolding(id: number) {
+  if (!Number.isSafeInteger(id) || id <= 0) throw new Error("A valid holding ID is required");
+  await ensureDbSeeded();
+  const [deleted] = await db
+    .delete(holdingsTable)
+    .where(eq(holdingsTable.id, id))
+    .returning({ id: holdingsTable.id, symbol: holdingsTable.symbol, accountNumber: holdingsTable.accountNumber });
+  return deleted ?? null;
+}
+
 export async function saveHolding(data: {
   id?: number;
   accountNumber: string;

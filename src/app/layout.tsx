@@ -16,9 +16,8 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
-      <head>
-        <link rel="stylesheet" href="/workbook-exact.css" />
-      </head>
+      {/* Tailwind and workbook styles are compiled from globals.css. The old
+          precompiled workbook stylesheet forced headers back to 9px Arial. */}
       <body className="bg-slate-100 text-slate-900 antialiased">{children}</body>
     </html>
   );
