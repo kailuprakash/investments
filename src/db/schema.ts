@@ -4,6 +4,7 @@ import {
   text,
   doublePrecision,
   integer,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 
 export const accountsTable = pgTable("portfolio_accounts", {
@@ -59,30 +60,44 @@ export const watchlistTable = pgTable("portfolio_watchlist", {
   createdAt: text("created_at").notNull(),
 });
 
-export const weeklyHistoryTable = pgTable("portfolio_weekly_history", {
-  id: serial("id").primaryKey(),
-  accountNumber: text("account_number").notNull(),
-  snapshotWeek: text("snapshot_week").notNull(),
-  investmentCurrentValue: doublePrecision("investment_current_value").notNull().default(0),
-  gainLossAmount: doublePrecision("gain_loss_amount").notNull().default(0),
-  gainLossPercent: doublePrecision("gain_loss_percent").notNull().default(0),
-  capturedAt: text("captured_at").notNull(),
-  source: text("source").notNull().default("SATURDAY_9PM_ET"),
-});
+export const weeklyHistoryTable = pgTable(
+  "portfolio_weekly_history",
+  {
+    id: serial("id").primaryKey(),
+    accountNumber: text("account_number").notNull(),
+    snapshotWeek: text("snapshot_week").notNull(),
+    investmentCurrentValue: doublePrecision("investment_current_value").notNull().default(0),
+    gainLossAmount: doublePrecision("gain_loss_amount").notNull().default(0),
+    gainLossPercent: doublePrecision("gain_loss_percent").notNull().default(0),
+    capturedAt: text("captured_at").notNull(),
+    source: text("source").notNull().default("SATURDAY_9PM_ET"),
+  },
+  (t) => [
+    // One snapshot per account per week: makes the 9 PM Eastern capture
+    // idempotent, so retries / backfill / multiple tabs cannot double-count.
+    uniqueIndex("uq_weekly_history_account_week").on(t.accountNumber, t.snapshotWeek),
+  ],
+);
 
-export const transactionHistoryTable = pgTable("portfolio_transaction_history", {
-  id: serial("id").primaryKey(),
-  accountNumber: text("account_number").notNull(),
-  snapshotWeek: text("snapshot_week").notNull(),
-  buyValue: doublePrecision("buy_value").notNull().default(0),
-  sellValue: doublePrecision("sell_value").notNull().default(0),
-  netCashFlow: doublePrecision("net_cash_flow").notNull().default(0),
-  realizedGainLoss: doublePrecision("realized_gain_loss").notNull().default(0),
-  buyCount: integer("buy_count").notNull().default(0),
-  sellCount: integer("sell_count").notNull().default(0),
-  capturedAt: text("captured_at").notNull(),
-  source: text("source").notNull().default("SATURDAY_9PM_ET"),
-});
+export const transactionHistoryTable = pgTable(
+  "portfolio_transaction_history",
+  {
+    id: serial("id").primaryKey(),
+    accountNumber: text("account_number").notNull(),
+    snapshotWeek: text("snapshot_week").notNull(),
+    buyValue: doublePrecision("buy_value").notNull().default(0),
+    sellValue: doublePrecision("sell_value").notNull().default(0),
+    netCashFlow: doublePrecision("net_cash_flow").notNull().default(0),
+    realizedGainLoss: doublePrecision("realized_gain_loss").notNull().default(0),
+    buyCount: integer("buy_count").notNull().default(0),
+    sellCount: integer("sell_count").notNull().default(0),
+    capturedAt: text("captured_at").notNull(),
+    source: text("source").notNull().default("SATURDAY_9PM_ET"),
+  },
+  (t) => [
+    uniqueIndex("uq_transaction_history_account_week").on(t.accountNumber, t.snapshotWeek),
+  ],
+);
 
 export const marketCacheTable = pgTable("market_cache", {
   symbol: text("symbol").primaryKey(),

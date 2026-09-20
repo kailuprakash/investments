@@ -12,6 +12,12 @@ import {
 } from "@/db/schema";
 import { eq, asc, desc } from "drizzle-orm";
 import seedData from "@/db/seed-data.json";
+import {
+  describeSchedule,
+  dueWeekKeys,
+  mostRecentSnapshotMoment,
+  weekEndingForDateMs,
+} from "@/lib/snapshot-schedule";
 
 let initializedPromise: Promise<void> | null = null;
 
@@ -158,6 +164,8 @@ export async function ensureDbSeeded(): Promise<void> {
         captured_at TEXT NOT NULL,
         source TEXT NOT NULL DEFAULT 'SATURDAY_9PM_ET'
       );
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_weekly_history_account_week
+        ON portfolio_weekly_history (account_number, snapshot_week);
       CREATE TABLE IF NOT EXISTS portfolio_transaction_history (
         id SERIAL PRIMARY KEY,
         account_number TEXT NOT NULL,
@@ -171,6 +179,8 @@ export async function ensureDbSeeded(): Promise<void> {
         captured_at TEXT NOT NULL,
         source TEXT NOT NULL DEFAULT 'SATURDAY_9PM_ET'
       );
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_transaction_history_account_week
+        ON portfolio_transaction_history (account_number, snapshot_week);
       CREATE TABLE IF NOT EXISTS portfolio_account_details (
         id SERIAL PRIMARY KEY,
         financial_institute TEXT NOT NULL DEFAULT 'CS',
@@ -402,7 +412,22 @@ export async function fetchSymbolQuote(symbolRaw: string) {
   };
 }
 
+/**
+ * Public state loader. Deliberately a thin wrapper: it first gives the
+ * Saturday 9 PM Eastern history snapshot a chance to land, then builds the
+ * payload via the *non-triggering* builder below. Keeping the two apart is what
+ * stops snapshot capture (which needs portfolio values) from recursing back
+ * into itself through getPortfolioState.
+ */
 export async function getPortfolioState() {
+  await captureDueSnapshots().catch((error: unknown) => {
+    // History is a derived report: never let it break the live workbook.
+    console.error("[snapshot] scheduled capture failed:", error);
+  });
+  return buildPortfolioState();
+}
+
+export async function buildPortfolioState() {
   await ensureDbSeeded();
 
   const accountsRows = await db.select().from(accountsTable).orderBy(asc(accountsTable.sNo), asc(accountsTable.id));
@@ -533,13 +558,19 @@ export async function getPortfolioState() {
   const autoRefreshIntervalStr = await getSetting("auto_refresh_interval", "60");
   const autoRefreshInterval = Number(autoRefreshIntervalStr) || 60;
 
+  // Report when prices were actually pulled, not when this request was served.
+  // Returning "now" here made the header claim a fresh sync on every poll even
+  // when nothing had been fetched from the market feed.
+  const lastRefreshed =
+    (await getSetting("last_market_refresh_at", "")) || new Date().toISOString();
+
   return {
     accounts,
     grandTotal,
     futureInvestments,
     marketCache: marketCacheStore,
     autoRefreshInterval,
-    lastRefreshed: new Date().toISOString(),
+    lastRefreshed,
   };
 }
 
@@ -620,6 +651,10 @@ export async function refreshAllMarketPrices() {
       })
       .where(eq(futureInvestmentsTable.id, f.id));
   }
+
+  // Persist the fact that prices were pulled so the "Updated" indicator stays
+  // truthful across server restarts and idle periods.
+  await setSetting("last_market_refresh_at", nowIso);
 
   return getPortfolioState();
 }
@@ -1836,5 +1871,334 @@ export async function importAccountDetailsData(data: {
       accountDetails: adCount,
       depositDetails: depCount,
     },
+  };
+}
+
+// ============================================================================
+// WEEKLY / MONTHLY HISTORY SNAPSHOTS — "EVERY SATURDAY 9 PM ET"
+// ============================================================================
+//
+// Why the capture lives here rather than in a timer:
+//
+// The workbook is a request/response app (Vercel + Postgres). Nothing in that
+// topology is alive at 21:00 Eastern on a Saturday unless somebody has the page
+// open, so a `setInterval`-style scheduler loses snapshots whenever the app is
+// closed — which is exactly the "history never gets calculated" symptom.
+//
+// So capture is *lazy and idempotent*: every portfolio read asks "has the Sat
+// 9pm Eastern boundary passed, and is a row for that week still missing?". If
+// yes it writes the row, keyed by (account, week-ending). The result is the
+// same either way:
+//   - app open at 9 PM ET  -> snapshot lands within one poll
+//   - app closed all week  -> the first later visit back-fills that week
+//   - external cron hitting /api/cron/snapshot -> lands on time unattended
+//
+// Monthly history needs no separate job: the client groups weekly rows by
+// snapshot_week.slice(0, 7), so weekly capture populates the Monthly view too.
+
+const SNAPSHOT_ATTEMPT_THROTTLE_MS = 60_000;
+let lastSnapshotAttemptMs = 0;
+let lastSnapshotCapture: SnapshotCaptureResult | null = null;
+
+export type SnapshotCaptureResult = {
+  ran: boolean;
+  reason?: "throttled" | "up-to-date" | "no-accounts";
+  timeZone: string;
+  cadence: string;
+  dueWeeks: string[];
+  weeklyRowsWritten: number;
+  transactionRowsWritten: number;
+  accounts: number;
+  forced: boolean;
+  /** Weeks with no value snapshot because history was never captured for them. */
+  valueWeeksSkipped: string[];
+  weekEnding: string;
+  capturedAt: string;
+};
+
+type WeekTxTotals = {
+  buyValue: number;
+  sellValue: number;
+  netCashFlow: number;
+  realizedGainLoss: number;
+  buyCount: number;
+  sellCount: number;
+};
+
+/**
+ * Group every non-cancelled transaction by the Saturday that closes its
+ * Sun–Sat week. Bucketing on the calendar date (not an instant) is what keeps
+ * Sunday- and Saturday-dated trades from leaking into the wrong week.
+ */
+async function buildTransactionWeeklyTotals(): Promise<Map<string, Map<string, WeekTxTotals>>> {
+  const rows = await db.select().from(futureInvestmentsTable);
+  const byWeek = new Map<string, Map<string, WeekTxTotals>>();
+
+  for (const tx of rows) {
+    if (String(tx.status || "EXECUTED").toUpperCase() === "CANCELLED") continue;
+    const week = weekEndingForDateMs(parseDateForSort(tx.dateTime));
+    if (!week) continue;
+
+    const account = String(tx.accountNumber || "").trim() || "UNASSIGNED";
+    if (!byWeek.has(week)) byWeek.set(week, new Map());
+    const perAccount = byWeek.get(week)!;
+    if (!perAccount.has(account)) {
+      perAccount.set(account, {
+        buyValue: 0,
+        sellValue: 0,
+        netCashFlow: 0,
+        realizedGainLoss: 0,
+        buyCount: 0,
+        sellCount: 0,
+      });
+    }
+    const agg = perAccount.get(account)!;
+    const amount = round2(Number(tx.totalAmount) || 0);
+    const isSell = String(tx.action || "").toUpperCase() === "SELL";
+
+    if (isSell) {
+      const costBasis = round2(tx.averageCost || tx.costBasisPerShare || tx.pricePerShare || 0);
+      agg.sellValue = round2(agg.sellValue + amount);
+      agg.sellCount += 1;
+      // Realized on the shares actually sold, against their recorded cost basis.
+      agg.realizedGainLoss = round2(agg.realizedGainLoss + (tx.pricePerShare - costBasis) * tx.quantity);
+    } else {
+      agg.buyValue = round2(agg.buyValue + amount);
+      agg.buyCount += 1;
+    }
+  }
+
+  for (const perAccount of byWeek.values()) {
+    for (const agg of perAccount.values()) {
+      agg.netCashFlow = round2(agg.sellValue - agg.buyValue);
+    }
+  }
+  return byWeek;
+}
+
+/**
+ * Capture any snapshot period that has closed but was never recorded.
+ * `force: true` re-derives the current period as well (used by the manual
+ * refresh control), which is how you recover after editing past transactions.
+ */
+export async function captureDueSnapshots(
+  opts: {
+    force?: boolean;
+    now?: Date;
+    lookbackWeeks?: number;
+    /** Schedulers are authoritative: ignore the per-minute request throttle. */
+    bypassThrottle?: boolean;
+  } = {},
+): Promise<SnapshotCaptureResult> {
+  const now = opts.now ?? new Date();
+  const force = opts.force === true;
+  const schedule = describeSchedule(now);
+  const empty: SnapshotCaptureResult = {
+    ran: false,
+    timeZone: schedule.timeZone,
+    cadence: schedule.cadence,
+    dueWeeks: [],
+    weeklyRowsWritten: 0,
+    transactionRowsWritten: 0,
+    accounts: 0,
+    forced: force,
+    valueWeeksSkipped: [],
+    weekEnding: schedule.mostRecentClosedWeek,
+    capturedAt: schedule.mostRecentSnapshotAt,
+  };
+
+  // Throttle the automatic path so a 60s poll costs at most one extra check a
+  // minute; forced and scheduler-driven calls always run.
+  if (
+    !force &&
+    !opts.bypassThrottle &&
+    now.getTime() - lastSnapshotAttemptMs < SNAPSHOT_ATTEMPT_THROTTLE_MS &&
+    lastSnapshotCapture
+  ) {
+    return { ...lastSnapshotCapture, ran: false, reason: "throttled" };
+  }
+  lastSnapshotAttemptMs = now.getTime();
+
+  await ensureDbSeeded();
+
+  const due = dueWeekKeys(now, { lookbackWeeks: opts.lookbackWeeks ?? 8 });
+  const mostRecentClosed = due.length ? due[due.length - 1] : "";
+
+  let weeklyDone = "";
+  let txDone = "";
+  try {
+    const [w] = await db
+      .select({ snapshotWeek: weeklyHistoryTable.snapshotWeek })
+      .from(weeklyHistoryTable)
+      .orderBy(desc(weeklyHistoryTable.snapshotWeek))
+      .limit(1);
+    weeklyDone = w?.snapshotWeek ?? "";
+    const [t] = await db
+      .select({ snapshotWeek: transactionHistoryTable.snapshotWeek })
+      .from(transactionHistoryTable)
+      .orderBy(desc(transactionHistoryTable.snapshotWeek))
+      .limit(1);
+    txDone = t?.snapshotWeek ?? "";
+  } catch {
+    /* tables may be empty — treated as "nothing captured yet" */
+  }
+
+  const missingWeeks = due.filter((k) => k > weeklyDone);
+  const missingTxWeeks = due.filter((k) => k > txDone);
+  if (!force && missingWeeks.length === 0 && missingTxWeeks.length === 0) {
+    const result = { ...empty, ran: false, reason: "up-to-date" as const };
+    lastSnapshotCapture = result;
+    return result;
+  }
+
+  const state = await buildPortfolioState();
+  if (state.accounts.length === 0) {
+    const result = { ...empty, ran: false, reason: "no-accounts" as const };
+    lastSnapshotCapture = result;
+    return result;
+  }
+
+  const capturedAt = mostRecentSnapshotMoment(now).at.toISOString();
+  const sourceTag = force ? "MANUAL_RECALCULATE" : "SATURDAY_9PM_ET";
+
+  // ---- Account-value history -------------------------------------------------
+  // Only the just-closed week can be measured: prices are a now() observation,
+  // so writing "values" for older unrecorded weeks would fabricate history.
+  const valueWeeks = (force ? [mostRecentClosed] : missingWeeks).filter((k) => k === mostRecentClosed);
+  let weeklyRowsWritten = 0;
+  for (const week of valueWeeks) {
+    for (const acc of state.accounts) {
+      const values = {
+        investmentCurrentValue: round2(acc.investmentCurrent),
+        gainLossAmount: round2(acc.gainLoss),
+        gainLossPercent: round2(acc.gainLossPercent),
+        capturedAt,
+        source: sourceTag,
+      };
+      const target = [weeklyHistoryTable.accountNumber, weeklyHistoryTable.snapshotWeek];
+      if (force) {
+        await db
+          .insert(weeklyHistoryTable)
+          .values({ accountNumber: acc.accountNumber, snapshotWeek: week, ...values })
+          .onConflictDoUpdate({ target, set: values });
+      } else {
+        await db
+          .insert(weeklyHistoryTable)
+          .values({ accountNumber: acc.accountNumber, snapshotWeek: week, ...values })
+          .onConflictDoNothing({ target });
+      }
+      weeklyRowsWritten += 1;
+    }
+  }
+
+  // ---- Transaction history ---------------------------------------------------
+  // Reconstructable for any past week, because transactions carry their own
+  // dates — so catch-up runs fill the whole backlog here, not just last week.
+  const txWeeks = force ? due : missingTxWeeks;
+  let transactionRowsWritten = 0;
+  if (txWeeks.length > 0) {
+    const totals = await buildTransactionWeeklyTotals();
+    const txTarget = [
+      transactionHistoryTable.accountNumber,
+      transactionHistoryTable.snapshotWeek,
+    ];
+    for (const week of txWeeks) {
+      const perAccount = totals.get(week);
+      for (const acc of state.accounts) {
+        const agg = perAccount?.get(acc.accountNumber) ?? {
+          buyValue: 0,
+          sellValue: 0,
+          netCashFlow: 0,
+          realizedGainLoss: 0,
+          buyCount: 0,
+          sellCount: 0,
+        };
+        const values = {
+          buyValue: agg.buyValue,
+          sellValue: agg.sellValue,
+          netCashFlow: agg.netCashFlow,
+          realizedGainLoss: agg.realizedGainLoss,
+          buyCount: agg.buyCount,
+          sellCount: agg.sellCount,
+          capturedAt,
+          source: sourceTag,
+        };
+        const insertValues = { accountNumber: acc.accountNumber, snapshotWeek: week, ...values };
+        if (force) {
+          await db
+            .insert(transactionHistoryTable)
+            .values(insertValues)
+            .onConflictDoUpdate({ target: txTarget, set: values });
+        } else {
+          await db
+            .insert(transactionHistoryTable)
+            .values(insertValues)
+            .onConflictDoNothing({ target: txTarget });
+        }
+        transactionRowsWritten += 1;
+      }
+    }
+  }
+
+  await setSetting("last_history_snapshot_at", capturedAt);
+  await setSetting("last_history_snapshot_week", mostRecentClosed);
+
+  const result: SnapshotCaptureResult = {
+    ran: true,
+    timeZone: schedule.timeZone,
+    cadence: schedule.cadence,
+    dueWeeks: due,
+    weeklyRowsWritten,
+    transactionRowsWritten,
+    accounts: state.accounts.length,
+    forced: force,
+    valueWeeksSkipped: missingWeeks.filter((k) => k !== mostRecentClosed),
+    weekEnding: mostRecentClosed,
+    capturedAt,
+  };
+  lastSnapshotCapture = result;
+  return result;
+}
+
+/** Snapshot bookkeeping for status panels / the cron endpoint. */
+export async function getSnapshotStatus() {
+  await ensureDbSeeded();
+  const now = new Date();
+  const schedule = describeSchedule(now);
+  const [weekly, tx, accountRows] = await Promise.all([
+    db.select().from(weeklyHistoryTable),
+    db.select().from(transactionHistoryTable),
+    db.select({ id: accountsTable.id }).from(accountsTable),
+  ]);
+
+  const weeklyWeeks = Array.from(new Set(weekly.map((r) => r.snapshotWeek))).sort();
+  const txWeeks = Array.from(new Set(tx.map((r) => r.snapshotWeek))).sort();
+  const latest = weeklyWeeks[weeklyWeeks.length - 1] ?? "";
+  const latestRows = weekly.filter((r) => r.snapshotWeek === latest);
+  // A week is only "unmeasured" when *every* account row in it is zero. Testing
+  // for "any" zero row would misreport genuinely empty accounts as stale.
+  const unmeasuredWeeks = weeklyWeeks.filter((week) => {
+    const rows = weekly.filter((r) => r.snapshotWeek === week);
+    return rows.length > 0 && rows.every((r) => r.investmentCurrentValue === 0 && r.gainLossAmount === 0);
+  });
+
+  return {
+    schedule,
+    accountsTracked: accountRows.length,
+    weekly: {
+      weeksOnFile: weeklyWeeks.length,
+      monthsOnFile: new Set(weeklyWeeks.map((w) => w.slice(0, 7))).size,
+      latestWeek: latest,
+      accountsCapturedLatestWeek: latestRows.length,
+      capturedAt: latestRows[0]?.capturedAt ?? null,
+    },
+    transactions: {
+      weeksOnFile: txWeeks.length,
+      latestWeek: txWeeks[txWeeks.length - 1] ?? "",
+    },
+    pendingWeeks: dueWeekKeys(now, { lookbackWeeks: 8 }).filter((k) => k > latest),
+    /** All-zero placeholder rows carried over from the seed, never measured. */
+    unmeasuredWeeks,
+    lastCapture: lastSnapshotCapture,
   };
 }

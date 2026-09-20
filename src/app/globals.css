@@ -6,13 +6,28 @@
   --surface: #fff;
   --canvas: #f4f7f5;
 
-  --font-header: "DM Sans", "Trebuchet MS", "Segoe UI", sans-serif;
-  --font-daily: "Inter", "SF Pro Text", -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-consolidated: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
-  --font-summary: "DM Sans", "Trebuchet MS", "Segoe UI", sans-serif;
-  --font-market: "Space Grotesk", "Aptos", "Segoe UI", sans-serif;
-  --font-analytics: "Outfit", "Avenir Next", "Segoe UI", sans-serif;
-  --font-mono-num: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  /* Excel's native typeface, applied workbook-wide. Real Calibri is used when
+     the OS/Office install is present; Carlito (self-hosted via @fontsource) is
+     metric-compatible with Calibri, so Linux/Android get identical advance
+     widths instead of an arbitrary system-sans substitution. */
+  --font-calibri: "Calibri", "Carlito", "Segoe UI", "Trebuchet MS", Arial, sans-serif;
+
+  /* One knob for sheet typography: 12px across every grid, toolbar and label.
+     KPI figures stay on Calibri but one step larger so totals read as totals. */
+  --workbook-font-size: 12px;
+  --workbook-kpi-font-size: 16px;
+
+  /* Per-section variables are kept as aliases so existing rules stay valid. */
+  --font-header: var(--font-calibri);
+  --font-daily: var(--font-calibri);
+  --font-consolidated: var(--font-calibri);
+  --font-summary: var(--font-calibri);
+  --font-market: var(--font-calibri);
+  --font-analytics: var(--font-calibri);
+  --font-mono-num: var(--font-calibri);
+
+  /* Tailwind's default sans (used by the .font-sans shell) resolves too. */
+  --font-sans: var(--font-calibri);
 }
 
 * {
@@ -28,6 +43,9 @@ html {
 }
 
 body {
+  font-family: var(--font-calibri);
+  font-size: var(--workbook-font-size);
+  line-height: 1.35;
   color: #1e293b;
   font-feature-settings: "tnum" 1, "cv02" 1, "cv03" 1;
   background: radial-gradient(circle at 10% 5%, #10b98112, #0000 27rem),
@@ -104,14 +122,8 @@ select:focus-visible {
 }
 
 .portfolio-app-header nav button {
-  font-size: 10px;
+  font-size: var(--workbook-font-size);
   line-height: 1.3;
-}
-
-@media (min-width: 640px) {
-  .portfolio-app-header nav button {
-    font-size: 11px;
-  }
 }
 
 .section-font-daily,
@@ -179,12 +191,12 @@ select:focus-visible {
 
 .workbook-shell table thead th {
   text-transform: none;
-  height: 34px;
+  height: 36px;
   box-shadow: inset 0 -1px #4755692e;
-  letter-spacing: 0.015em !important;
+  letter-spacing: 0.01em !important;
   vertical-align: middle !important;
-  padding: 7px 10px !important;
-  font-size: 10.5px !important;
+  padding: 7px 9px !important;
+  font-size: var(--workbook-font-size) !important;
   font-weight: 700 !important;
   line-height: 1.25 !important;
 }
@@ -198,10 +210,10 @@ select:focus-visible {
 .workbook-shell table tbody td,
 .workbook-shell table tbody th {
   vertical-align: middle;
-  min-height: 31px;
+  min-height: 32px;
   padding-top: 6px;
   padding-bottom: 6px;
-  font-size: 11px;
+  font-size: var(--workbook-font-size);
   line-height: 1.35;
 }
 
@@ -220,7 +232,8 @@ select:focus-visible {
 .workbook-shell table input,
 .workbook-shell table select {
   font-variant-numeric: tabular-nums;
-  font-size: 11px;
+  font-size: var(--workbook-font-size);
+  min-height: 20px;
 }
 
 .workbook-shell .freeze-header-scroll {
@@ -272,4 +285,42 @@ select:focus-visible {
 .workbook-shell input,
 .workbook-shell select {
   transition: border-color 0.14s, box-shadow 0.14s, background-color 0.14s;
+}
+
+/* ==========================================================================
+   Workbook typography: Calibri 12 across every sheet.
+   The grids were authored with a scatter of text-[8px]…text-[11px] utilities;
+   these overrides give the whole app one Excel-authentic typeface and size.
+   ========================================================================== */
+.workbook-shell,
+.workbook-shell :is(*) {
+  font-family: var(--font-calibri) !important;
+}
+
+.workbook-shell :is(
+  div, span, p, a, ul, ol, li, td, th, tr, button, input, select, textarea,
+  label, legend, fieldset, h1, h2, h3, h4, h5, h6, strong, b, em, i, small,
+  code, pre, caption, summary, details, output, option
+) {
+  font-size: var(--workbook-font-size) !important;
+}
+
+/* Digits line up in columns the way they do in a spreadsheet. */
+.workbook-shell :is(td, th, input, .font-mono) {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Summary/KPI figures keep one step of hierarchy, scaled off the base size. */
+.workbook-shell :is(.font-mono.font-black, .font-mono.font-extrabold, .font-mono.font-bold) {
+  font-size: var(--workbook-kpi-font-size) !important;
+}
+
+.workbook-shell :is(.font-mono.font-black, .font-mono.font-extrabold, .font-mono.font-bold) :is(*) {
+  font-size: inherit !important;
+}
+
+/* Controls need a touch more height once their labels grow to 12px. */
+.workbook-shell :is(input, select, textarea) {
+  min-height: 20px;
+  line-height: 1.25;
 }

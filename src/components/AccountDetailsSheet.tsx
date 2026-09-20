@@ -552,7 +552,7 @@ export default function AccountDetailsSheet({
         header.length,
         ...values.map((v) => String(v || "").length)
       );
-      return Math.ceil(maxLen * 7.4 + extraPadding);
+      return Math.ceil(maxLen * 8.05 + extraPadding);
     };
 
     return [
@@ -598,7 +598,7 @@ export default function AccountDetailsSheet({
         header.length,
         ...values.map((v) => String(v || "").length)
       );
-      return Math.ceil(maxLen * 7.4 + extraPadding);
+      return Math.ceil(maxLen * 8.05 + extraPadding);
     };
 
     return [

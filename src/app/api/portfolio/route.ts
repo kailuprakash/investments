@@ -10,6 +10,8 @@ import {
   saveAccount,
   importExcelWorkbookData,
   setSetting,
+  captureDueSnapshots,
+  buildPortfolioState,
 } from "@/db/portfolio-service";
 
 export async function GET(req: NextRequest) {
@@ -68,6 +70,16 @@ export async function POST(req: NextRequest) {
     if (action === "import-excel-data") {
       const res = await importExcelWorkbookData(data);
       return NextResponse.json(res);
+    }
+
+    if (action === "capture-history" || action === "capture-snapshots") {
+      // Manual "run the 9 PM ET snapshot now" – back-fills any closed week.
+      const capture = await captureDueSnapshots({
+        force: data?.mode === "recalculate" || data?.force === true,
+        bypassThrottle: true,
+      });
+      const portfolio = await buildPortfolioState();
+      return NextResponse.json({ capture, portfolio });
     }
 
     if (action === "set-auto-refresh-interval" || action === "update-settings") {
