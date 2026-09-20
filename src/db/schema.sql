@@ -166,6 +166,10 @@ INSERT INTO portfolio_settings (key, value, updated_at)
 VALUES ('auto_refresh_interval', '300', to_char(CURRENT_TIMESTAMP AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
 ON CONFLICT (key) DO NOTHING;
 
+-- Password setup stores a salted PBKDF2 hash (never a plaintext password) in
+-- portfolio_settings under the portfolio_auth_credentials key. The record is
+-- created only through POST /api/auth during first-time setup.
+
 
 INSERT INTO portfolio_accounts (s_no, account_number, account_name, cash_available, comments)
 SELECT s_no, account_number, account_name, cash_available, comments

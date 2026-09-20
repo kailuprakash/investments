@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requirePortfolioAuth } from "@/lib/auth";
 import { db } from "@/db";
 import { watchlistTable } from "@/db/schema";
 import { ensureDbSeeded, searchMarketSymbols } from "@/db/portfolio-service";
 import { eq, asc } from "drizzle-orm";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const unauthorised = await requirePortfolioAuth(req);
+  if (unauthorised) return unauthorised;
+
   try {
     await ensureDbSeeded();
     const items = await db.select().from(watchlistTable).orderBy(asc(watchlistTable.symbol));
@@ -18,6 +22,9 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const unauthorised = await requirePortfolioAuth(req);
+  if (unauthorised) return unauthorised;
+
   try {
     await ensureDbSeeded();
     const body = await req.json();
@@ -53,6 +60,9 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  const unauthorised = await requirePortfolioAuth(req);
+  if (unauthorised) return unauthorised;
+
   try {
     await ensureDbSeeded();
     const symbol = String(req.nextUrl.searchParams.get("symbol") || "").trim().toUpperCase();

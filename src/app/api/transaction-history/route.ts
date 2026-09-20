@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requirePortfolioAuth } from "@/lib/auth";
 import { db } from "@/db";
 import { transactionHistoryTable } from "@/db/schema";
 import {
@@ -14,7 +15,10 @@ import { desc, asc } from "drizzle-orm";
  * catch-up run can back-fill several weeks at once — unlike the account-value
  * snapshot, which can only be measured while it happens.
  */
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const unauthorised = await requirePortfolioAuth(req);
+  if (unauthorised) return unauthorised;
+
   try {
     await ensureDbSeeded();
     const capture = await captureDueSnapshots().catch((error: unknown) => {
@@ -39,6 +43,9 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const unauthorised = await requirePortfolioAuth(req);
+  if (unauthorised) return unauthorised;
+
   try {
     const body = await req.json().catch(() => ({}));
     const action = String(body?.action || "capture");

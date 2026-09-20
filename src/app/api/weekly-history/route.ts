@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requirePortfolioAuth } from "@/lib/auth";
 import { db } from "@/db";
 import { weeklyHistoryTable } from "@/db/schema";
 import {
@@ -13,7 +14,10 @@ import { desc, asc } from "drizzle-orm";
  * history. Reading it first gives the Saturday 9 PM Eastern snapshot a chance
  * to land, so history catches up even when the app was closed at snapshot time.
  */
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const unauthorised = await requirePortfolioAuth(req);
+  if (unauthorised) return unauthorised;
+
   try {
     await ensureDbSeeded();
     const capture = await captureDueSnapshots().catch((error: unknown) => {
@@ -43,6 +47,9 @@ export async function GET() {
  *   recalculate – re-derive the current period from live values / stored trades
  */
 export async function POST(req: NextRequest) {
+  const unauthorised = await requirePortfolioAuth(req);
+  if (unauthorised) return unauthorised;
+
   try {
     const body = await req.json().catch(() => ({}));
     const action = String(body?.action || "capture");

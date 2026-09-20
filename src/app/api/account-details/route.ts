@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requirePortfolioAuth } from "@/lib/auth";
 import {
   getAccountDetailsData,
   addDeposit,
@@ -10,7 +11,10 @@ import {
   importAccountDetailsData,
 } from "@/db/portfolio-service";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const unauthorised = await requirePortfolioAuth(req);
+  if (unauthorised) return unauthorised;
+
   try {
     const data = await getAccountDetailsData();
     return NextResponse.json(data);
@@ -24,6 +28,9 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const unauthorised = await requirePortfolioAuth(req);
+  if (unauthorised) return unauthorised;
+
   try {
     const body = await req.json();
     const { action, data } = body || {};

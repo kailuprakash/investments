@@ -14,24 +14,8 @@ export const dynamic = "force-dynamic";
  * count. That also neutralises the DST trap: rather than chasing 21:00 Eastern
  * as a fixed UTC cron hour (which flips between 01:00 and 02:00 UTC across the
  * year), the schedule is resolved from the wall clock inside captureDueSnapshots.
- *
- * Auth: when CRON_SECRET is set, callers must present it as a bearer token
- * (Vercel Cron does this automatically). Unset = open, for local/dev.
  */
-function authorised(req: NextRequest): boolean {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) return true;
-  const header = req.headers.get("authorization") ?? "";
-  const fromHeader = header.replace(/^Bearer\s+/i, "").trim();
-  const fromQuery = req.nextUrl.searchParams.get("key") ?? "";
-  return fromHeader === secret || fromQuery === secret;
-}
-
 async function run(req: NextRequest) {
-  if (!authorised(req)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   const lookback = Number(req.nextUrl.searchParams.get("lookbackWeeks")) || undefined;
   const recalc = req.nextUrl.searchParams.get("mode") === "recalculate";
 
