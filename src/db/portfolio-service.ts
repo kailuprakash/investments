@@ -10,8 +10,9 @@ import {
   depositDetailsTable,
   settingsTable,
 } from "@/db/schema";
-import { eq, asc, desc } from "drizzle-orm";
+import { and, eq, asc, desc } from "drizzle-orm";
 import seedData from "@/db/seed-data.json";
+import { DEFAULT_AUTO_REFRESH_INTERVAL, readAutoRefreshInterval } from "@/lib/auto-refresh";
 import { calculateTransactionValues } from "@/lib/daily-transactions";
 import {
   describeSchedule,
@@ -347,17 +348,29 @@ export async function ensureDbSeeded(): Promise<void> {
       );
     `);
 
-    // Ensure default settings exist in DB
-    const autoRefreshRows = await db
+    // Keep existing supported preferences (especially Off); move obsolete
+    // seconds-based options to the new five-minute default without overwriting
+    // a newer preference saved by another request during initialization.
+    const [savedRefresh] = await db
       .select()
       .from(settingsTable)
       .where(eq(settingsTable.key, "auto_refresh_interval"));
-    if (autoRefreshRows.length === 0) {
+    if (!savedRefresh) {
       await db.insert(settingsTable).values({
         key: "auto_refresh_interval",
-        value: "60",
+        value: String(DEFAULT_AUTO_REFRESH_INTERVAL),
         updatedAt: new Date().toISOString(),
-      });
+      }).onConflictDoNothing();
+    } else {
+      const normalized = String(readAutoRefreshInterval(savedRefresh.value));
+      if (normalized !== savedRefresh.value) {
+        await db.update(settingsTable)
+          .set({ value: normalized, updatedAt: new Date().toISOString() })
+          .where(and(
+            eq(settingsTable.key, "auto_refresh_interval"),
+            eq(settingsTable.value, savedRefresh.value),
+          ));
+      }
     }
 
     const existingAccounts = await db.select().from(accountsTable);
@@ -866,9 +879,10 @@ export async function buildPortfolioState() {
 
   const autoRefreshIntervalStr = await getSetting(
     "auto_refresh_interval",
-    "60",
+    String(DEFAULT_AUTO_REFRESH_INTERVAL),
   );
-  const autoRefreshInterval = Number(autoRefreshIntervalStr) || 60;
+  // Zero is the persisted Off preference, not a missing value.
+  const autoRefreshInterval = readAutoRefreshInterval(autoRefreshIntervalStr);
 
   // Report when prices were actually pulled, not when this request was served.
   // Returning "now" here made the header claim a fresh sync on every poll even
@@ -901,19 +915,11 @@ export async function getSetting(
 
 export async function setSetting(key: string, value: string): Promise<string> {
   await ensureDbSeeded();
-  const existing = await db
-    .select()
-    .from(settingsTable)
-    .where(eq(settingsTable.key, key));
-  const nowIso = new Date().toISOString();
-  if (existing[0]) {
-    await db
-      .update(settingsTable)
-      .set({ value, updatedAt: nowIso })
-      .where(eq(settingsTable.key, key));
-  } else {
-    await db.insert(settingsTable).values({ key, value, updatedAt: nowIso });
-  }
+  const updatedAt = new Date().toISOString();
+  await db
+    .insert(settingsTable)
+    .values({ key, value, updatedAt })
+    .onConflictDoUpdate({ target: settingsTable.key, set: { value, updatedAt } });
   return value;
 }
 

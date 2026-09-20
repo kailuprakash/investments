@@ -243,7 +243,7 @@ ON CONFLICT (symbol) DO NOTHING;
 
 -- 8. Seed Application Settings (portfolio_settings)
 INSERT INTO portfolio_settings (key, value, updated_at) VALUES
-  ('auto_refresh_interval', '60', (CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::TEXT)
+  ('auto_refresh_interval', '300', (CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::TEXT)
 ON CONFLICT (key) DO NOTHING;
 
 -- 9. Seed Weekly Account Value History (portfolio_weekly_history)

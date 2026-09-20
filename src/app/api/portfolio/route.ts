@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
+  parseAutoRefreshInterval,
+} from "@/lib/auto-refresh";
+import {
   getPortfolioState,
   fetchSymbolQuote,
   refreshAllMarketPrices,
@@ -24,7 +27,9 @@ export async function GET(req: NextRequest) {
       return NextResponse.json(quote);
     }
     const portfolio = await getPortfolioState();
-    return NextResponse.json(portfolio);
+    return NextResponse.json(portfolio, {
+      headers: { "Cache-Control": "no-store" },
+    });
   } catch (error) {
     console.error("GET /api/portfolio error:", error);
     return NextResponse.json(
@@ -130,11 +135,21 @@ export async function POST(req: NextRequest) {
           : data?.interval !== undefined
             ? data.interval
             : data;
-      if (interval !== undefined && !isNaN(Number(interval))) {
-        await setSetting("auto_refresh_interval", String(Number(interval)));
+      const seconds = parseAutoRefreshInterval(interval);
+      if (seconds === null) {
+        return NextResponse.json(
+          {
+            error: "Choose 5 mins, 10 mins, 30 mins, 60 mins, or Off.",
+          },
+          { status: 400 },
+        );
       }
-      const portfolio = await getPortfolioState();
-      return NextResponse.json({ portfolio });
+      await setSetting("auto_refresh_interval", String(seconds));
+      const portfolio = await buildPortfolioState();
+      return NextResponse.json(
+        { portfolio },
+        { headers: { "Cache-Control": "no-store" } },
+      );
     }
 
     const portfolio = await getPortfolioState();

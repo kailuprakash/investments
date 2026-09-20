@@ -6,6 +6,12 @@ import * as XLSX from "xlsx-js-style";
 import AccountDetailsSheet from "@/components/AccountDetailsSheet";
 import DailyTransactionsSheet from "@/components/DailyTransactionsSheet";
 import {
+  AUTO_REFRESH_OPTIONS,
+  formatAutoRefreshInterval,
+  parseAutoRefreshInterval,
+  readAutoRefreshInterval,
+} from "@/lib/auto-refresh";
+import {
   FieldHeader,
   GainLossValue,
   DeleteHoldingButton,
@@ -519,21 +525,12 @@ const e = {
                           className:
                             "cursor-pointer bg-transparent font-medium text-white outline-none [&>option]:text-gray-900",
                           "aria-label": "Market refresh interval",
-                          children: [
+                          children: AUTO_REFRESH_OPTIONS.map((option) =>
                             (0, t.jsx)("option", {
-                              value: 60,
-                              children: "60 sec",
-                            }),
-                            (0, t.jsx)("option", {
-                              value: 30,
-                              children: "30 sec",
-                            }),
-                            (0, t.jsx)("option", {
-                              value: 120,
-                              children: "2 min",
-                            }),
-                            (0, t.jsx)("option", { value: 0, children: "Off" }),
-                          ],
+                              value: option.value,
+                              children: option.label,
+                            }, option.value),
+                          ),
                         }),
                       ],
                     }),
@@ -1710,7 +1707,7 @@ const e = {
             let maxLen = Math.max(...lengths);
             let colW =
               r.id === "actions"
-                ? 118
+                ? 64
                 : Math.max(
                     r.id === "symbol" ? 210 : r.id === "comments" ? 150 : 124,
                     Math.ceil(maxLen * 9 + (r.editable ? 48 : 28)),
@@ -2008,23 +2005,32 @@ const e = {
                           maxWidth: E[e.id],
                         },
                         className: `border border-slate-300 px-2.5 py-1.5 cursor-grab active:cursor-grabbing select-none whitespace-nowrap sticky top-0 z-30 ${"symbol" === e.id ? "frozen-symbol-column sticky left-0 top-0 z-40 bg-[#D9EAF7] shadow-[3px_0_5px_-3px_rgba(0,0,0,0.35)]" : e.editable ? "bg-[#FFF9CC]" : "bg-[#D9EAF7]"} ${"right" === e.align ? "text-right" : "center" === e.align ? "text-center" : "text-left"} ${u === e.id ? "opacity-50 bg-blue-100" : ""}`,
-                        title: "Drag to rearrange this column",
-                        children: (0, t.jsxs)("div", {
-                          className: `flex items-center gap-1 ${"right" === e.align ? "justify-end" : "center" === e.align ? "justify-center" : "justify-start"}`,
-                          children: [
-                            (0, t.jsx)(et, {
-                              className: "w-3 h-3 text-gray-400 shrink-0",
-                            }),
-                            (0, t.jsx)("span", {
-                              children: (0, t.jsx)(FieldHeader, {
-                                label:
-                                  e.label ||
-                                  ec.find((t) => t.id === e.id)?.label,
-                                kind: e.kind,
+                        title:
+                          e.id === "actions"
+                            ? "Delete holding"
+                            : "Drag to rearrange this column",
+                        children:
+                          e.id === "actions"
+                            ? (0, t.jsx)("span", {
+                                className: "sr-only",
+                                children: "Delete holding",
+                              })
+                            : (0, t.jsxs)("div", {
+                                className: `flex items-center gap-1 ${"right" === e.align ? "justify-end" : "center" === e.align ? "justify-center" : "justify-start"}`,
+                                children: [
+                                  (0, t.jsx)(et, {
+                                    className: "w-3 h-3 text-gray-400 shrink-0",
+                                  }),
+                                  (0, t.jsx)("span", {
+                                    children: (0, t.jsx)(FieldHeader, {
+                                      label:
+                                        e.label ||
+                                        ec.find((t) => t.id === e.id)?.label,
+                                      kind: e.kind,
+                                    }),
+                                  }),
+                                ],
                               }),
-                            }),
-                          ],
-                        }),
                       },
                       e.id,
                     ),
@@ -3243,7 +3249,10 @@ const e = {
                     children: [
                       (0, t.jsx)("label", {
                         className: "block text-gray-700 font-bold mb-1",
-                        children: m === "SELL" ? "Sell Price/Share ($)" : "Purchase Price/Share ($)",
+                        children:
+                          m === "SELL"
+                            ? "Sell Price/Share ($)"
+                            : "Purchase Price/Share ($)",
                       }),
                       (0, t.jsx)("input", {
                         type: "number",
@@ -4320,6 +4329,7 @@ const e = {
     defaultAccount: a,
     onRefresh: n,
     isRefreshing: s,
+    autoRefreshInterval: marketRefreshInterval = 0,
   }) {
     let [o, i] = r.default.useState([]),
       [l, c] = r.default.useState({}),
@@ -4370,9 +4380,13 @@ const e = {
       k();
     }, [k]),
       r.default.useEffect(() => {
-        let e = window.setInterval(() => E(o), 6e4);
-        return () => window.clearInterval(e);
-      }, [o, E]),
+        if (marketRefreshInterval <= 0 || o.length === 0) return;
+        const timer = window.setInterval(
+          () => void E(o),
+          marketRefreshInterval * 1000,
+        );
+        return () => window.clearInterval(timer);
+      }, [o, E, marketRefreshInterval]),
       r.default.useEffect(() => {
         let e = d.trim();
         if (!e) {
@@ -6267,8 +6281,9 @@ const e = {
             value: "$66,038.85",
             formula: "=D4+F4",
           }),
-          [A, C] = (0, r.useState)(60),
-          [E, k] = (0, r.useState)(60),
+          // Do not schedule any pulls until the persisted preference is loaded.
+          [A, C] = (0, r.useState)(0),
+          [E, k] = (0, r.useState)(0),
           [N, _] = (0, r.useState)(!1),
           [O, I] = (0, r.useState)(!1),
           [R, j] = (0, r.useState)(null),
@@ -6285,84 +6300,169 @@ const e = {
           [ea, en] = (0, r.useState)(),
           [es, eo] = (0, r.useState)(null),
           [adRefreshKey, setAdRefreshKey] = (0, r.useState)(0),
+          refreshIntervalRef = r.default.useRef(0),
+          nextPullAtRef = r.default.useRef(0),
+          refreshInFlightRef = r.default.useRef(false),
+          preferenceRevisionRef = r.default.useRef(0),
+          pendingPreferenceSavesRef = r.default.useRef(0),
+          unsavedPreferenceRef = r.default.useRef(false),
+          preferenceSaveQueueRef = r.default.useRef(Promise.resolve()),
+          applyRefreshInterval = (seconds) => {
+            // Refs change synchronously, so a queued timer tick sees Off immediately.
+            refreshIntervalRef.current = seconds;
+            nextPullAtRef.current =
+              seconds > 0 ? Date.now() + seconds * 1000 : 0;
+            C(seconds);
+            k(seconds);
+          },
           ei = (e, t = "success") => {
             eo({ text: e, type: t }), setTimeout(() => eo(null), 4e3);
           },
-          el = (0, r.useCallback)(async (e = !1) => {
+          el = (0, r.useCallback)(async (silent = false) => {
+            const revisionAtStart = preferenceRevisionRef.current;
+            const savePendingAtStart = pendingPreferenceSavesRef.current > 0;
             try {
-              e || h(!0);
-              let t = await fetch("/api/portfolio");
-              if (t.ok) {
-                let e = await t.json();
-                a(e.accounts || []),
-                  s(e.grandTotal || {}),
-                  i(e.futureInvestments || []),
-                  c(e.lastRefreshed || new Date().toISOString());
-                if (typeof e.autoRefreshInterval === "number") {
-                  C(e.autoRefreshInterval);
-                  k(e.autoRefreshInterval > 0 ? e.autoRefreshInterval : 0);
-                }
+              if (!silent) h(true);
+              const response = await fetch("/api/portfolio", {
+                cache: "no-store",
+              });
+              const portfolio = await response.json();
+              if (!response.ok)
+                throw new Error(portfolio.error || "Failed to load portfolio");
+              a(portfolio.accounts || []);
+              s(portfolio.grandTotal || {});
+              i(portfolio.futureInvestments || []);
+              c(portfolio.lastRefreshed || new Date().toISOString());
+              // A read started before a user's change must not restore an old interval.
+              if (
+                !savePendingAtStart &&
+                !unsavedPreferenceRef.current &&
+                pendingPreferenceSavesRef.current === 0 &&
+                revisionAtStart === preferenceRevisionRef.current
+              ) {
+                applyRefreshInterval(
+                  readAutoRefreshInterval(portfolio.autoRefreshInterval),
+                );
               }
-            } catch (e) {
-              console.error("Failed to load portfolio:", e),
-                ei("Failed to load portfolio data", "error");
+            } catch (error) {
+              console.error("Failed to load portfolio:", error);
+              ei("Failed to load portfolio data", "error");
             } finally {
-              e || h(!1);
+              if (!silent) h(false);
             }
           }, []),
           ec = (0, r.useCallback)(async () => {
+            // Manual and automatic pulls share the same in-flight guard.
+            if (refreshInFlightRef.current) return;
+            refreshInFlightRef.current = true;
+            u(true);
             try {
-              u(!0);
-              let e = await fetch("/api/portfolio", {
+              const response = await fetch("/api/portfolio", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ action: "refresh-market" }),
               });
-              if (e.ok) {
-                let t = await e.json();
-                a(t.portfolio.accounts || []),
-                  s(t.portfolio.grandTotal || {}),
-                  i(t.portfolio.futureInvestments || []),
-                  c(new Date().toISOString()),
-                  k(A || 60),
-                  ei("Market prices dynamically pulled & sections updated!");
-              }
-            } catch (e) {
-              console.error("Failed to pull market prices:", e),
-                ei("Market fetch: cached values preserved", "info");
+              const result = await response.json();
+              if (!response.ok)
+                throw new Error(result.error || "Market refresh failed");
+              a(result.portfolio.accounts || []);
+              s(result.portfolio.grandTotal || {});
+              i(result.portfolio.futureInvestments || []);
+              c(result.portfolio.lastRefreshed || new Date().toISOString());
+              // Use the CURRENT preference, not the one captured before this request.
+              const seconds = refreshIntervalRef.current;
+              nextPullAtRef.current =
+                seconds > 0 ? Date.now() + seconds * 1000 : 0;
+              k(seconds);
+              ei("Market prices dynamically pulled & sections updated!");
+            } catch (error) {
+              console.error("Failed to pull market prices:", error);
+              ei("Market fetch failed: cached values preserved", "error");
             } finally {
-              u(!1);
+              refreshInFlightRef.current = false;
+              u(false);
             }
-          }, [A]);
+          }, []);
         (0, r.useEffect)(() => {
-          el();
-        }, [el]),
-          (0, r.useEffect)(() => {
-            if (A <= 0) return;
-            k(A);
-            let e = setInterval(() => {
-              k((e) => (e <= 1 ? (ec(), A) : e - 1));
-            }, 1e3);
-            return () => clearInterval(e);
-          }, [A, ec]);
-        let handleSetAutoRefreshInterval = async (val) => {
-          C(val);
-          k(val > 0 ? val : 0);
-          try {
-            await fetch("/api/portfolio", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                action: "set-auto-refresh-interval",
-                data: { autoRefreshInterval: val },
-              }),
-            });
-            ei(
-              `Auto pull market interval configured to ${val > 0 ? `${val}s` : "Off"} in database!`,
-            );
-          } catch (err) {
-            console.error("Failed to save auto refresh interval:", err);
+          void el();
+        }, [el]);
+        (0, r.useEffect)(() => {
+          if (A <= 0) {
+            k(0);
+            return;
           }
+          const timer = window.setInterval(() => {
+            const seconds = refreshIntervalRef.current;
+            if (seconds <= 0) {
+              k(0);
+              return;
+            }
+            if (refreshInFlightRef.current) return;
+            const remaining = Math.max(
+              0,
+              Math.ceil((nextPullAtRef.current - Date.now()) / 1000),
+            );
+            k(remaining);
+            if (remaining === 0) {
+              nextPullAtRef.current = Date.now() + seconds * 1000;
+              // Keep network work out of React state-updater callbacks.
+              void ec();
+            }
+          }, 1000);
+          return () => window.clearInterval(timer);
+        }, [A, ec]);
+        const handleSetAutoRefreshInterval = async (value) => {
+          const seconds = parseAutoRefreshInterval(value);
+          if (seconds === null) {
+            ei("Please choose a valid auto-pull interval.", "error");
+            return;
+          }
+          const revision = ++preferenceRevisionRef.current;
+          unsavedPreferenceRef.current = true;
+          applyRefreshInterval(seconds);
+          pendingPreferenceSavesRef.current += 1;
+          // Save in selection order so rapid changes cannot leave an older value in Postgres.
+          const save = async () => {
+            try {
+              const response = await fetch("/api/portfolio", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  action: "set-auto-refresh-interval",
+                  data: { autoRefreshInterval: seconds },
+                }),
+              });
+              const result = await response.json();
+              if (!response.ok)
+                throw new Error(result.error || "Unable to save auto pull");
+              if (result.portfolio?.autoRefreshInterval !== seconds) {
+                throw new Error(
+                  "The server did not confirm the selected interval",
+                );
+              }
+              if (revision === preferenceRevisionRef.current) {
+                unsavedPreferenceRef.current = false;
+                ei(
+                  seconds === 0
+                    ? "Auto pull is Off. Your preference has been saved."
+                    : `Auto pull set to ${formatAutoRefreshInterval(seconds)} and saved.`,
+                );
+              }
+            } catch (error) {
+              console.error("Failed to save auto refresh interval:", error);
+              if (revision === preferenceRevisionRef.current) {
+                ei(
+                  `Auto pull is ${formatAutoRefreshInterval(seconds)} for this session, but could not be saved. Please try again.`,
+                  "error",
+                );
+              }
+            } finally {
+              pendingPreferenceSavesRef.current -= 1;
+            }
+          };
+          const queuedSave = preferenceSaveQueueRef.current.then(save, save);
+          preferenceSaveQueueRef.current = queuedSave;
+          await queuedSave;
         };
         let ef = async (e) => {
             let t = await fetch("/api/portfolio", {
@@ -8112,6 +8212,7 @@ This replaces the current accounts, inventory, and transactions.`)
                         },
                         onRefresh: ec,
                         isRefreshing: d,
+                        autoRefreshInterval: A,
                       })
                     : "accountDetails" === g
                       ? (0, t.jsx)(AccountDetailsSheet, {
