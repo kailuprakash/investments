@@ -112,7 +112,8 @@ export function DeleteHoldingButton({
           event.stopPropagation();
           void remove();
         }}
-        aria-label={`Delete ${holding.symbol} holding from ${holding.accountNumber}`}
+        aria-label={`${busy ? "Deleting" : "Delete"} ${holding.symbol} holding from ${holding.accountNumber}`}
+        aria-busy={busy}
         title="Delete this row only — no cash or transaction changes"
       >
         {busy ? (
@@ -120,7 +121,6 @@ export function DeleteHoldingButton({
         ) : (
           <Trash2 size={15} aria-hidden="true" />
         )}
-        {busy ? "Deleting…" : "Delete"}
       </button>
       {error && (
         <span className="holding-delete-error" role="alert">
