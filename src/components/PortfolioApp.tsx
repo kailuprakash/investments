@@ -7,7 +7,6 @@ import AccountDetailsSheet from "@/components/AccountDetailsSheet";
 import DailyTransactionsSheet from "@/components/DailyTransactionsSheet";
 import HoldingsPerformanceTable from "@/components/HoldingsPerformanceTable";
 import WorkbookSearch from "@/components/WorkbookSearch";
-import LogoutButton from "@/components/LogoutButton";
 import {
   buildWorkbookIndex,
   highlightWorkbookRow,
@@ -604,22 +603,16 @@ const e = {
                     }),
                   ],
                 }),
-                (0, t.jsxs)("div", {
-                  className: "flex items-center gap-1",
-                  children: [
-                    (0, t.jsx)("time", {
-                      className: "portfolio-refresh-time",
-                      dateTime: A ? A.toISOString() : undefined,
-                      title: A
-                        ? `Market refresh: ${C} at ${N} (Eastern)`
-                        : "No market refresh recorded",
-                      "aria-label": A
-                        ? `${C} at ${N} Eastern time`
-                        : "No market refresh recorded",
-                      children: A ? `${C} · ${N}` : "—",
-                    }),
-                    (0, t.jsx)(LogoutButton, {}),
-                  ],
+                (0, t.jsx)("time", {
+                  className: "portfolio-refresh-time",
+                  dateTime: A ? A.toISOString() : undefined,
+                  title: A
+                    ? `Market refresh: ${C} at ${N} (Eastern)`
+                    : "No market refresh recorded",
+                  "aria-label": A
+                    ? `${C} at ${N} Eastern time`
+                    : "No market refresh recorded",
+                  children: A ? `${C} · ${N}` : "—",
                 }),
               ],
             }),
@@ -8042,9 +8035,12 @@ const e = {
                         }
                         let dateVal = String(tH(row, cDate)).trim(),
                           amtVal = tL(tH(row, cAmt));
+                        // Signed amounts are valid: negative rows represent withdrawals,
+                        // corrections, or transfer-outs and must survive workbook imports.
+                        // tL returns 0 for blank/unparseable cells, so only zero is skipped.
                         if (
                           !dateVal ||
-                          amtVal <= 0 ||
+                          amtVal === 0 ||
                           /^[·\-\s]+$/.test(dateVal)
                         )
                           continue;
