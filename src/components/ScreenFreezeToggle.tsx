@@ -46,7 +46,9 @@ export default function ScreenFreezeToggle({ screen }: { screen: string }) {
   const label = SCREEN_LABELS[screenId] ?? "Current screen";
   const [freezeByScreen, setFreezeByScreen] = useState<FreezeMap>({});
   const [ready, setReady] = useState(false);
-  const frozen = freezeByScreen[screenId] !== false;
+  // Screens begin unfrozen so normal ledger work is immediately available.
+  // A saved `true` explicitly locks only that screen's manual interactions.
+  const frozen = freezeByScreen[screenId] === true;
 
   useEffect(() => {
     setFreezeByScreen(readFreezeMap());
@@ -63,19 +65,25 @@ export default function ScreenFreezeToggle({ screen }: { screen: string }) {
   }, [frozen, screenId]);
 
   const stateText = useMemo(
-    () => (frozen ? "Frozen" : "Unfrozen"),
+    () => (frozen ? "Frozen · editing locked" : "Unfrozen · editing enabled"),
     [frozen],
   );
 
   function toggleFreeze() {
     setFreezeByScreen((current) => {
-      const currentlyFrozen = current[screenId] !== false;
-      const next = { ...current, [screenId]: !currentlyFrozen };
+      const currentlyFrozen = current[screenId] === true;
+      const nextFrozen = !currentlyFrozen;
+      const next = { ...current, [screenId]: nextFrozen };
       try {
         window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
       } catch {
-        // The visual toggle still works if browser storage is unavailable.
+        // The interaction lock still works if browser storage is unavailable.
       }
+      window.dispatchEvent(
+        new CustomEvent("portfolio-screen-freeze-change", {
+          detail: { screen: screenId, frozen: nextFrozen },
+        }),
+      );
       return next;
     });
   }
@@ -93,14 +101,14 @@ export default function ScreenFreezeToggle({ screen }: { screen: string }) {
         aria-pressed={frozen}
         title={
           frozen
-            ? "Unfreeze this screen's table headers and anchor columns. Data updates stay active."
-            : "Freeze this screen's table headers and anchor columns. Data updates stay active."
+            ? "Unfreeze this screen to restore manual add, edit, delete, and update actions."
+            : "Freeze this screen to lock manual add, edit, delete, and update actions."
         }
       >
         {frozen ? <PinOff size={14} aria-hidden="true" /> : <Pin size={14} aria-hidden="true" />}
-        {frozen ? "Unfreeze view" : "Freeze view"}
+        {frozen ? "Unfreeze screen" : "Freeze screen"}
       </button>
-      <span className="screen-freeze-note">Data, calculations & inserts stay active</span>
+      <span className="screen-freeze-note">Live calculations continue</span>
     </div>
   );
 }

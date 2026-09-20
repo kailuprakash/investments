@@ -6,6 +6,7 @@ import * as XLSX from "xlsx-js-style";
 import AccountDetailsSheet from "@/components/AccountDetailsSheet";
 import DailyTransactionsSheet from "@/components/DailyTransactionsSheet";
 import HoldingsPerformanceTable from "@/components/HoldingsPerformanceTable";
+import ScreenFreezeBoundary from "@/components/ScreenFreezeBoundary";
 import ScreenFreezeToggle from "@/components/ScreenFreezeToggle";
 import WorkbookSearch from "@/components/WorkbookSearch";
 import {
@@ -514,7 +515,7 @@ const e = {
                       onClick: e,
                       disabled: a,
                       className:
-                        "group inline-flex h-6 items-center gap-1 border-r border-white/15 bg-white px-2 text-[9px] sm:text-[9.25px] font-semibold text-emerald-900 transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:bg-amber-50 disabled:text-amber-800",
+                        "screen-freeze-header-action group inline-flex h-6 items-center gap-1 border-r border-white/15 bg-white px-2 text-[9px] sm:text-[9.25px] font-semibold text-emerald-900 transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:bg-amber-50 disabled:text-amber-800",
                       title:
                         "Update Account's Summary, Consolidated View, and Daily Transactions",
                       children: [
@@ -538,7 +539,7 @@ const e = {
                           value: s,
                           onChange: (e) => o(Number(e.target.value)),
                           className:
-                            "cursor-pointer bg-transparent font-medium text-white outline-none [&>option]:text-gray-900",
+                            "screen-freeze-header-action cursor-pointer bg-transparent font-medium text-white outline-none [&>option]:text-gray-900",
                           "aria-label": "Market refresh interval",
                           children: AUTO_REFRESH_OPTIONS.map((option) =>
                             (0, t.jsx)("option", {
@@ -590,7 +591,7 @@ const e = {
                       onClick: () => x.current?.click(),
                       disabled: f,
                       className:
-                        "inline-flex h-6 items-center gap-1 px-2 text-[9px] sm:text-[9.25px] font-semibold text-white transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-55",
+                        "screen-freeze-header-action inline-flex h-6 items-center gap-1 px-2 text-[9px] sm:text-[9.25px] font-semibold text-white transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-55",
                       title: "Import Excel workbook",
                       children: [
                         (0, t.jsx)(E, {
@@ -8149,7 +8150,9 @@ This replaces the current accounts, inventory, and transactions.`)
               className: `flex-1 w-full mx-auto ${"future" === g || "buy" === g || "sell" === g ? "max-w-none px-1 sm:px-2 py-1" : "max-w-[1700px] p-2 sm:p-4"}`,
               children: [
                 (0, t.jsx)(ScreenFreezeToggle, { screen: g }),
-                f
+                (0, t.jsx)(ScreenFreezeBoundary, {
+                  screen: g,
+                  children: f
                 ? (0, t.jsxs)("div", {
                     className:
                       "flex flex-col items-center justify-center py-20 text-gray-500",
@@ -8298,6 +8301,7 @@ This replaces the current accounts, inventory, and transactions.`)
                                 (0, t.jsx)(te, {}),
                               ],
                             }),
+                }),
               ],
             }),
             (0, t.jsx)(eF, {
