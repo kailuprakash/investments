@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requirePortfolioAuth } from "@/lib/auth";
 import {
   parseAutoRefreshInterval,
 } from "@/lib/auto-refresh";
@@ -20,6 +21,9 @@ import {
 } from "@/db/portfolio-service";
 
 export async function GET(req: NextRequest) {
+  const unauthorised = await requirePortfolioAuth(req);
+  if (unauthorised) return unauthorised;
+
   try {
     const symbol = req.nextUrl.searchParams.get("symbol");
     if (symbol) {
@@ -43,6 +47,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  const unauthorised = await requirePortfolioAuth(req);
+  if (unauthorised) return unauthorised;
+
   const id = Number(req.nextUrl.searchParams.get("holdingId"));
   if (!Number.isSafeInteger(id) || id <= 0 || id > 2147483647) {
     return NextResponse.json(
@@ -76,6 +83,9 @@ export async function DELETE(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const unauthorised = await requirePortfolioAuth(req);
+  if (unauthorised) return unauthorised;
+
   try {
     const body = await req.json();
     const { action, data } = body || {};

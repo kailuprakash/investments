@@ -5,8 +5,9 @@ import * as jsxRuntime from "react/jsx-runtime";
 import * as XLSX from "xlsx-js-style";
 import AccountDetailsSheet from "@/components/AccountDetailsSheet";
 import DailyTransactionsSheet from "@/components/DailyTransactionsSheet";
-import VisualAnalytics from "@/components/VisualAnalytics";
+import HoldingsPerformanceTable from "@/components/HoldingsPerformanceTable";
 import WorkbookSearch from "@/components/WorkbookSearch";
+import LogoutButton from "@/components/LogoutButton";
 import {
   buildWorkbookIndex,
   highlightWorkbookRow,
@@ -603,16 +604,22 @@ const e = {
                     }),
                   ],
                 }),
-                (0, t.jsx)("time", {
-                  className: "portfolio-refresh-time",
-                  dateTime: A ? A.toISOString() : undefined,
-                  title: A
-                    ? `Market refresh: ${C} at ${N} (Eastern)`
-                    : "No market refresh recorded",
-                  "aria-label": A
-                    ? `${C} at ${N} Eastern time`
-                    : "No market refresh recorded",
-                  children: A ? `${C} · ${N}` : "—",
+                (0, t.jsxs)("div", {
+                  className: "flex items-center gap-1",
+                  children: [
+                    (0, t.jsx)("time", {
+                      className: "portfolio-refresh-time",
+                      dateTime: A ? A.toISOString() : undefined,
+                      title: A
+                        ? `Market refresh: ${C} at ${N} (Eastern)`
+                        : "No market refresh recorded",
+                      "aria-label": A
+                        ? `${C} at ${N} Eastern time`
+                        : "No market refresh recorded",
+                      children: A ? `${C} · ${N}` : "—",
+                    }),
+                    (0, t.jsx)(LogoutButton, {}),
+                  ],
                 }),
               ],
             }),
@@ -4868,6 +4875,289 @@ const e = {
     };
   e1.node;
   let e2 = i(e1);
+  function e3({ accounts: e, grandTotal: r, jumpHit, onJumpHandled }) {
+    let a = e.flatMap((e) => e.holdings),
+      n = r.accountOverallMoney || 1,
+      s = ((r.cashAvailable / n) * 100).toFixed(1),
+      o = ((r.investmentCurrent / n) * 100).toFixed(1);
+    return (0, t.jsxs)("div", {
+      className: "p-4 space-y-5 bg-gray-50/70 min-h-[500px]",
+      children: [
+        (0, t.jsxs)("div", {
+          className: "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3",
+          children: [
+            (0, t.jsxs)("div", {
+              className:
+                "bg-white p-3.5 rounded border border-gray-200 shadow-xs",
+              children: [
+                (0, t.jsx)("span", {
+                  className:
+                    "text-[10px] font-bold text-gray-500 uppercase tracking-wider block",
+                  children: "Account Value",
+                }),
+                (0, t.jsx)("div", {
+                  className: "font-mono font-black text-lg text-gray-900 mt-1",
+                  children: D(r.accountOverallMoney).text,
+                }),
+                (0, t.jsx)("span", {
+                  className: "text-[10px] text-gray-400",
+                  children: "Total Net Worth",
+                }),
+              ],
+            }),
+            (0, t.jsxs)("div", {
+              className:
+                "bg-white p-3.5 rounded border border-gray-200 shadow-xs",
+              children: [
+                (0, t.jsx)("span", {
+                  className:
+                    "text-[10px] font-bold text-gray-500 uppercase tracking-wider block",
+                  children: "Cash Balance",
+                }),
+                (0, t.jsx)("div", {
+                  className:
+                    "font-mono font-black text-lg text-emerald-700 mt-1",
+                  children: D(r.cashAvailable).text,
+                }),
+                (0, t.jsxs)("span", {
+                  className: "text-[10px] text-gray-400",
+                  children: [s, "% of total"],
+                }),
+              ],
+            }),
+            (0, t.jsxs)("div", {
+              className:
+                "bg-white p-3.5 rounded border border-gray-200 shadow-xs",
+              children: [
+                (0, t.jsx)("span", {
+                  className:
+                    "text-[10px] font-bold text-gray-500 uppercase tracking-wider block",
+                  children: "Amount Invested",
+                }),
+                (0, t.jsx)("div", {
+                  className: "font-mono font-black text-lg text-gray-900 mt-1",
+                  children: D(r.amountInvested).text,
+                }),
+                (0, t.jsx)("span", {
+                  className: "text-[10px] text-gray-400",
+                  children: "Cost Basis",
+                }),
+              ],
+            }),
+            (0, t.jsxs)("div", {
+              className:
+                "bg-white p-3.5 rounded border border-gray-200 shadow-xs",
+              children: [
+                (0, t.jsx)("span", {
+                  className:
+                    "text-[10px] font-bold text-gray-500 uppercase tracking-wider block",
+                  children: "Market Value",
+                }),
+                (0, t.jsx)("div", {
+                  className: "font-mono font-black text-lg text-blue-900 mt-1",
+                  children: D(r.investmentCurrent).text,
+                }),
+                (0, t.jsxs)("span", {
+                  className: "text-[10px] text-gray-400",
+                  children: [o, "% of total"],
+                }),
+              ],
+            }),
+            (0, t.jsxs)("div", {
+              className:
+                "bg-white p-3.5 rounded border border-gray-200 shadow-xs",
+              children: [
+                (0, t.jsx)("span", {
+                  className:
+                    "text-[10px] font-bold text-gray-500 uppercase tracking-wider block",
+                  children: "Total Gain/Loss",
+                }),
+                (0, t.jsx)("div", {
+                  className: `font-mono font-black text-lg mt-1 ${r.gainLoss < 0 ? "text-red-600" : "text-emerald-700"}`,
+                  children: D(r.gainLoss).text,
+                }),
+                (0, t.jsx)("span", {
+                  className: "text-[10px] text-gray-400",
+                  children: "Unrealized P&L",
+                }),
+              ],
+            }),
+            (0, t.jsxs)("div", {
+              className:
+                "bg-white p-3.5 rounded border border-gray-200 shadow-xs",
+              children: [
+                (0, t.jsx)("span", {
+                  className:
+                    "text-[10px] font-bold text-gray-500 uppercase tracking-wider block",
+                  children: "Total Return %",
+                }),
+                (0, t.jsx)("div", {
+                  className: `font-mono font-black text-lg mt-1 ${r.gainLossPercent < 0 ? "text-red-600" : "text-emerald-700"}`,
+                  children: U(r.gainLossPercent).text,
+                }),
+                (0, t.jsx)("span", {
+                  className: "text-[10px] text-gray-400",
+                  children: "ROI on Invested",
+                }),
+              ],
+            }),
+          ],
+        }),
+        (0, t.jsxs)("div", {
+          className: "grid grid-cols-1 md:grid-cols-2 gap-4",
+          children: [
+            (0, t.jsxs)("div", {
+              className:
+                "bg-white p-4 rounded border border-gray-200 shadow-xs space-y-3",
+              children: [
+                (0, t.jsxs)("h3", {
+                  className:
+                    "text-xs font-bold text-[#1F4E79] uppercase tracking-wide flex items-center gap-1.5",
+                  children: [
+                    (0, t.jsx)(e0, { className: "w-4 h-4 text-blue-600" }),
+                    (0, t.jsx)("span", {
+                      children: "Asset Composition (Cash vs Equity)",
+                    }),
+                  ],
+                }),
+                (0, t.jsxs)("div", {
+                  className:
+                    "h-6 w-full bg-gray-100 rounded-full overflow-hidden flex border border-gray-300",
+                  children: [
+                    (0, t.jsxs)("div", {
+                      style: { width: `${s}%` },
+                      className:
+                        "bg-emerald-500 h-full flex items-center justify-center text-[10px] text-white font-bold",
+                      title: `Cash: ${s}%`,
+                      children: ["Cash ", s, "%"],
+                    }),
+                    (0, t.jsxs)("div", {
+                      style: { width: `${o}%` },
+                      className:
+                        "bg-blue-600 h-full flex items-center justify-center text-[10px] text-white font-bold",
+                      title: `Equities: ${o}%`,
+                      children: ["Equities ", o, "%"],
+                    }),
+                  ],
+                }),
+                (0, t.jsxs)("div", {
+                  className:
+                    "flex items-center justify-between text-xs text-gray-600 pt-1",
+                  children: [
+                    (0, t.jsxs)("div", {
+                      className: "flex items-center gap-2",
+                      children: [
+                        (0, t.jsx)("span", {
+                          className:
+                            "w-3 h-3 rounded-full bg-emerald-500 inline-block",
+                        }),
+                        (0, t.jsxs)("span", {
+                          children: ["Cash: ", D(r.cashAvailable).text],
+                        }),
+                      ],
+                    }),
+                    (0, t.jsxs)("div", {
+                      className: "flex items-center gap-2",
+                      children: [
+                        (0, t.jsx)("span", {
+                          className:
+                            "w-3 h-3 rounded-full bg-blue-600 inline-block",
+                        }),
+                        (0, t.jsxs)("span", {
+                          children: ["Equities: ", D(r.investmentCurrent).text],
+                        }),
+                      ],
+                    }),
+                  ],
+                }),
+              ],
+            }),
+            (0, t.jsxs)("div", {
+              className:
+                "bg-white p-4 rounded border border-gray-200 shadow-xs space-y-3",
+              children: [
+                (0, t.jsxs)("h3", {
+                  className:
+                    "text-xs font-bold text-[#1F4E79] uppercase tracking-wide flex items-center gap-1.5",
+                  children: [
+                    (0, t.jsx)(eQ, { className: "w-4 h-4 text-blue-600" }),
+                    (0, t.jsx)("span", {
+                      children: "Portfolio Split By Account",
+                    }),
+                  ],
+                }),
+                (0, t.jsx)("div", {
+                  className: "space-y-2",
+                  children: e.map((e) => {
+                    let r =
+                      n > 0
+                        ? ((e.accountOverallMoney / n) * 100).toFixed(1)
+                        : "0";
+                    return (0, t.jsxs)(
+                      "div",
+                      {
+                        className: "space-y-1",
+                        children: [
+                          (0, t.jsxs)("div", {
+                            className:
+                              "flex justify-between text-xs font-medium text-gray-700",
+                            children: [
+                              (0, t.jsx)("span", {
+                                className: "font-bold",
+                                children: e.accountNumber,
+                              }),
+                              (0, t.jsxs)("span", {
+                                className: "font-mono",
+                                children: [
+                                  D(e.accountOverallMoney).text,
+                                  " (",
+                                  r,
+                                  "%)",
+                                ],
+                              }),
+                            ],
+                          }),
+                          (0, t.jsx)("div", {
+                            className:
+                              "w-full bg-gray-100 rounded-full h-2.5 overflow-hidden",
+                            children: (0, t.jsx)("div", {
+                              style: { width: `${r}%` },
+                              className: "bg-[#1F4E79] h-full rounded-full",
+                            }),
+                          }),
+                        ],
+                      },
+                      e.accountNumber,
+                    );
+                  }),
+                }),
+              ],
+            }),
+          ],
+        }),
+        (0, t.jsxs)("div", {
+          className: "bg-white p-4 rounded border border-gray-200 shadow-xs",
+          children: [
+            (0, t.jsxs)("h3", {
+              className:
+                "text-xs font-bold text-[#1F4E79] uppercase tracking-wide mb-3 flex items-center gap-1.5",
+              children: [
+                (0, t.jsx)(e2, { className: "w-4 h-4 text-blue-600" }),
+                (0, t.jsx)("span", {
+                  children: "Holdings Performance & Unrealized Profit / Loss",
+                }),
+              ],
+            }),
+            (0, t.jsx)(HoldingsPerformanceTable, {
+              holdings: a,
+              jumpHit,
+              onJumpHandled,
+            }),
+          ],
+        }),
+      ],
+    });
+  }
   function e5(e) {
     return e
       ? `${M(e.gainLossAmount).text} (${U(e.gainLossPercent).text})`
@@ -7875,7 +8165,7 @@ This replaces the current accounts, inventory, and transactions.`)
                     ],
                   })
                 : "analytics" === g
-                  ? (0, t.jsx)(VisualAnalytics, {
+                  ? (0, t.jsx)(e3, {
                       accounts: e,
                       grandTotal: n,
                       jumpHit,
