@@ -6082,31 +6082,31 @@ const e = {
       right: { style: "thin", color: { rgb: e } },
     }),
     tA = (e = tr) => ({
-      font: { name: tb, sz: 11, bold: !0, color: { rgb: tc } },
+      font: { name: tb, sz: 10, bold: !0, color: { rgb: tc } },
       fill: { patternType: "solid", fgColor: { rgb: e } },
       alignment: { horizontal: "center", vertical: "center" },
       border: tw(e),
     }),
     tT = (e = to) => ({
-      font: { name: tb, sz: 11, bold: !0, color: { rgb: tf } },
+      font: { name: tb, sz: 10, bold: !0, color: { rgb: tf } },
       fill: { patternType: "solid", fgColor: { rgb: e } },
       alignment: { horizontal: "center", vertical: "center", wrapText: !0 },
       border: tw(th),
     }),
     tC = (e = "left") => ({
-      font: { name: tb, sz: 11, color: { rgb: tf } },
+      font: { name: tb, sz: 10, color: { rgb: tf } },
       fill: { patternType: "solid", fgColor: { rgb: tc } },
       alignment: { horizontal: e, vertical: "center" },
       border: tw("CBD5E1"),
     }),
     tE = (e = "right") => ({
-      font: { name: tb, sz: 11, bold: !0, color: { rgb: tf } },
+      font: { name: tb, sz: 10, bold: !0, color: { rgb: tf } },
       fill: { patternType: "solid", fgColor: { rgb: tl } },
       alignment: { horizontal: e, vertical: "center" },
       border: tw(th),
     }),
     tk = (e = "right") => ({
-      font: { name: tb, sz: 11, bold: !0, color: { rgb: tf } },
+      font: { name: tb, sz: 10, bold: !0, color: { rgb: tf } },
       fill: { patternType: "solid", fgColor: { rgb: ti } },
       alignment: { horizontal: e, vertical: "center" },
       border: tw(th),
@@ -6571,7 +6571,7 @@ const e = {
                       ...tC("center"),
                       font: {
                         name: tb,
-                        sz: 11,
+                        sz: 10,
                         bold: !0,
                         color: { rgb: "BUY" === e.action ? tp : "A05A00" },
                       },
@@ -6586,7 +6586,7 @@ const e = {
                           ...tC("right"),
                           font: {
                             name: tb,
-                            sz: 11,
+                            sz: 10,
                             bold: !0,
                             color: { rgb: td },
                           },
@@ -6680,7 +6680,7 @@ const e = {
                             ...n("right"),
                             font: {
                               name: tb,
-                              sz: 11,
+                              sz: 10,
                               bold: !0,
                               color: { rgb: td },
                             },
@@ -6758,7 +6758,7 @@ const e = {
                         ...tC("right"),
                         font: {
                           name: tb,
-                          sz: 11,
+                          sz: 10,
                           bold: !0,
                           color: { rgb: a < 0 ? td : tp },
                         },
@@ -6783,7 +6783,7 @@ const e = {
                         ...tk("right"),
                         font: {
                           name: tb,
-                          sz: 11,
+                          sz: 10,
                           bold: !0,
                           color: { rgb: e.grandTotal.gainLoss < 0 ? td : tp },
                         },
@@ -7002,7 +7002,7 @@ const e = {
                     t_(s, 0, 0, 0, 7, {
                       font: {
                         name: tb,
-                        sz: 11,
+                        sz: 10,
                         bold: true,
                         color: { rgb: tc },
                       },
@@ -7017,7 +7017,7 @@ const e = {
                       tN(s, 1, c, {
                         font: {
                           name: tb,
-                          sz: 11,
+                          sz: 10,
                           bold: true,
                           color: { rgb: cNavyText },
                         },
@@ -7059,7 +7059,7 @@ const e = {
                         let cellStyle = {
                           font: {
                             name: tb,
-                            sz: 11,
+                            sz: 10,
                             bold: c === 0 || isAmount || isStatus,
                             color: {
                               rgb: isStatus
@@ -7105,7 +7105,7 @@ const e = {
                         {
                           font: {
                             name: tb,
-                            sz: 11,
+                            sz: 10,
                             bold: true,
                             color: { rgb: tf },
                           },
@@ -7131,7 +7131,7 @@ const e = {
                     t_(s, t2TitleRow, t2TitleRow, 0, 4, {
                       font: {
                         name: tb,
-                        sz: 11,
+                        sz: 10,
                         bold: true,
                         color: { rgb: tc },
                       },
@@ -7146,7 +7146,7 @@ const e = {
                       tN(s, t2HeaderRow, c, {
                         font: {
                           name: tb,
-                          sz: 11,
+                          sz: 10,
                           bold: true,
                           color: { rgb: cNavyText },
                         },
@@ -7194,7 +7194,7 @@ const e = {
                         let cellStyle = {
                           font: {
                             name: tb,
-                            sz: 11,
+                            sz: 10,
                             bold: c === 0 || isFinalCum,
                             color: { rgb: c === 0 ? cNavyText : tf },
                           },
@@ -7316,7 +7316,7 @@ const e = {
                             ...tC("right"),
                             font: {
                               name: tb,
-                              sz: 11,
+                              sz: 10,
                               bold: !0,
                               color: { rgb: c ? td : tp },
                             },

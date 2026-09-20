@@ -12,8 +12,8 @@
      widths instead of an arbitrary system-sans substitution. */
   --font-calibri: "Calibri", "Carlito", "Segoe UI", "Trebuchet MS", Arial, sans-serif;
 
-  /* Calibri 11-point throughout, matching the Excel export font size. */
-  --workbook-font-size: 11pt;
+  /* Calibri 10-point throughout, matching the Excel export font size. */
+  --workbook-font-size: 10pt;
   --workbook-kpi-font-size: var(--workbook-font-size);
   --field-editable: #fff2cc;
   --field-readonly: #e5edf6;
@@ -290,7 +290,7 @@ select:focus-visible {
 }
 
 /* ==========================================================================
-   Workbook typography: Calibri 11-point across every sheet.
+   Workbook typography: Calibri 10-point across every sheet.
    The grids were authored with a scatter of text-[8px]…text-[11px] utilities;
    these overrides give the whole app one Excel-authentic typeface and size.
    ========================================================================== */
@@ -312,7 +312,7 @@ select:focus-visible {
   font-variant-numeric: tabular-nums;
 }
 
-/* Summary/KPI figures use the same 11-point size as the rest of the workbook. */
+/* Summary/KPI figures use the same 10-point size as the rest of the workbook. */
 .workbook-shell .text-lg.font-mono {
   font-size: var(--workbook-kpi-font-size) !important;
 }
