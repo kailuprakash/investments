@@ -453,6 +453,72 @@ select:focus-visible {
 .workbook-shell .portfolio-app-header nav {
   flex-wrap: wrap;
 }
+.workbook-shell .workbook-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: min(220px, 100%);
+  max-width: 320px;
+  flex: 1 1 180px;
+  padding: 2px 8px;
+  border: 1px solid #ffffff35;
+  border-radius: 4px;
+  background: #022c2240;
+  color: #fff;
+}
+.workbook-shell .workbook-search input {
+  min-height: 24px !important;
+  width: 100% !important;
+  border: 0;
+  background: transparent;
+  color: #fff;
+  outline: none;
+}
+.workbook-shell .workbook-search input::placeholder {
+  color: #d1fae5cc;
+}
+.workbook-shell .workbook-search-results {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 80;
+  max-height: 280px;
+  overflow: auto;
+  padding: 6px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #fff;
+  color: #1f4e79;
+  box-shadow: 0 10px 24px #0f172a33;
+}
+.workbook-shell .workbook-search-results button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  gap: 2px;
+  padding: 7px 8px;
+  border-radius: 4px;
+  text-align: left;
+}
+.workbook-shell .workbook-search-results button.is-active,
+.workbook-shell .workbook-search-results button:hover {
+  background: #e8f1f8;
+}
+.workbook-shell .workbook-search-results span {
+  color: #5b6b78;
+}
+.workbook-shell .workbook-search-empty {
+  margin: 8px;
+  color: #64748b;
+}
+.workbook-shell .workbook-search-hit {
+  outline: 2px solid #059669;
+  outline-offset: -2px;
+  background-color: #ecfdf5 !important;
+}
 .workbook-shell button:disabled {
   cursor: not-allowed;
   opacity: 0.55;

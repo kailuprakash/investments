@@ -3,6 +3,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronUp, X } from "lucide-react";
 import { FieldHeader } from "@/components/WorkbookUI";
+import {
+  highlightWorkbookRow,
+  selectorForHit,
+  type WorkbookHit,
+} from "@/lib/workbook-search";
 
 export type AnalyticsHolding = {
   id: number;
@@ -302,12 +307,30 @@ function MultiFilter({
 
 export default function HoldingsPerformanceTable({
   holdings,
+  jumpHit,
+  onJumpHandled,
 }: {
   holdings: AnalyticsHolding[];
+  jumpHit?: WorkbookHit | null;
+  onJumpHandled?: () => void;
 }) {
   const [holdingFilter, setHoldingFilter] = useState<string[] | null>(null);
   const [accountFilter, setAccountFilter] = useState<string[] | null>(null);
   const [sort, setSort] = useState<SortState>(null);
+
+  useEffect(() => {
+    if (!jumpHit || jumpHit.sheet !== "analytics") return;
+    let tries = 0;
+    const timer = window.setInterval(() => {
+      const node = document.querySelector(selectorForHit(jumpHit) || "");
+      tries += 1;
+      if (highlightWorkbookRow(node) || tries > 20) {
+        window.clearInterval(timer);
+        onJumpHandled?.();
+      }
+    }, 50);
+    return () => window.clearInterval(timer);
+  }, [jumpHit, onJumpHandled]);
 
   const holdingOptions = useMemo(
     () =>

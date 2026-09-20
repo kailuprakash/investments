@@ -107,6 +107,9 @@ export const marketCacheTable = pgTable("market_cache", {
   changePercent: doublePrecision("change_percent").notNull().default(0),
   currency: text("currency").notNull().default("USD"),
   lastUpdated: text("last_updated").notNull(),
+  source: text("source").notNull().default("cached"),
+  error: text("error").notNull().default(""),
+  lastLiveAt: text("last_live_at").notNull().default(""),
 });
 
 export const accountDetailsTable = pgTable("portfolio_account_details", {
