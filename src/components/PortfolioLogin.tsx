@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { LockKeyhole, ShieldCheck } from "lucide-react";
 
 export default function PortfolioLogin() {
@@ -11,8 +11,15 @@ export default function PortfolioLogin() {
   const [message, setMessage] = useState("");
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const loginError = params.get("error");
+    if (loginError) {
+      setMessage(loginError);
+      window.history.replaceState({}, "", "/login");
+    }
+
     let current = true;
-    fetch("/api/auth", { cache: "no-store" })
+    fetch("/api/auth", { cache: "no-store", credentials: "same-origin" })
       .then(async (response) => {
         const body = await response.json();
         if (!response.ok) throw new Error(body?.error || "Unable to check access.");
@@ -34,35 +41,11 @@ export default function PortfolioLogin() {
     };
   }, []);
 
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setMessage("");
+  function submit() {
+    // This intentionally does not prevent the default form submission. The
+    // browser receives Set-Cookie and follows the route's 303 redirect to the
+    // ledger as one navigation, which works in embedded previews as well.
     setSubmitting(true);
-
-    try {
-      const response = await fetch("/api/auth", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(
-          configured
-            ? { action: "login", password }
-            : { action: "setup", password, confirmation },
-        ),
-      });
-      const body = await response.json();
-      if (!response.ok) {
-        if (body?.configured === true) setConfigured(true);
-        throw new Error(body?.error || "Unable to sign in.");
-      }
-
-      // A full page navigation is deliberate: it waits for the Set-Cookie
-      // response to be committed, then sends that HttpOnly cookie to the
-      // server-protected ledger route.
-      window.location.assign("/");
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unable to sign in.");
-      setSubmitting(false);
-    }
   }
 
   const settingUp = configured === false;
@@ -86,13 +69,15 @@ export default function PortfolioLogin() {
           {loading ? (
             <p className="text-sm text-slate-600" role="status">Checking secure access…</p>
           ) : (
-            <form className="space-y-5" onSubmit={submit}>
+            <form className="space-y-5" method="post" action="/api/auth" onSubmit={submit}>
+              <input type="hidden" name="action" value={settingUp ? "setup" : "login"} />
               <div>
                 <label className="mb-2 block text-sm font-semibold text-slate-800" htmlFor="portfolio-password">
                   {settingUp ? "Create password" : "Password"}
                 </label>
                 <input
                   id="portfolio-password"
+                  name="password"
                   type="password"
                   autoComplete={settingUp ? "new-password" : "current-password"}
                   value={password}
@@ -113,6 +98,7 @@ export default function PortfolioLogin() {
                   </label>
                   <input
                     id="portfolio-confirmation"
+                    name="confirmation"
                     type="password"
                     autoComplete="new-password"
                     value={confirmation}

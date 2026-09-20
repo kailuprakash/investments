@@ -286,6 +286,115 @@ select:focus-visible {
   z-index: 20 !important;
 }
 
+/* Tab-scoped presentation freeze. The control updates only this visual state;
+   it never disables form fields, server mutations, market refreshes, or
+   calculated values. The active workbook tab is the only table set mounted. */
+html[data-portfolio-view-freeze="off"] .workbook-shell .freeze-header-table thead,
+html[data-portfolio-view-freeze="off"] .workbook-shell .freeze-header-table thead th,
+html[data-portfolio-view-freeze="off"] .workbook-shell .frozen-symbol-column,
+html[data-portfolio-view-freeze="off"] .workbook-shell .frozen-history-column {
+  position: static !important;
+  inset: auto !important;
+  top: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  left: auto !important;
+  z-index: auto !important;
+  box-shadow: none !important;
+}
+
+.workbook-shell .screen-freeze-control {
+  position: sticky;
+  top: 0.35rem;
+  z-index: 45;
+  display: flex;
+  min-height: 30px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin: 0 0 0.45rem auto;
+  padding: 0.28rem 0.42rem;
+  width: fit-content;
+  max-width: 100%;
+  border: 1px solid rgb(148 163 184 / 0.42);
+  border-radius: 0.55rem;
+  background: rgb(255 255 255 / 0.96);
+  box-shadow: 0 5px 18px -12px rgb(15 23 42 / 0.75);
+  backdrop-filter: blur(8px);
+  font-size: 10px;
+  line-height: 1.2;
+}
+
+.workbook-shell .screen-freeze-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: #334155;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.workbook-shell .screen-freeze-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 999px;
+}
+
+.workbook-shell .screen-freeze-dot.is-frozen {
+  background: #0b7041;
+  box-shadow: 0 0 0 3px rgb(16 185 129 / 0.16);
+}
+
+.workbook-shell .screen-freeze-dot.is-unfrozen {
+  background: #64748b;
+  box-shadow: 0 0 0 3px rgb(100 116 139 / 0.16);
+}
+
+.workbook-shell .screen-freeze-control button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border: 0;
+  border-radius: 0.35rem;
+  background: #0b7041;
+  color: #fff;
+  padding: 0.3rem 0.5rem;
+  font-size: 10px;
+  font-weight: 700;
+  transition: background-color 0.15s ease, transform 0.15s ease;
+}
+
+.workbook-shell .screen-freeze-control button:hover:not(:disabled) {
+  background: #075c36;
+}
+
+.workbook-shell .screen-freeze-control button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.workbook-shell .screen-freeze-control button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.workbook-shell .screen-freeze-note {
+  color: #64748b;
+  font-size: 9px;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .workbook-shell .screen-freeze-control {
+    justify-content: flex-start;
+    margin-left: 0;
+  }
+
+  .workbook-shell .screen-freeze-note {
+    display: none;
+  }
+}
+
 .workbook-shell tbody tr {
   transition:
     background-color 0.14s,

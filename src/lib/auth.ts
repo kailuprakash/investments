@@ -150,14 +150,21 @@ export async function verifyPassword(password: string): Promise<Credentials | nu
     : null;
 }
 
+const cookieSecurity = {
+  // The managed preview is embedded on a different site. SameSite=Lax cookies
+  // are not sent from that frame back to the ledger, even after a valid login.
+  // HTTPS production previews therefore need SameSite=None; local HTTP stays Lax.
+  sameSite: process.env.NODE_ENV === "production" ? ("none" as const) : ("lax" as const),
+  secure: process.env.NODE_ENV === "production",
+  path: "/",
+};
+
 export function setSession(response: NextResponse, credentials: Credentials): void {
   response.cookies.set({
     name: SESSION_COOKIE,
     value: createSession(credentials),
     httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
+    ...cookieSecurity,
     maxAge: SESSION_SECONDS,
   });
 }
@@ -167,9 +174,7 @@ export function clearSession(response: NextResponse): void {
     name: SESSION_COOKIE,
     value: "",
     httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
+    ...cookieSecurity,
     maxAge: 0,
   });
 }

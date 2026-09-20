@@ -6,6 +6,7 @@ import * as XLSX from "xlsx-js-style";
 import AccountDetailsSheet from "@/components/AccountDetailsSheet";
 import DailyTransactionsSheet from "@/components/DailyTransactionsSheet";
 import HoldingsPerformanceTable from "@/components/HoldingsPerformanceTable";
+import ScreenFreezeToggle from "@/components/ScreenFreezeToggle";
 import WorkbookSearch from "@/components/WorkbookSearch";
 import {
   buildWorkbookIndex,
@@ -8144,9 +8145,11 @@ This replaces the current accounts, inventory, and transactions.`)
                   (0, t.jsx)("span", { children: es.text }),
                 ],
               }),
-            (0, t.jsx)("main", {
+            (0, t.jsxs)("main", {
               className: `flex-1 w-full mx-auto ${"future" === g || "buy" === g || "sell" === g ? "max-w-none px-1 sm:px-2 py-1" : "max-w-[1700px] p-2 sm:p-4"}`,
-              children: f
+              children: [
+                (0, t.jsx)(ScreenFreezeToggle, { screen: g }),
+                f
                 ? (0, t.jsxs)("div", {
                     className:
                       "flex flex-col items-center justify-center py-20 text-gray-500",
@@ -8295,6 +8298,7 @@ This replaces the current accounts, inventory, and transactions.`)
                                 (0, t.jsx)(te, {}),
                               ],
                             }),
+              ],
             }),
             (0, t.jsx)(eF, {
               isOpen: N,
