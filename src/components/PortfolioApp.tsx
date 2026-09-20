@@ -4,9 +4,9 @@ import * as React from "react";
 import * as jsxRuntime from "react/jsx-runtime";
 import * as XLSX from "xlsx-js-style";
 import AccountDetailsSheet from "@/components/AccountDetailsSheet";
+import DailyTransactionsSheet from "@/components/DailyTransactionsSheet";
 import {
   FieldHeader,
-  FieldLegend,
   GainLossValue,
   DeleteHoldingButton,
 } from "@/components/WorkbookUI";
@@ -389,7 +389,7 @@ const e = {
             e.target.value = "";
           }
       },
-      A = d ? new Date(d) : null,
+      A = d && !Number.isNaN(new Date(d).getTime()) ? new Date(d) : null,
       C = A
         ? A.toLocaleDateString("en-US", {
             month: "short",
@@ -429,7 +429,7 @@ const e = {
         }),
         (0, t.jsxs)("div", {
           className:
-            "relative flex min-h-8 items-center justify-between gap-2 px-2.5 py-1 sm:px-4",
+            "relative flex min-h-8 flex-wrap items-center justify-between gap-2 px-2.5 py-1 sm:px-4",
           children: [
             (0, t.jsxs)("div", {
               className: "flex min-w-0 items-center gap-2",
@@ -482,7 +482,7 @@ const e = {
               ],
             }),
             (0, t.jsxs)("div", {
-              className: "flex shrink-0 items-center gap-1.5",
+              className: "flex flex-wrap items-center gap-1.5",
               children: [
                 (0, t.jsxs)("div", {
                   className:
@@ -592,36 +592,16 @@ const e = {
                     }),
                   ],
                 }),
-                (0, t.jsxs)("div", {
-                  className:
-                    "flex h-6 items-center gap-1.5 rounded border border-emerald-300/20 bg-emerald-950/30 px-2 text-emerald-50 shadow-inner",
-                  title: `Last updated ${C} at ${N}`,
-                  children: [
-                    (0, t.jsx)(h, {
-                      className: "h-2.5 w-2.5 shrink-0 text-emerald-300",
-                    }),
-                    (0, t.jsxs)("div", {
-                      className: "whitespace-nowrap leading-[1.05]",
-                      children: [
-                        (0, t.jsx)("div", {
-                          className:
-                            "text-[6.5px] font-semibold uppercase tracking-[0.08em] text-emerald-200/75",
-                          children: "Updated",
-                        }),
-                        (0, t.jsxs)("div", {
-                          className:
-                            "text-[8.5px] sm:text-[9px] font-bold text-white tabular-nums tracking-wide",
-                          children: [
-                            (0, t.jsxs)("span", {
-                              className: "hidden md:inline",
-                              children: [C, " · "],
-                            }),
-                            N,
-                          ],
-                        }),
-                      ],
-                    }),
-                  ],
+                (0, t.jsx)("time", {
+                  className: "portfolio-refresh-time",
+                  dateTime: A ? A.toISOString() : undefined,
+                  title: A
+                    ? `Market refresh: ${C} at ${N} (Eastern)`
+                    : "No market refresh recorded",
+                  "aria-label": A
+                    ? `${C} at ${N} Eastern time`
+                    : "No market refresh recorded",
+                  children: A ? `${C} · ${N}` : "—",
                 }),
               ],
             }),
@@ -2596,1276 +2576,8 @@ const e = {
     };
   ev.node;
   let ey = i(ev);
-  const DAILY_TX_DEFAULT_COLS = [
-    { id: "symbol", label: "Symbol", visible: true },
-    { id: "account", label: "Account", visible: true },
-    { id: "dateTime", label: "Date/time", visible: true },
-    { id: "quantity", label: "Quantity", visible: true },
-    { id: "pricePerShare", label: "Price Per Share", visible: true },
-    { id: "averageCost", label: "Average Cost", visible: true },
-    { id: "totalAmount", label: "Total Amount", visible: true },
-    { id: "currentPrice", label: "Market Price/Share", visible: true },
-    { id: "gainLoss", label: "Gain/Loss", visible: true },
-  ];
-  const DAILY_TX_STORAGE_KEY = "daily-transactions-column-order-v5";
+  const ew = DailyTransactionsSheet;
 
-  function ew({
-    entries: e,
-    inventoryAccounts: a,
-    selectedCell: n,
-    onSelectCell: s,
-    onOpenAddModal: o,
-    onSellSelected: i,
-    onSaveInlineField: l,
-  }) {
-    let [g, b] = (0, r.useState)(null),
-      [x, v] = (0, r.useState)(""),
-      [y, w] = (0, r.useState)(null),
-      [showColPanel, setShowColPanel] = (0, r.useState)(false),
-      [dragColId, setDragColId] = (0, r.useState)(null),
-      [selectedAccounts, setSelectedAccounts] = (0, r.useState)([]),
-      [accountDropdownOpen, setAccountDropdownOpen] = (0, r.useState)(false),
-      [cols, setCols] = (0, r.useState)(() => {
-        if ("undefined" == typeof window) return DAILY_TX_DEFAULT_COLS;
-        try {
-          let raw = window.localStorage.getItem(DAILY_TX_STORAGE_KEY);
-          if (!raw) return DAILY_TX_DEFAULT_COLS;
-          let parsed = JSON.parse(raw);
-          if (!Array.isArray(parsed)) return DAILY_TX_DEFAULT_COLS;
-          let restored = parsed
-            .map((item) => {
-              let def = DAILY_TX_DEFAULT_COLS.find((d) => d.id === item.id);
-              return def
-                ? {
-                    ...def,
-                    label:
-                      def.id === "currentPrice" &&
-                      ["Current Price", "Current Price/Share"].includes(
-                        item.label,
-                      )
-                        ? "Market Price/Share"
-                        : item.label || def.label,
-                    visible: item.visible !== false,
-                  }
-                : null;
-            })
-            .filter(Boolean);
-          let missing = DAILY_TX_DEFAULT_COLS.filter(
-            (d) => !restored.some((r) => r.id === d.id),
-          );
-          return [...restored, ...missing];
-        } catch {
-          return DAILY_TX_DEFAULT_COLS;
-        }
-      });
-
-    r.default.useEffect(() => {
-      try {
-        window.localStorage.setItem(DAILY_TX_STORAGE_KEY, JSON.stringify(cols));
-      } catch {}
-    }, [cols]);
-
-    // All unique account numbers across inventoryAccounts and transactions
-    let allAccountOptions = r.default.useMemo(() => {
-      let set = new Set();
-      (a || []).forEach((acc) => {
-        if (acc?.accountNumber) set.add(acc.accountNumber);
-      });
-      (e || []).forEach((tx) => {
-        if (tx?.accountNumber) set.add(tx.accountNumber);
-      });
-      return Array.from(set).sort((x, y) => x.localeCompare(y));
-    }, [a, e]);
-
-    let toggleAccountChoice = (accNum) => {
-      setSelectedAccounts((prev) =>
-        prev.includes(accNum)
-          ? prev.filter((item) => item !== accNum)
-          : [...prev, accNum],
-      );
-    };
-
-    // Common filtered entries for BOTH Buy and Sell tables based on selectedAccounts (empty = All Accounts)
-    let filteredEntries = r.default.useMemo(() => {
-      if (0 === selectedAccounts.length) return e;
-      let activeSet = new Set(selectedAccounts);
-      return e.filter((tx) => activeSet.has(tx.accountNumber));
-    }, [e, selectedAccounts]);
-
-    let buyEntries = r.default.useMemo(
-      () =>
-        filteredEntries.filter(
-          (tx) => "BUY" === String(tx.action).toUpperCase(),
-        ),
-      [filteredEntries],
-    );
-    let sellEntries = r.default.useMemo(
-      () =>
-        filteredEntries.filter(
-          (tx) => "SELL" === String(tx.action).toUpperCase(),
-        ),
-      [filteredEntries],
-    );
-
-    let moveCol = (colId, dir) => {
-      setCols((prev) => {
-        let idx = prev.findIndex((c) => c.id === colId);
-        let targetIdx = idx + dir;
-        if (idx < 0 || targetIdx < 0 || targetIdx >= prev.length) return prev;
-        let next = [...prev];
-        let [removed] = next.splice(idx, 1);
-        next.splice(targetIdx, 0, removed);
-        return next;
-      });
-    };
-
-    let reorderColDrop = (sourceId, targetId) => {
-      if (!sourceId || !targetId || sourceId === targetId) return;
-      setCols((prev) => {
-        let sIdx = prev.findIndex((c) => c.id === sourceId);
-        let tIdx = prev.findIndex((c) => c.id === targetId);
-        if (sIdx < 0 || tIdx < 0) return prev;
-        let next = [...prev];
-        let [moved] = next.splice(sIdx, 1);
-        next.splice(tIdx, 0, moved);
-        return next;
-      });
-    };
-
-    let updateColProp = (colId, patch) => {
-      setCols((prev) =>
-        prev.map((c) => (c.id === colId ? { ...c, ...patch } : c)),
-      );
-    };
-
-    // Buy table columns exclude averageCost (since Average Cost is only for Sell)
-    let buyVisibleCols = r.default.useMemo(
-      () =>
-        cols.filter(
-          (c) =>
-            c.visible !== false &&
-            "averageCost" !== c.id &&
-            "action" !== c.id &&
-            "actions" !== c.id,
-        ),
-      [cols],
-    );
-    // Sell table columns include averageCost
-    let sellVisibleCols = r.default.useMemo(
-      () => cols.filter((c) => c.visible !== false && "action" !== c.id),
-      [cols],
-    );
-
-    // Exact max text length width calculator for a given set of rows and columns
-    let computeTableColWidths = (rows, tableCols, isSellTable) => {
-      let calcMaxTextW = (label, vals) =>
-        Math.ceil(
-          Math.max(label.length, ...vals.map((v) => String(v ?? "").length)) *
-            9 +
-            24,
-        );
-      return tableCols.map((col) => {
-        if ("symbol" === col.id)
-          return calcMaxTextW(
-            col.label,
-            rows.map((x) => x.symbol),
-          );
-        if ("account" === col.id)
-          return calcMaxTextW(
-            col.label,
-            rows.map((x) =>
-              x.sourceTransactionId
-                ? `${x.accountNumber} (Buy #${x.sourceTransactionId})`
-                : x.accountNumber,
-            ),
-          );
-        if ("dateTime" === col.id)
-          return calcMaxTextW(
-            col.label,
-            rows.map((x) =>
-              "string" == typeof x.dateTime
-                ? new Date(x.dateTime).toLocaleString("en-US", {
-                    timeZone: "America/New_York",
-                  })
-                : new Date(x.dateTime).toLocaleString("en-US", {
-                    timeZone: "America/New_York",
-                  }),
-            ),
-          );
-        if ("actions" === col.id) return 75;
-        if ("quantity" === col.id)
-          return calcMaxTextW(
-            col.label,
-            rows.map((x) =>
-              "BUY" === String(x.action).toUpperCase()
-                ? `${B(x.quantity, 2)} (${B(x.remainingQuantity, 2)} available)`
-                : B(x.quantity, 2),
-            ),
-          );
-        if ("pricePerShare" === col.id)
-          return calcMaxTextW(
-            col.label,
-            rows.map((x) => D(x.pricePerShare).text),
-          );
-        if ("averageCost" === col.id)
-          return calcMaxTextW(
-            col.label,
-            rows.map(
-              (x) =>
-                D(x.averageCost ?? x.costBasisPerShare ?? x.pricePerShare).text,
-            ),
-          );
-        if ("totalAmount" === col.id)
-          return calcMaxTextW(
-            col.label,
-            rows.map((x) => D(x.totalAmount).text),
-          );
-        if ("currentPrice" === col.id)
-          return calcMaxTextW(
-            col.label,
-            rows.map((x) => D(x.currentPrice).text),
-          );
-        return calcMaxTextW(
-          col.label,
-          rows.map((x) => {
-            if (isSellTable) {
-              let avg =
-                Number(
-                  x.averageCost || x.costBasisPerShare || x.pricePerShare,
-                ) || x.pricePerShare;
-              let dAmt = Number(
-                ((x.pricePerShare - avg) * x.quantity).toFixed(2),
-              );
-              let dPct =
-                avg > 0
-                  ? Number((((x.pricePerShare - avg) / avg) * 100).toFixed(2))
-                  : 0;
-              return `${M(dAmt).text} (${U(dPct).text})`;
-            }
-            return `${M(x.differenceAmount).text} (${U(x.differencePercent).text})`;
-          }),
-        );
-      });
-    };
-
-    let buyColWidths = r.default.useMemo(
-      () => computeTableColWidths(buyEntries, buyVisibleCols, false),
-      [buyEntries, buyVisibleCols],
-    );
-    let sellColWidths = r.default.useMemo(
-      () => computeTableColWidths(sellEntries, sellVisibleCols, true),
-      [sellEntries, sellVisibleCols],
-    );
-    let buyTotalWidth = buyColWidths.reduce((s, w) => s + w, 0);
-    let sellTotalWidth = sellColWidths.reduce((s, w) => s + w, 0);
-
-    let A = e.find(
-      (e) =>
-        e.id === y &&
-        "BUY" === e.action.toUpperCase() &&
-        e.remainingQuantity > 0,
-    );
-    r.default.useEffect(() => {
-      y && !A && w(null);
-    }, [y, A]);
-    let T = (e) => n?.cellId === e,
-      N = (e, t) => {
-        b({ id: e.id, field: t }), v(String(e[t] ?? ""));
-      },
-      _ = () => {
-        b(null), v("");
-      },
-      O = async (e) => {
-        if (!g) return;
-        let t = Number(x);
-        if (!Number.isFinite(t) || t <= 0)
-          return void alert("Please enter a valid number greater than zero.");
-        try {
-          await l(e, { [g.field]: t }), b(null), v("");
-        } catch (e) {
-          console.error(e),
-            alert(
-              e instanceof Error
-                ? e.message
-                : "Failed to update transaction value.",
-            );
-        }
-      },
-      F = (row) =>
-        (0, t.jsxs)("div", {
-          className: "flex items-center justify-end gap-1",
-          onClick: (ev) => ev.stopPropagation(),
-          children: [
-            (0, t.jsx)("input", {
-              type: "number",
-              step: "any",
-              min: "0.0001",
-              autoFocus: !0,
-              value: x,
-              onChange: (ev) => v(ev.target.value),
-              onKeyDown: (ev) => {
-                "Enter" === ev.key && O(row.id), "Escape" === ev.key && _();
-              },
-              className:
-                "w-20 px-1 py-0.5 bg-white border-2 border-emerald-600 rounded text-right font-mono font-bold text-xs outline-none",
-            }),
-            (0, t.jsx)("button", {
-              type: "button",
-              onClick: () => void O(row.id),
-              className: "p-1 text-emerald-700 hover:bg-emerald-100 rounded",
-              title: "Save",
-              children: (0, t.jsx)(m, { className: "w-3.5 h-3.5" }),
-            }),
-            (0, t.jsx)("button", {
-              type: "button",
-              onClick: _,
-              className: "p-1 text-red-600 hover:bg-red-100 rounded",
-              title: "Cancel",
-              children: (0, t.jsx)(I, { className: "w-3.5 h-3.5" }),
-            }),
-          ],
-        });
-
-    let renderTransactionRow = (e, r, tableCols, rowOffset) => {
-      let a = rowOffset + r,
-        n =
-          "string" == typeof e.dateTime
-            ? new Date(e.dateTime).toLocaleString("en-US", {
-                timeZone: "America/New_York",
-              })
-            : new Date(e.dateTime).toLocaleString("en-US", {
-                timeZone: "America/New_York",
-              }),
-        o = "BUY" === e.action.toUpperCase(),
-        i = D(e.totalAmount),
-        l = D(e.currentPrice),
-        sellAvgVal = !o
-          ? Number(e.averageCost || e.costBasisPerShare || e.pricePerShare) ||
-            e.pricePerShare
-          : null,
-        sellDiffAmt =
-          !o && sellAvgVal
-            ? Number(((e.pricePerShare - sellAvgVal) * e.quantity).toFixed(2))
-            : e.differenceAmount,
-        sellDiffPct =
-          !o && sellAvgVal && sellAvgVal > 0
-            ? Number(
-                (((e.pricePerShare - sellAvgVal) / sellAvgVal) * 100).toFixed(
-                  2,
-                ),
-              )
-            : e.differencePercent,
-        c = M(o ? e.differenceAmount : sellDiffAmt),
-        f = U(o ? e.differencePercent : sellDiffPct);
-
-      let renderCell = (colId, cIdx) => {
-        let stickyCls =
-          0 === cIdx
-            ? `frozen-symbol-column sticky left-0 z-20 shadow-[3px_0_5px_-3px_rgba(0,0,0,0.35)] ${y === e.id ? "bg-emerald-100" : o && e.remainingQuantity <= 0 ? "bg-gray-50" : "bg-white"} `
-            : "";
-        if ("symbol" === colId) {
-          return (0, t.jsx)(
-            "td",
-            {
-              onClick: () =>
-                s({
-                  cellId: `A${a}`,
-                  label: "Ticker",
-                  value: e.symbol,
-                  formula: `="${e.symbol}"`,
-                }),
-              className: `${stickyCls}border border-gray-300 px-2.5 py-1 font-bold text-gray-900 whitespace-nowrap ${T(`A${a}`) ? "ring-2 ring-emerald-600 ring-inset" : ""}`,
-              children: (0, t.jsx)("span", {
-                className:
-                  "bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200",
-                children: e.symbol,
-              }),
-            },
-            colId,
-          );
-        }
-        if ("account" === colId) {
-          return (0, t.jsx)(
-            "td",
-            {
-              onClick: () =>
-                s({
-                  cellId: `B${a}`,
-                  label: "Account",
-                  value: e.accountNumber,
-                  formula: `="${e.accountNumber}"`,
-                }),
-              className: `${stickyCls}border border-gray-300 px-2.5 py-1 font-semibold text-blue-900 whitespace-nowrap ${T(`B${a}`) ? "ring-2 ring-emerald-600 ring-inset bg-emerald-50" : ""}`,
-              children: (0, t.jsxs)("div", {
-                className: "flex items-center gap-1.5 whitespace-nowrap",
-                children: [
-                  (0, t.jsx)("span", { children: e.accountNumber }),
-                  !o &&
-                    e.sourceTransactionId &&
-                    (0, t.jsxs)("span", {
-                      className:
-                        "rounded bg-amber-100 text-amber-800 px-1 py-0.2 text-[8.5px] font-mono font-bold",
-                      title: `Sold from Buy transaction #${e.sourceTransactionId}`,
-                      children: ["Buy #", e.sourceTransactionId],
-                    }),
-                ],
-              }),
-            },
-            colId,
-          );
-        }
-        if ("dateTime" === colId) {
-          return (0, t.jsx)(
-            "td",
-            {
-              onClick: () =>
-                s({
-                  cellId: `C${a}`,
-                  label: "Order Date/Time",
-                  value: n,
-                  formula: `="${n}"`,
-                }),
-              className: `${stickyCls}border border-gray-300 px-2.5 py-1 text-gray-700 whitespace-nowrap text-[11px] ${T(`C${a}`) ? "ring-2 ring-emerald-600 ring-inset bg-emerald-50" : ""}`,
-              children: n,
-            },
-            colId,
-          );
-        }
-
-        if ("quantity" === colId) {
-          return (0, t.jsx)(
-            "td",
-            {
-              "data-align": "right",
-
-              onClick: (t) => {
-                t.stopPropagation(),
-                  s({
-                    cellId: `E${a}`,
-                    label: "Order Quantity",
-                    value: String(e.quantity),
-                    formula: String(e.quantity),
-                  });
-              },
-              onDoubleClick: (t) => {
-                t.stopPropagation(), N(e, "quantity");
-              },
-              className: `${stickyCls}border border-gray-300 px-2 py-1 text-right font-mono group cursor-text whitespace-nowrap ${T(`E${a}`) ? "ring-2 ring-emerald-600 ring-inset bg-emerald-50" : ""}`,
-              children:
-                g?.id === e.id && "quantity" === g.field
-                  ? F(e)
-                  : (0, t.jsxs)("div", {
-                      className:
-                        "flex items-center justify-end gap-1 whitespace-nowrap",
-                      children: [
-                        (0, t.jsx)("button", {
-                          type: "button",
-                          onClick: (t) => {
-                            t.stopPropagation(), N(e, "quantity");
-                          },
-                          className:
-                            "opacity-0 group-hover:opacity-100 text-gray-400 hover:text-emerald-700",
-                          title: "Edit Quantity",
-                          children: (0, t.jsx)(ea, { className: "w-3 h-3" }),
-                        }),
-                        (0, t.jsx)("span", {
-                          children: B(e.quantity, 2 * (e.quantity % 1 != 0)),
-                        }),
-                        o &&
-                          (0, t.jsxs)("span", {
-                            className: `text-[9px] font-sans ${e.remainingQuantity > 0 ? "text-emerald-700" : "text-gray-400"}`,
-                            children: [
-                              "(",
-                              e.remainingQuantity > 0
-                                ? `${B(e.remainingQuantity, 2)} available`
-                                : "Fully sold",
-                              ")",
-                            ],
-                          }),
-                      ],
-                    }),
-            },
-            colId,
-          );
-        }
-        if ("pricePerShare" === colId) {
-          return (0, t.jsx)(
-            "td",
-            {
-              "data-align": "right",
-
-              onClick: (t) => {
-                t.stopPropagation(),
-                  s({
-                    cellId: `F${a}`,
-                    label: "Execution Price Per Share",
-                    value: D(e.pricePerShare).text,
-                    formula: String(e.pricePerShare),
-                  });
-              },
-              onDoubleClick: (t) => {
-                t.stopPropagation(), N(e, "pricePerShare");
-              },
-              className: `${stickyCls}border border-gray-300 px-2 py-1 text-right font-mono group cursor-text whitespace-nowrap ${T(`F${a}`) ? "ring-2 ring-emerald-600 ring-inset bg-emerald-50" : ""}`,
-              children:
-                g?.id === e.id && "pricePerShare" === g.field
-                  ? F(e)
-                  : (0, t.jsxs)("div", {
-                      className:
-                        "flex items-center justify-end gap-1 whitespace-nowrap",
-                      children: [
-                        (0, t.jsx)("button", {
-                          type: "button",
-                          onClick: (t) => {
-                            t.stopPropagation(), N(e, "pricePerShare");
-                          },
-                          className:
-                            "opacity-0 group-hover:opacity-100 text-gray-400 hover:text-emerald-700",
-                          title: "Edit Price Per Share",
-                          children: (0, t.jsx)(ea, { className: "w-3 h-3" }),
-                        }),
-                        (0, t.jsx)("span", {
-                          children: D(e.pricePerShare).text,
-                        }),
-                      ],
-                    }),
-            },
-            colId,
-          );
-        }
-        if ("averageCost" === colId) {
-          let avgVal = sellAvgVal ?? e.pricePerShare;
-          return (0, t.jsx)(
-            "td",
-            {
-              "data-align": "right",
-
-              onClick: (t) => {
-                t.stopPropagation(),
-                  s({
-                    cellId: `G${a}`,
-                    label: "Sell Average Cost",
-                    value: D(avgVal).text,
-                    formula: String(avgVal),
-                  });
-              },
-              onDoubleClick: (t) => {
-                t.stopPropagation(),
-                  N({ id: e.id, averageCost: avgVal }, "averageCost");
-              },
-              className: `${stickyCls}border border-gray-300 px-2 py-1 text-right font-mono group cursor-text bg-amber-50/25 whitespace-nowrap ${T(`G${a}`) ? "ring-2 ring-emerald-600 ring-inset bg-emerald-50" : ""}`,
-              children:
-                g?.id === e.id && "averageCost" === g.field
-                  ? F(e)
-                  : (0, t.jsxs)("div", {
-                      className:
-                        "flex items-center justify-end gap-1 whitespace-nowrap",
-                      children: [
-                        (0, t.jsx)("button", {
-                          type: "button",
-                          onClick: (t) => {
-                            t.stopPropagation(),
-                              N(
-                                { id: e.id, averageCost: avgVal },
-                                "averageCost",
-                              );
-                          },
-                          className:
-                            "opacity-0 group-hover:opacity-100 text-gray-400 hover:text-emerald-700",
-                          title: "Edit Sell Average Cost",
-                          children: (0, t.jsx)(ea, { className: "w-3 h-3" }),
-                        }),
-                        (0, t.jsx)("span", {
-                          className: "font-bold text-amber-900",
-                          children: D(avgVal).text,
-                        }),
-                      ],
-                    }),
-            },
-            colId,
-          );
-        }
-        if ("totalAmount" === colId) {
-          return (0, t.jsx)(
-            "td",
-            {
-              "data-align": "right",
-
-              onClick: () =>
-                s({
-                  cellId: `H${a}`,
-                  label: "Total Execution Amount",
-                  value: i.text,
-                  formula: `=E${a}*F${a}`,
-                }),
-              className: `${stickyCls}border border-gray-300 px-2.5 py-1 text-right font-mono font-bold whitespace-nowrap ${T(`H${a}`) ? "ring-2 ring-emerald-600 ring-inset bg-emerald-50" : ""}`,
-              children: i.text,
-            },
-            colId,
-          );
-        }
-        if ("currentPrice" === colId) {
-          return (0, t.jsx)(
-            "td",
-            {
-              "data-align": "right",
-
-              onClick: () =>
-                s({
-                  cellId: `I${a}`,
-                  label: `Current Market Price for ${e.symbol}`,
-                  value: l.text,
-                  formula: `=WEBSERVICE("MARKET_QUOTE/${e.symbol}")`,
-                }),
-              className: `${stickyCls}border border-gray-300 px-2.5 py-1 text-right font-mono font-bold text-[#1F4E79] bg-blue-50/20 whitespace-nowrap ${T(`I${a}`) ? "ring-2 ring-emerald-600 ring-inset bg-emerald-50" : ""}`,
-              children: l.text,
-            },
-            colId,
-          );
-        }
-        if ("actions" === colId) {
-          let isSelected = y === e.id,
-            canSell = e.remainingQuantity > 0;
-          return (0, t.jsx)(
-            "td",
-            {
-              "data-align": "center",
-
-              onClick: (ev) => ev.stopPropagation(),
-              className: `${stickyCls}border border-gray-300 px-2 py-1 text-center whitespace-nowrap ${isSelected ? "bg-emerald-100" : ""}`,
-              children: canSell
-                ? (0, t.jsxs)("button", {
-                    type: "button",
-                    onClick: () => w((prev) => (prev === e.id ? null : e.id)),
-                    title: isSelected
-                      ? `Deselect ${e.symbol}`
-                      : `Select ${e.symbol} (Buy lot #${e.id}) to sell`,
-                    className: `inline-flex items-center gap-1 rounded px-2.5 py-0.5 text-[9.5px] font-bold transition border ${isSelected ? "bg-emerald-700 text-white border-emerald-800 shadow-xs" : "bg-white text-emerald-800 border-emerald-600/40 hover:bg-emerald-50"}`,
-                    children: [
-                      (0, t.jsx)("input", {
-                        type: "checkbox",
-                        checked: isSelected,
-                        onChange: () => {},
-                        className:
-                          "h-3 w-3 accent-emerald-600 rounded cursor-pointer pointer-events-none",
-                      }),
-                      isSelected ? "Selected" : "Select",
-                    ],
-                  })
-                : (0, t.jsx)("span", {
-                    className:
-                      "rounded bg-slate-100 text-slate-400 px-2 py-0.5 text-[9px] font-semibold italic",
-                    children: "Fully Sold",
-                  }),
-            },
-            colId,
-          );
-        }
-        // gainLoss column
-        return (0, t.jsx)(
-          "td",
-          {
-            "data-align": "right",
-
-            onClick: () =>
-              s({
-                cellId: `J${a}`,
-                label: !o
-                  ? "Realized Sell Gain/Loss"
-                  : "Unrealized Buy Gain/Loss",
-                value: `${c.text} (${f.text})`,
-                formula: !o
-                  ? `=((F${a}-G${a})*E${a}) & " (" & ((F${a}-G${a})/G${a}) & ")"`
-                  : `=((I${a}-F${a})*E${a}) & " (" & ((I${a}-F${a})/F${a}) & ")"`,
-              }),
-            className: `${stickyCls}border border-gray-300 px-2.5 py-1 text-right font-mono font-bold whitespace-nowrap ${c.isNegative ? "text-red-600" : "text-emerald-700"} ${T(`J${a}`) ? "ring-2 ring-emerald-600 ring-inset bg-emerald-50" : ""}`,
-            children: (0, t.jsx)(GainLossValue, {
-              amount: c.raw,
-              percent: f.raw,
-            }),
-          },
-          colId,
-        );
-      };
-
-      return (0, t.jsx)(
-        "tr",
-        {
-          onClick: () => {
-            o &&
-              e.remainingQuantity > 0 &&
-              w((t) => (t === e.id ? null : e.id));
-          },
-          className: `transition-colors ${o && e.remainingQuantity > 0 ? "cursor-pointer hover:bg-emerald-50/70" : "hover:bg-blue-50/50"} ${y === e.id ? "bg-emerald-100 ring-2 ring-emerald-600 ring-inset" : ""} ${o && e.remainingQuantity <= 0 ? "opacity-60 bg-gray-50" : ""}`,
-          title: o
-            ? e.remainingQuantity > 0
-              ? "Select this Buy transaction for a partial or full sale"
-              : "This Buy transaction is fully sold"
-            : `${e.sourceTransactionId ? `Sold from Buy #${e.sourceTransactionId} · ` : ""}Average Cost: ${D(sellAvgVal ?? e.pricePerShare).text} · Sell Gain/Loss: ${c.text} (${f.text})`,
-          children: tableCols.map((col, cIdx) =>
-            React.cloneElement(renderCell(col.id, cIdx), {
-              "data-field": col.id,
-              "data-field-kind": [
-                "quantity",
-                "pricePerShare",
-                "averageCost",
-              ].includes(col.id)
-                ? "editable"
-                : ["totalAmount", "gainLoss"].includes(col.id)
-                  ? "calculated"
-                  : "readonly",
-              "data-align":
-                col.id === "quantity" || col.id === "actions"
-                  ? "center"
-                  : [
-                        "pricePerShare",
-                        "averageCost",
-                        "totalAmount",
-                        "currentPrice",
-                        "gainLoss",
-                      ].includes(col.id)
-                    ? "right"
-                    : "left",
-            }),
-          ),
-        },
-        e.id,
-      );
-    };
-
-    let renderTableHead = (tableCols, isSellTable) =>
-      (0, t.jsx)("thead", {
-        className: "sticky top-0 z-30 shadow-xs",
-        children: (0, t.jsx)("tr", {
-          className: isSellTable
-            ? "bg-[#FDE9D9] text-[#5C2406] font-bold border-b-2 border-amber-400"
-            : "bg-[#D1E7DD] text-[#08422A] font-bold border-b-2 border-emerald-400",
-          children: tableCols.map((col, cIdx) => {
-            let isRight = [
-              "quantity",
-              "pricePerShare",
-              "averageCost",
-              "totalAmount",
-              "currentPrice",
-              "gainLoss",
-            ].includes(col.id);
-            let isCenter = "action" === col.id || "actions" === col.id;
-            let isEditable = [
-              "quantity",
-              "pricePerShare",
-              "averageCost",
-            ].includes(col.id);
-            let headerBg = isSellTable
-              ? isEditable
-                ? "bg-[#FFF2CC]"
-                : "bg-[#FDE9D9]"
-              : isEditable
-                ? "bg-[#E2F0D9]"
-                : "bg-[#D1E7DD]";
-            let borderCol = isSellTable
-              ? "border-amber-300"
-              : "border-emerald-300";
-            let frozenBg = isSellTable ? "bg-[#FDE9D9]" : "bg-[#D1E7DD]";
-            return (0, t.jsx)(
-              "th",
-              {
-                "data-field": col.id,
-                "data-field-kind": isEditable
-                  ? "editable"
-                  : ["totalAmount", "gainLoss"].includes(col.id)
-                    ? "calculated"
-                    : "readonly",
-                draggable: true,
-                onDragStart: () => setDragColId(col.id),
-                onDragOver: (ev) => ev.preventDefault(),
-                onDrop: () => {
-                  dragColId && reorderColDrop(dragColId, col.id);
-                  setDragColId(null);
-                },
-                onDragEnd: () => setDragColId(null),
-                title: "Drag header left or right to rearrange column order",
-                className: `${0 === cIdx ? `frozen-symbol-column sticky left-0 z-30 shadow-[3px_0_5px_-3px_rgba(0,0,0,0.35)] ${frozenBg} ` : ""}border ${borderCol} px-2.5 py-1 cursor-grab active:cursor-grabbing select-none whitespace-nowrap ${headerBg} ${isRight ? "text-right" : isCenter ? "text-center" : "text-left"} ${"currentPrice" === col.id ? "text-blue-900" : ""} ${dragColId === col.id ? "opacity-60 ring-2 ring-emerald-600" : ""}`,
-                children: (0, t.jsxs)("div", {
-                  className: `flex items-center gap-1 whitespace-nowrap ${isRight ? "justify-end" : isCenter ? "justify-center" : "justify-start"}`,
-                  children: [
-                    (0, t.jsx)(et, {
-                      className: "w-3 h-3 text-gray-400/80 shrink-0",
-                    }),
-                    (0, t.jsx)(FieldHeader, {
-                      label: col.label,
-                      kind: isEditable
-                        ? "editable"
-                        : ["totalAmount", "gainLoss"].includes(col.id)
-                          ? "calculated"
-                          : "readonly",
-                    }),
-                  ],
-                }),
-              },
-              col.id,
-            );
-          }),
-        }),
-      });
-
-    return (0, t.jsxs)("section", {
-      className:
-        "section-font-daily my-2 w-full overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-[0_14px_38px_-26px_rgba(15,23,42,0.7)]",
-      children: [
-        // Top Control & Compact Minimized Multi-Select Account Filter
-        (0, t.jsxs)("div", {
-          className:
-            "flex flex-wrap items-center justify-between gap-2 border-b border-blue-950/25 bg-[linear-gradient(110deg,#173f68_0%,#245d8f_55%,#1b4b76_100%)] px-3 py-1.5 text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.07em] text-white",
-          children: [
-            (0, t.jsxs)("div", {
-              className: "flex items-center gap-2",
-              children: [
-                (0, t.jsx)("span", { children: "Daily Transactions" }),
-                (0, t.jsxs)("span", {
-                  className:
-                    "rounded bg-white/15 px-1.5 py-0.5 text-[9px] font-semibold normal-case text-blue-100",
-                  children: [
-                    buyEntries.length,
-                    " Buy · ",
-                    sellEntries.length,
-                    " Sell",
-                  ],
-                }),
-
-                // Minimized Multi-Select Account Dropdown (No "Filter by Account" label)
-                (0, t.jsxs)("div", {
-                  className: "relative normal-case",
-                  children: [
-                    (0, t.jsxs)("button", {
-                      type: "button",
-                      onClick: () => setAccountDropdownOpen((open) => !open),
-                      title:
-                        0 === selectedAccounts.length
-                          ? "All Accounts"
-                          : selectedAccounts.join(", "),
-                      className: `inline-flex h-6.5 items-center gap-1.5 rounded border px-2.5 text-[10px] sm:text-[10.5px] font-semibold transition shadow-xs ${selectedAccounts.length > 0 ? "bg-emerald-600 text-white border-emerald-400" : "bg-[#163857] text-blue-100 border-blue-400/30 hover:bg-blue-900 hover:text-white"}`,
-                      children: [
-                        (0, t.jsx)("span", {
-                          className: "truncate max-w-[115px]",
-                          children:
-                            0 === selectedAccounts.length
-                              ? "All Accounts"
-                              : 1 === selectedAccounts.length
-                                ? selectedAccounts[0]
-                                : `${selectedAccounts.length} Accounts`,
-                        }),
-                        (0, t.jsx)(V, {
-                          className: `h-3 w-3 shrink-0 transition-transform ${accountDropdownOpen ? "rotate-180" : ""}`,
-                        }),
-                      ],
-                    }),
-
-                    accountDropdownOpen &&
-                      (0, t.jsxs)(t.Fragment, {
-                        children: [
-                          (0, t.jsx)("div", {
-                            className: "fixed inset-0 z-40",
-                            onClick: () => setAccountDropdownOpen(false),
-                          }),
-                          (0, t.jsxs)("div", {
-                            className:
-                              "absolute left-0 top-full z-50 mt-1 w-52 rounded-lg border border-slate-200 bg-white p-1.5 text-slate-800 shadow-xl",
-                            children: [
-                              (0, t.jsxs)("div", {
-                                className:
-                                  "flex items-center justify-between border-b border-slate-100 pb-1 mb-1 px-1 text-[9.5px]",
-                                children: [
-                                  (0, t.jsx)("button", {
-                                    type: "button",
-                                    onClick: () =>
-                                      setSelectedAccounts([
-                                        ...allAccountOptions,
-                                      ]),
-                                    className:
-                                      "font-semibold text-blue-700 hover:underline",
-                                    children: "All",
-                                  }),
-                                  (0, t.jsx)("button", {
-                                    type: "button",
-                                    onClick: () => setSelectedAccounts([]),
-                                    className:
-                                      "font-semibold text-slate-500 hover:text-red-600",
-                                    children: "Reset",
-                                  }),
-                                ],
-                              }),
-                              (0, t.jsx)("div", {
-                                className:
-                                  "max-h-48 overflow-y-auto space-y-0.5",
-                                children: allAccountOptions.map((accNum) => {
-                                  let isChecked =
-                                    selectedAccounts.includes(accNum);
-                                  return (0, t.jsxs)(
-                                    "label",
-                                    {
-                                      onClick: () =>
-                                        toggleAccountChoice(accNum),
-                                      className: `flex items-center justify-between gap-1.5 rounded px-2 py-1 text-[10px] cursor-pointer select-none transition ${isChecked ? "bg-emerald-50 text-emerald-900 font-bold" : "hover:bg-slate-50 text-slate-700 font-medium"}`,
-                                      children: [
-                                        (0, t.jsxs)("div", {
-                                          className:
-                                            "flex items-center gap-1.5 truncate",
-                                          children: [
-                                            (0, t.jsx)("input", {
-                                              type: "checkbox",
-                                              checked: isChecked,
-                                              onChange: () => {},
-                                              className:
-                                                "h-3 w-3 rounded accent-emerald-600 cursor-pointer shrink-0",
-                                            }),
-                                            (0, t.jsx)("span", {
-                                              className: "truncate",
-                                              children: accNum,
-                                            }),
-                                          ],
-                                        }),
-                                      ],
-                                    },
-                                    accNum,
-                                  );
-                                }),
-                              }),
-                            ],
-                          }),
-                        ],
-                      }),
-                  ],
-                }),
-
-                selectedAccounts.length > 0 &&
-                  (0, t.jsx)("button", {
-                    type: "button",
-                    onClick: () => setSelectedAccounts([]),
-                    title: "Clear account filter",
-                    className:
-                      "inline-flex h-5 w-5 items-center justify-center rounded bg-white/15 text-blue-100 hover:bg-red-500 hover:text-white transition",
-                    children: (0, t.jsx)(I, { className: "h-3 w-3" }),
-                  }),
-              ],
-            }),
-            (0, t.jsxs)("div", {
-              className: "flex items-center justify-end gap-1.5 normal-case",
-              children: [
-                (0, t.jsxs)("button", {
-                  type: "button",
-                  onClick: () => setShowColPanel((v) => !v),
-                  className: `flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-semibold transition ${showColPanel ? "bg-white text-[#1F4E79]" : "bg-[#163857] text-white hover:bg-blue-900 border border-blue-400/30"}`,
-                  title: "Rearrange or customize Daily Transactions columns",
-                  children: [
-                    (0, t.jsx)(ei, { className: "h-3 w-3" }),
-                    "Rearrange Columns",
-                  ],
-                }),
-              ],
-            }),
-          ],
-        }),
-
-        showColPanel &&
-          (0, t.jsxs)("div", {
-            className:
-              "relative z-20 border-b border-gray-200 bg-slate-50/95 px-2.5 py-1.5 shadow-inner",
-            children: [
-              (0, t.jsxs)("div", {
-                className:
-                  "flex flex-wrap items-center justify-between gap-2 mb-1",
-                children: [
-                  (0, t.jsxs)("div", {
-                    children: [
-                      (0, t.jsx)("h3", {
-                        className:
-                          "text-[9px] sm:text-[9.5px] font-bold text-[#1F4E79]",
-                        children: "Rearrange Daily Transactions Columns",
-                      }),
-                      (0, t.jsx)("p", {
-                        className:
-                          "text-[7.5px] sm:text-[8px] text-gray-500 leading-tight",
-                        children:
-                          "Drag cards (or table column headers) or use arrows to rearrange columns for both Buy and Sell tables.",
-                      }),
-                    ],
-                  }),
-                  (0, t.jsxs)("button", {
-                    type: "button",
-                    onClick: () => {
-                      setCols(DAILY_TX_DEFAULT_COLS);
-                      try {
-                        window.localStorage.removeItem(DAILY_TX_STORAGE_KEY);
-                      } catch {}
-                    },
-                    className:
-                      "inline-flex items-center gap-1 px-1.5 py-0.5 bg-white hover:bg-gray-100 border border-gray-300 rounded text-[8px] sm:text-[8.5px] font-semibold text-gray-700 shadow-2xs",
-                    children: [
-                      (0, t.jsx)(es, { className: "w-2.5 h-2.5" }),
-                      "Reset Default Order",
-                    ],
-                  }),
-                ],
-              }),
-              (0, t.jsx)("div", {
-                className:
-                  "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-1",
-                children: cols.map((col, idx) =>
-                  (0, t.jsxs)(
-                    "div",
-                    {
-                      draggable: true,
-                      onDragStart: () => setDragColId(col.id),
-                      onDragOver: (ev) => ev.preventDefault(),
-                      onDrop: () => {
-                        dragColId && reorderColDrop(dragColId, col.id);
-                        setDragColId(null);
-                      },
-                      onDragEnd: () => setDragColId(null),
-                      className: `bg-white border rounded px-1.5 py-0.5 flex items-center gap-1 shadow-2xs cursor-grab active:cursor-grabbing ${dragColId === col.id ? "border-emerald-500 opacity-60" : "border-gray-200"}`,
-                      children: [
-                        (0, t.jsx)(et, {
-                          className: "w-3 h-3 text-gray-400 shrink-0",
-                        }),
-                        (0, t.jsx)("input", {
-                          value: col.label,
-                          onChange: (ev) =>
-                            updateColProp(col.id, { label: ev.target.value }),
-                          onPointerDown: (ev) => ev.stopPropagation(),
-                          className:
-                            "h-4.5 min-w-0 flex-1 border border-gray-200 rounded px-1 text-[8px] sm:text-[8.5px] font-medium outline-none focus:border-emerald-600 bg-transparent",
-                        }),
-                        (0, t.jsxs)("div", {
-                          className: "flex items-center",
-                          children: [
-                            (0, t.jsx)("button", {
-                              type: "button",
-                              onClick: () => moveCol(col.id, -1),
-                              disabled: idx <= 0,
-                              className:
-                                "p-0.5 text-gray-500 hover:text-gray-900 disabled:opacity-20",
-                              title: "Move Left",
-                              children: (0, t.jsx)(K, {
-                                className: "w-2.5 h-2.5 -rotate-90",
-                              }),
-                            }),
-                            (0, t.jsx)("button", {
-                              type: "button",
-                              onClick: () => moveCol(col.id, 1),
-                              disabled: idx >= cols.length - 1,
-                              className:
-                                "p-0.5 text-gray-500 hover:text-gray-900 disabled:opacity-20",
-                              title: "Move Right",
-                              children: (0, t.jsx)(V, {
-                                className: "w-2.5 h-2.5 -rotate-90",
-                              }),
-                            }),
-                            (0, t.jsx)("button", {
-                              type: "button",
-                              onClick: () =>
-                                updateColProp(col.id, {
-                                  visible: !col.visible,
-                                }),
-                              disabled:
-                                sellVisibleCols.length <= 2 && col.visible,
-                              className:
-                                "p-0.5 text-gray-500 hover:text-emerald-700 disabled:opacity-20",
-                              title: col.visible
-                                ? "Hide column"
-                                : "Show column",
-                              children: col.visible
-                                ? (0, t.jsx)(J, {
-                                    className: "w-2.5 h-2.5 text-emerald-700",
-                                  })
-                                : (0, t.jsx)(Z, {
-                                    className: "w-2.5 h-2.5 text-gray-400",
-                                  }),
-                            }),
-                          ],
-                        }),
-                      ],
-                    },
-                    col.id,
-                  ),
-                ),
-              }),
-            ],
-          }),
-
-        // Divided Buy and Sell Tables Container
-        (0, t.jsxs)("div", {
-          className: "p-3 bg-gray-50/50 space-y-4",
-          children: [
-            // TABLE 1: BUY TRANSACTIONS
-            (0, t.jsxs)("div", {
-              className:
-                "rounded-lg border border-emerald-800/25 bg-white shadow-xs overflow-hidden",
-              children: [
-                (0, t.jsxs)("div", {
-                  className:
-                    "flex items-center justify-between bg-[linear-gradient(110deg,#065f46_0%,#047857_60%,#065f46_100%)] px-3 py-1.5 text-white",
-                  children: [
-                    (0, t.jsxs)("div", {
-                      className: "flex items-center gap-2",
-                      children: [
-                        (0, t.jsx)("span", {
-                          className:
-                            "text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.06em]",
-                          children: "Buy Transactions",
-                        }),
-                        (0, t.jsxs)("span", {
-                          className:
-                            "rounded bg-white/20 px-1.5 py-0.5 text-[9px] font-mono font-bold",
-                          children: [buyEntries.length, " rows"],
-                        }),
-                      ],
-                    }),
-                    (0, t.jsxs)("button", {
-                      type: "button",
-                      onClick: () => o("BUY"),
-                      className:
-                        "flex items-center gap-1 rounded bg-white text-emerald-900 hover:bg-emerald-50 px-2.5 py-1 text-[10px] sm:text-[10.5px] font-bold shadow-xs transition",
-                      children: [
-                        (0, t.jsx)(ey, { className: "h-2.5 w-2.5" }),
-                        "+ Add Buy",
-                      ],
-                    }),
-                  ],
-                }),
-                (0, t.jsx)("div", {
-                  className:
-                    "freeze-header-scroll relative isolate w-full max-h-[42vh] overflow-auto bg-white",
-                  children: (0, t.jsxs)("table", {
-                    className:
-                      "freeze-header-table table-fixed border-separate border-spacing-0 text-xs",
-                    style: { width: buyTotalWidth },
-                    children: [
-                      (0, t.jsx)("colgroup", {
-                        children: buyColWidths.map((w, idx) =>
-                          (0, t.jsx)(
-                            "col",
-                            { style: { width: w, minWidth: w, maxWidth: w } },
-                            buyVisibleCols[idx]?.id || idx,
-                          ),
-                        ),
-                      }),
-                      renderTableHead(buyVisibleCols, false),
-                      (0, t.jsx)("tbody", {
-                        children:
-                          0 === buyEntries.length
-                            ? (0, t.jsx)("tr", {
-                                children: (0, t.jsx)("td", {
-                                  "data-align": "center",
-
-                                  colSpan: buyVisibleCols.length,
-                                  className:
-                                    "border border-gray-300 px-4 py-6 text-center text-gray-500 italic bg-white whitespace-nowrap",
-                                  children:
-                                    "No Buy transactions match the selected Account filter.",
-                                }),
-                              })
-                            : buyEntries.map((row, idx) =>
-                                renderTransactionRow(
-                                  row,
-                                  idx,
-                                  buyVisibleCols,
-                                  30,
-                                ),
-                              ),
-                      }),
-                    ],
-                  }),
-                }),
-              ],
-            }),
-
-            // TABLE 2: SELL TRANSACTIONS
-            (0, t.jsxs)("div", {
-              className:
-                "rounded-lg border border-amber-800/25 bg-white shadow-xs overflow-hidden",
-              children: [
-                (0, t.jsxs)("div", {
-                  className:
-                    "flex items-center justify-between bg-[linear-gradient(110deg,#92400e_0%,#b45309_60%,#92400e_100%)] px-3 py-1.5 text-white",
-                  children: [
-                    (0, t.jsxs)("div", {
-                      className: "flex items-center gap-2",
-                      children: [
-                        (0, t.jsx)("span", {
-                          className:
-                            "text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.06em]",
-                          children: "Sell Transactions",
-                        }),
-                        (0, t.jsxs)("span", {
-                          className:
-                            "rounded bg-white/20 px-1.5 py-0.5 text-[9px] font-mono font-bold",
-                          children: [sellEntries.length, " rows"],
-                        }),
-                      ],
-                    }),
-                    (0, t.jsxs)("button", {
-                      type: "button",
-                      onClick: () => o("SELL"),
-                      className:
-                        "flex items-center gap-1 rounded bg-white text-amber-900 hover:bg-amber-50 px-2.5 py-1 text-[10px] sm:text-[10.5px] font-bold shadow-xs transition",
-                      children: [
-                        (0, t.jsx)(ey, { className: "h-2.5 w-2.5" }),
-                        "+ Add Sell",
-                      ],
-                    }),
-                  ],
-                }),
-                (0, t.jsx)("div", {
-                  className:
-                    "freeze-header-scroll relative isolate w-full max-h-[42vh] overflow-auto bg-white",
-                  children: (0, t.jsxs)("table", {
-                    className:
-                      "freeze-header-table table-fixed border-separate border-spacing-0 text-xs",
-                    style: { width: sellTotalWidth },
-                    children: [
-                      (0, t.jsx)("colgroup", {
-                        children: sellColWidths.map((w, idx) =>
-                          (0, t.jsx)(
-                            "col",
-                            { style: { width: w, minWidth: w, maxWidth: w } },
-                            sellVisibleCols[idx]?.id || idx,
-                          ),
-                        ),
-                      }),
-                      renderTableHead(sellVisibleCols, true),
-                      (0, t.jsx)("tbody", {
-                        children:
-                          0 === sellEntries.length
-                            ? (0, t.jsx)("tr", {
-                                children: (0, t.jsx)("td", {
-                                  "data-align": "center",
-
-                                  colSpan: sellVisibleCols.length,
-                                  className:
-                                    "border border-gray-300 px-4 py-6 text-center text-gray-500 italic bg-white whitespace-nowrap",
-                                  children:
-                                    "No Sell transactions match the selected Account filter.",
-                                }),
-                              })
-                            : sellEntries.map((row, idx) =>
-                                renderTransactionRow(
-                                  row,
-                                  idx,
-                                  sellVisibleCols,
-                                  300,
-                                ),
-                              ),
-                      }),
-                    ],
-                  }),
-                }),
-              ],
-            }),
-          ],
-        }),
-      ],
-    });
-  }
   let eA = {
     name: "calculator",
     size: 24,
@@ -4461,7 +3173,7 @@ const e = {
                   children: [
                     (0, t.jsx)("div", {
                       className: "font-semibold text-blue-950",
-                      children: "Average Cost",
+                      children: "Avg. Purchase Price/Share",
                     }),
                     (0, t.jsxs)("div", {
                       className: "flex items-center gap-2",
@@ -4531,7 +3243,7 @@ const e = {
                     children: [
                       (0, t.jsx)("label", {
                         className: "block text-gray-700 font-bold mb-1",
-                        children: "Price Per Share ($)",
+                        children: m === "SELL" ? "Sell Price/Share ($)" : "Purchase Price/Share ($)",
                       }),
                       (0, t.jsx)("input", {
                         type: "number",
@@ -6639,17 +5351,6 @@ const e = {
                     }),
                   ],
                 }),
-                (0, t.jsx)("button", {
-                  type: "button",
-                  onClick: () => void u(),
-                  disabled: o,
-                  className:
-                    "grid h-5 w-5 place-items-center rounded border border-amber-700/20 bg-white/60 text-amber-900 transition hover:bg-white disabled:opacity-50",
-                  title: "Refresh account history",
-                  children: (0, t.jsx)(T, {
-                    className: `h-2.5 w-2.5 ${o ? "animate-spin" : ""}`,
-                  }),
-                }),
               ],
             }),
           ],
@@ -7126,17 +5827,6 @@ const e = {
                     }),
                   ],
                 }),
-                (0, t.jsx)("button", {
-                  type: "button",
-                  onClick: () => void d(),
-                  disabled: o,
-                  className:
-                    "grid h-5 w-5 place-items-center rounded border border-blue-700/20 bg-white/70 text-blue-900 hover:bg-white disabled:opacity-50",
-                  title: "Refresh transaction history",
-                  children: (0, t.jsx)(T, {
-                    className: `h-2.5 w-2.5 ${o ? "animate-spin" : ""}`,
-                  }),
-                }),
               ],
             }),
           ],
@@ -7392,31 +6082,31 @@ const e = {
       right: { style: "thin", color: { rgb: e } },
     }),
     tA = (e = tr) => ({
-      font: { name: tb, sz: 12, bold: !0, color: { rgb: tc } },
+      font: { name: tb, sz: 11, bold: !0, color: { rgb: tc } },
       fill: { patternType: "solid", fgColor: { rgb: e } },
       alignment: { horizontal: "center", vertical: "center" },
       border: tw(e),
     }),
     tT = (e = to) => ({
-      font: { name: tb, sz: 12, bold: !0, color: { rgb: tf } },
+      font: { name: tb, sz: 11, bold: !0, color: { rgb: tf } },
       fill: { patternType: "solid", fgColor: { rgb: e } },
       alignment: { horizontal: "center", vertical: "center", wrapText: !0 },
       border: tw(th),
     }),
     tC = (e = "left") => ({
-      font: { name: tb, sz: 12, color: { rgb: tf } },
+      font: { name: tb, sz: 11, color: { rgb: tf } },
       fill: { patternType: "solid", fgColor: { rgb: tc } },
       alignment: { horizontal: e, vertical: "center" },
       border: tw("CBD5E1"),
     }),
     tE = (e = "right") => ({
-      font: { name: tb, sz: 12, bold: !0, color: { rgb: tf } },
+      font: { name: tb, sz: 11, bold: !0, color: { rgb: tf } },
       fill: { patternType: "solid", fgColor: { rgb: tl } },
       alignment: { horizontal: e, vertical: "center" },
       border: tw(th),
     }),
     tk = (e = "right") => ({
-      font: { name: tb, sz: 12, bold: !0, color: { rgb: tf } },
+      font: { name: tb, sz: 11, bold: !0, color: { rgb: tf } },
       fill: { patternType: "solid", fgColor: { rgb: ti } },
       alignment: { horizontal: e, vertical: "center" },
       border: tw(th),
@@ -7733,7 +6423,9 @@ const e = {
               i(n.portfolio.futureInvestments || []),
               c(new Date().toISOString()),
               ei(
-                "Daily transaction updated. Inventory, cash, and gain/loss reconciled!",
+                Object.keys(t).length === 1 && t.comments !== undefined
+                  ? "Transaction comments saved. Balances and share quantities are unchanged."
+                  : "Daily transaction updated. Inventory, cash, and gain/loss reconciled!",
               );
           },
           em = async (e) => {
@@ -7879,7 +6571,7 @@ const e = {
                       ...tC("center"),
                       font: {
                         name: tb,
-                        sz: 12,
+                        sz: 11,
                         bold: !0,
                         color: { rgb: "BUY" === e.action ? tp : "A05A00" },
                       },
@@ -7894,7 +6586,7 @@ const e = {
                           ...tC("right"),
                           font: {
                             name: tb,
-                            sz: 12,
+                            sz: 11,
                             bold: !0,
                             color: { rgb: td },
                           },
@@ -7988,7 +6680,7 @@ const e = {
                             ...n("right"),
                             font: {
                               name: tb,
-                              sz: 12,
+                              sz: 11,
                               bold: !0,
                               color: { rgb: td },
                             },
@@ -8066,7 +6758,7 @@ const e = {
                         ...tC("right"),
                         font: {
                           name: tb,
-                          sz: 12,
+                          sz: 11,
                           bold: !0,
                           color: { rgb: a < 0 ? td : tp },
                         },
@@ -8091,7 +6783,7 @@ const e = {
                         ...tk("right"),
                         font: {
                           name: tb,
-                          sz: 12,
+                          sz: 11,
                           bold: !0,
                           color: { rgb: e.grandTotal.gainLoss < 0 ? td : tp },
                         },
@@ -8310,7 +7002,7 @@ const e = {
                     t_(s, 0, 0, 0, 7, {
                       font: {
                         name: tb,
-                        sz: 12,
+                        sz: 11,
                         bold: true,
                         color: { rgb: tc },
                       },
@@ -8325,7 +7017,7 @@ const e = {
                       tN(s, 1, c, {
                         font: {
                           name: tb,
-                          sz: 12,
+                          sz: 11,
                           bold: true,
                           color: { rgb: cNavyText },
                         },
@@ -8367,7 +7059,7 @@ const e = {
                         let cellStyle = {
                           font: {
                             name: tb,
-                            sz: 12,
+                            sz: 11,
                             bold: c === 0 || isAmount || isStatus,
                             color: {
                               rgb: isStatus
@@ -8439,7 +7131,7 @@ const e = {
                     t_(s, t2TitleRow, t2TitleRow, 0, 4, {
                       font: {
                         name: tb,
-                        sz: 12,
+                        sz: 11,
                         bold: true,
                         color: { rgb: tc },
                       },
@@ -8454,7 +7146,7 @@ const e = {
                       tN(s, t2HeaderRow, c, {
                         font: {
                           name: tb,
-                          sz: 12,
+                          sz: 11,
                           bold: true,
                           color: { rgb: cNavyText },
                         },
@@ -8502,7 +7194,7 @@ const e = {
                         let cellStyle = {
                           font: {
                             name: tb,
-                            sz: 12,
+                            sz: 11,
                             bold: c === 0 || isFinalCum,
                             color: { rgb: c === 0 ? cNavyText : tf },
                           },
@@ -8624,7 +7316,7 @@ const e = {
                             ...tC("right"),
                             font: {
                               name: tb,
-                              sz: 12,
+                              sz: 11,
                               bold: !0,
                               color: { rgb: c ? td : tp },
                             },
@@ -9376,7 +8068,6 @@ This replaces the current accounts, inventory, and transactions.`)
                 b(e), "future" === e && v("ALL");
               },
             }),
-            (0, t.jsx)(FieldLegend, {}),
             es &&
               (0, t.jsxs)("div", {
                 role: es.type === "error" ? "alert" : "status",
@@ -9471,8 +8162,8 @@ This replaces the current accounts, inventory, and transactions.`)
                                 inventoryAccounts: e,
                                 selectedCell: y,
                                 onSelectCell: w,
-                                onOpenAddModal: (t = "BUY") => {
-                                  G(e[0]?.accountNumber || ""),
+                                onOpenAddModal: (t = "BUY", accountNumber) => {
+                                  G(accountNumber || e[0]?.accountNumber || ""),
                                     Y("SELL" === t ? "GOOG" : "SOXL"),
                                     q(t),
                                     Q(void 0),

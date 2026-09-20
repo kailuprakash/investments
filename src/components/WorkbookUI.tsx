@@ -37,24 +37,6 @@ export function FieldHeader({
   );
 }
 
-export function FieldLegend() {
-  return (
-    <aside className="field-legend" aria-label="Workbook field colors">
-      <span className="field-legend-title">Field guide</span>
-      <span className="field-key" data-kind="editable">
-        <Pencil size={14} aria-hidden="true" /> Editable
-      </span>
-      <span className="field-key" data-kind="readonly">
-        <span className="field-swatch" aria-hidden="true" /> Read-only
-      </span>
-      <span className="field-key" data-kind="calculated">
-        <span className="field-swatch" aria-hidden="true" /> Calculated
-      </span>
-      <span className="field-legend-hint">Pencil or double-click to edit</span>
-    </aside>
-  );
-}
-
 const currency = new Intl.NumberFormat("en-US", {
   style: "currency",
   currency: "USD",

@@ -1,0 +1,483 @@
+.workbook-shell .portfolio-refresh-time {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 4px 9px;
+  border: 1px solid #6ee7b733;
+  border-radius: 4px;
+  background: #022c223d;
+  color: #fff;
+  white-space: nowrap;
+  font-family: var(--font-calibri);
+  font-size: var(--workbook-font-size);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+.workbook-shell .daily-transactions-sheet {
+  margin: 8px 0;
+  min-width: 0;
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: white;
+  box-shadow: 0 12px 30px -26px #173f68a6;
+}
+.workbook-shell .transactions-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 9px 14px;
+  padding: 10px 12px;
+  border-radius: 9px 9px 0 0;
+  background: linear-gradient(110deg, #173f68, #245d8f 65%, #1b4b76);
+  color: #fff;
+}
+.workbook-shell .transactions-toolbar-main,
+.workbook-shell .transactions-toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.workbook-shell .transactions-toolbar h2 {
+  margin: 0;
+  font-weight: 700;
+}
+.workbook-shell .transactions-count-badge,
+.workbook-shell .transaction-count {
+  padding: 3px 7px;
+  background: #ffffff20;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+.workbook-shell .transactions-toolbar-button,
+.workbook-shell .transactions-icon-button {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #ffffff35;
+  border-radius: 4px;
+  padding: 5px 8px;
+  background: #163857;
+  color: white;
+  min-height: 30px;
+}
+.workbook-shell .transactions-toolbar-button:hover,
+.workbook-shell .transactions-icon-button:hover {
+  background: #0f2f4e;
+}
+.workbook-shell .transaction-account-filter {
+  position: relative;
+}
+.workbook-shell .transaction-account-options {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 6px);
+  z-index: 48;
+  width: 290px;
+  max-width: calc(100vw - 32px);
+  background: #fff;
+  color: #243447;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 9px;
+  box-shadow: 0 8px 24px #0f172b24;
+}
+.workbook-shell .transaction-filter-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 7px;
+  gap: 8px;
+}
+.workbook-shell .transaction-filter-controls button {
+  padding: 3px;
+  color: #1f4e79;
+}
+.workbook-shell .transaction-account-options fieldset {
+  max-height: 240px;
+  overflow: auto;
+  padding: 5px 0;
+}
+.workbook-shell .transaction-account-options label {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.workbook-shell .transaction-account-options label:hover {
+  background: #ecfdf5;
+}
+.workbook-shell .daily-transactions-sheet input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  min-height: 15px;
+  accent-color: #087044;
+  flex: 0 0 15px;
+  cursor: pointer;
+}
+.workbook-shell .transactions-side-by-side {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 12px;
+  padding: 10px;
+  background: #f4f7f6;
+  border-radius: 0 0 10px 10px;
+}
+.workbook-shell .transaction-pane {
+  min-width: 0;
+  border: 1px solid #bfcfc8;
+  background: white;
+  border-radius: 7px;
+  overflow: hidden;
+}
+.workbook-shell .transaction-pane-sell {
+  border-color: #d8c5b8;
+}
+.workbook-shell .transaction-pane-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 7px 10px;
+  padding: 9px 11px;
+  background: linear-gradient(110deg, #065f46, #087c59);
+  color: white;
+}
+.workbook-shell .transaction-pane-sell .transaction-pane-toolbar {
+  background: linear-gradient(110deg, #92400e, #a85114);
+}
+.workbook-shell .transaction-pane-title,
+.workbook-shell .transaction-pane-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.workbook-shell .transaction-pane-title h3 {
+  margin: 0;
+  font-weight: 700;
+}
+.workbook-shell .transaction-pane-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  background: white;
+  color: #065f46;
+  padding: 4px 8px;
+  min-height: 29px;
+  border-radius: 4px;
+  border: 1px solid #ffffff50;
+  font-weight: 600;
+}
+.workbook-shell .transaction-pane-sell .transaction-pane-actions button {
+  color: #864212;
+}
+.workbook-shell .transaction-pane-actions button:hover {
+  background: #f0fdf4;
+}
+.workbook-shell .transaction-table-scroll {
+  width: 100%;
+  overflow: auto;
+  max-height: calc(100vh - 255px);
+  scrollbar-gutter: auto;
+  position: relative;
+  isolation: isolate;
+}
+.workbook-shell .daily-transactions-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+.workbook-shell .daily-transactions-table :is(td, th) {
+  border-right: 1px solid #d5dde2;
+  border-bottom: 1px solid #d5dde2;
+}
+.workbook-shell .daily-transactions-table :is(td, th):last-child {
+  border-right: 0;
+}
+.workbook-shell .daily-transactions-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 25;
+  padding: 9px 8px !important;
+  white-space: normal;
+  line-height: 1.25 !important;
+  vertical-align: middle;
+  cursor: grab;
+}
+.workbook-shell .daily-transactions-table thead th[data-field="symbol"] {
+  left: 0;
+  z-index: 35;
+  cursor: default;
+}
+.workbook-shell .transaction-column-heading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+.workbook-shell .transaction-column-heading > svg {
+  flex-shrink: 0;
+  color: #8697a8;
+}
+.workbook-shell .transaction-column-heading .field-label {
+  gap: 4px;
+}
+.workbook-shell .daily-transactions-table .transaction-cell {
+  padding: 8px 9px;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+.workbook-shell .daily-transactions-table .transaction-symbol-cell {
+  position: sticky;
+  left: 0;
+  z-index: 10;
+  box-shadow: 3px 0 5px -4px #33415566;
+}
+.workbook-shell .transaction-data-row.is-selected .transaction-cell {
+  background-color: #e8f6ed;
+}
+.workbook-shell .daily-transactions-table .transaction-cell.is-inspected {
+  outline: 2px solid #158454;
+  outline-offset: -2px;
+}
+.workbook-shell .transaction-date,
+.workbook-shell .transaction-quantity {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.workbook-shell .transaction-secondary {
+  display: block;
+  color: #687b88;
+  font-weight: 400;
+}
+.workbook-shell .transaction-symbol {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.workbook-shell .transaction-symbol strong {
+  color: #1d3544;
+  font-weight: 700;
+}
+.workbook-shell .transaction-editable-value {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 23px;
+  width: 100%;
+}
+.workbook-shell .transaction-cell-value {
+  min-width: 0;
+  flex: 1;
+}
+.workbook-shell .transaction-edit-button {
+  display: inline-flex;
+  padding: 2px;
+  color: #9b814c;
+  flex-shrink: 0;
+  border-radius: 3px;
+}
+.workbook-shell .transaction-edit-button:hover {
+  color: #085d3e;
+  background: #dcefe5;
+}
+.workbook-shell .transaction-comments {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  min-width: 0;
+  flex: 1;
+}
+.workbook-shell .transaction-editor {
+  min-width: 0;
+}
+.workbook-shell .transaction-editor-controls {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.workbook-shell .transaction-editor-controls input {
+  min-width: 30px !important;
+  flex: 1;
+  padding: 3px 5px;
+  border: 1px solid #0b8150;
+  border-radius: 3px;
+  background: white;
+}
+.workbook-shell .transaction-editor-controls button {
+  color: #16754b;
+  display: inline-flex;
+  padding: 2px;
+  flex-shrink: 0;
+}
+.workbook-shell .transaction-editor-controls button:last-child {
+  color: #a83f4f;
+}
+.workbook-shell .transaction-edit-error {
+  display: block;
+  white-space: normal;
+  color: #aa2d42;
+  margin-top: 5px;
+}
+.workbook-shell .daily-transactions-table .transaction-account-group th {
+  background: #edf2f5;
+  padding: 0;
+  color: #234665;
+  font-weight: 400;
+}
+.workbook-shell .transaction-account-group-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 9px;
+  gap: 12px;
+}
+.workbook-shell .transaction-group-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  position: sticky;
+  left: 8px;
+  border-radius: 3px;
+  background: #edf2f5;
+}
+.workbook-shell .transaction-group-count {
+  color: #697b88;
+  padding-left: 4px;
+}
+.workbook-shell .transaction-group-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  position: sticky;
+  right: 8px;
+  color: #16714c;
+  border-radius: 3px;
+  background: #edf2f5;
+}
+.workbook-shell .transaction-pane-sell .transaction-group-add {
+  color: #965019;
+}
+.workbook-shell .daily-transactions-table .transaction-empty {
+  padding: 17px 12px;
+  height: auto;
+  background: white;
+  color: #6b7988;
+  text-align: left;
+  font-style: italic;
+}
+.workbook-shell .transaction-formula {
+  margin: 0;
+  padding: 7px 10px;
+  color: #705340;
+  background: #fdf8f3;
+  border-top: 1px solid #efe4da;
+  line-height: 1.35;
+}
+.workbook-shell .transaction-column-settings {
+  padding: 12px;
+  border-bottom: 1px solid #d5dde2;
+  background: #f8fafb;
+}
+.workbook-shell .transaction-settings-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.workbook-shell .transaction-side-picker {
+  display: flex;
+  gap: 4px;
+}
+.workbook-shell .transaction-side-picker button {
+  padding: 6px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  background: white;
+  color: #33516b;
+}
+.workbook-shell .transaction-side-picker button[aria-pressed="true"] {
+  background: #245d8f;
+  color: white;
+  border-color: #245d8f;
+}
+.workbook-shell .transaction-reset-columns {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #3e596d;
+  padding: 5px;
+}
+.workbook-shell .transaction-column-settings p {
+  margin: 8px 0;
+  color: #667885;
+}
+.workbook-shell .transaction-column-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(275px, 1fr));
+  gap: 6px;
+}
+.workbook-shell .transaction-column-card {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px;
+  background: white;
+  border: 1px solid #d8e0e6;
+  border-radius: 5px;
+}
+.workbook-shell .transaction-column-card > svg {
+  color: #718698;
+  flex-shrink: 0;
+}
+.workbook-shell .transaction-column-card input[type="text"],
+.workbook-shell .transaction-column-card input:not([type]) {
+  min-width: 0;
+  flex: 1;
+  border: 1px solid #dae2e8;
+  border-radius: 3px;
+  padding: 3px 6px;
+}
+.workbook-shell .transaction-column-card button {
+  color: #42647e;
+  display: inline-flex;
+  padding: 3px;
+}
+@media (max-width: 900px) {
+  .workbook-shell .transactions-side-by-side {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .workbook-shell .transaction-table-scroll {
+    max-height: 55vh;
+  }
+}
+@media (max-width: 520px) {
+  .workbook-shell .transactions-toolbar {
+    padding: 9px;
+  }
+  .workbook-shell .transactions-side-by-side {
+    padding: 7px;
+    gap: 9px;
+  }
+  .workbook-shell .transactions-toolbar-actions {
+    width: 100%;
+  }
+  .workbook-shell .transaction-account-options {
+    width: 250px;
+  }
+  .workbook-shell .transaction-column-cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

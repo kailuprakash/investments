@@ -12,9 +12,9 @@
      widths instead of an arbitrary system-sans substitution. */
   --font-calibri: "Calibri", "Carlito", "Segoe UI", "Trebuchet MS", Arial, sans-serif;
 
-  /* Calibri 12-point = 16 CSS pixels; keep the Excel size readable on screen. */
-  --workbook-font-size: 16px;
-  --workbook-kpi-font-size: 20px;
+  /* Calibri 11-point throughout, matching the Excel export font size. */
+  --workbook-font-size: 11pt;
+  --workbook-kpi-font-size: var(--workbook-font-size);
   --field-editable: #fff2cc;
   --field-readonly: #e5edf6;
   --field-calculated: #dcefe5;
@@ -290,7 +290,7 @@ select:focus-visible {
 }
 
 /* ==========================================================================
-   Workbook typography: Calibri 12-point across every sheet.
+   Workbook typography: Calibri 11-point across every sheet.
    The grids were authored with a scatter of text-[8px]…text-[11px] utilities;
    these overrides give the whole app one Excel-authentic typeface and size.
    ========================================================================== */
@@ -312,7 +312,7 @@ select:focus-visible {
   font-variant-numeric: tabular-nums;
 }
 
-/* Summary/KPI figures keep one step of hierarchy, scaled off the base size. */
+/* Summary/KPI figures use the same 11-point size as the rest of the workbook. */
 .workbook-shell .text-lg.font-mono {
   font-size: var(--workbook-kpi-font-size) !important;
 }
@@ -321,7 +321,7 @@ select:focus-visible {
   font-size: inherit !important;
 }
 
-/* Controls need a touch more height once their labels grow to 12px. */
+/* Keep input text comfortably within the inline-edit controls. */
 .workbook-shell :is(input, select, textarea) {
   min-height: 20px;
   line-height: 1.25;
@@ -382,18 +382,14 @@ select:focus-visible {
 .workbook-shell .gain-loss-value.is-negative { color: #be3344; }
 .workbook-shell .gain-loss-value.is-positive { color: #147447; }
 .workbook-shell .gain-loss-percent { font-weight: 400; }
-.workbook-shell .field-legend {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px;
-  margin: 12px 16px 0; padding: 9px 14px; border: 1px solid #dce5df;
-  border-radius: 8px; background: #ffffffde; color: #56645f;
-}
-.workbook-shell .field-legend-title { font-weight: 600; color: #32493d; }
-.workbook-shell .field-key { display: inline-flex; align-items: center; gap: 6px; border: 1px solid #cbd5e1; border-radius: 4px; padding: 3px 9px; }
-.workbook-shell .field-key[data-kind="editable"] { background: var(--field-editable); color: #765119; border-color: #e4cf91; }
-.workbook-shell .field-key[data-kind="readonly"] { background: var(--field-readonly); color: #29435d; border-color: #c4d4e5; }
-.workbook-shell .field-key[data-kind="calculated"] { background: var(--field-calculated); color: #22593f; border-color: #bcd8c8; }
-.workbook-shell .field-swatch { width: 8px; height: 8px; border-radius: 2px; background: currentColor; opacity: .6; }
-.workbook-shell .field-legend-hint { margin-left: auto; color: #62706a; }
+
+
+
+
+
+
+
+
 .workbook-shell .delete-holding-button {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   border: 1px solid #e6bdc2; border-radius: 5px; padding: 5px 9px;
@@ -417,7 +413,7 @@ select:focus-visible {
 }
 .workbook-shell .consolidated-table thead th[data-field="actions"]:last-child { z-index: 46; }
 @media (max-width: 640px) {
-  .workbook-shell .field-legend { margin-inline: 8px; gap: 8px; padding: 10px; }
-  .workbook-shell .field-legend-hint { margin-left: 0; flex-basis: 100%; }
+
+
   .workbook-shell .freeze-header-scroll { max-width: 100%; }
 }

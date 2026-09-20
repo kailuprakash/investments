@@ -13,6 +13,7 @@ import {
   captureDueSnapshots,
   buildPortfolioState,
   deleteHolding,
+  TransactionEditError,
 } from "@/db/portfolio-service";
 
 export async function GET(req: NextRequest) {
@@ -142,7 +143,7 @@ export async function POST(req: NextRequest) {
     console.error("POST /api/portfolio error:", error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Operation failed" },
-      { status: 500 },
+      { status: error instanceof TransactionEditError ? error.status : 500 },
     );
   }
 }
