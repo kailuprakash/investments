@@ -6,6 +6,7 @@ import * as XLSX from "xlsx-js-style";
 import AccountDetailsSheet from "@/components/AccountDetailsSheet";
 import DailyTransactionsSheet from "@/components/DailyTransactionsSheet";
 import HoldingsPerformanceTable from "@/components/HoldingsPerformanceTable";
+import LogoutButton from "@/components/LogoutButton";
 import ScreenFreezeBoundary from "@/components/ScreenFreezeBoundary";
 import ScreenFreezeToggle from "@/components/ScreenFreezeToggle";
 import WorkbookSearch from "@/components/WorkbookSearch";
@@ -515,7 +516,7 @@ const e = {
                       onClick: e,
                       disabled: a,
                       className:
-                        "screen-freeze-header-action group inline-flex h-6 items-center gap-1 border-r border-white/15 bg-white px-2 text-[9px] sm:text-[9.25px] font-semibold text-emerald-900 transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:bg-amber-50 disabled:text-amber-800",
+                        "group inline-flex h-6 items-center gap-1 border-r border-white/15 bg-white px-2 text-[9px] sm:text-[9.25px] font-semibold text-emerald-900 transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:bg-amber-50 disabled:text-amber-800",
                       title:
                         "Update Account's Summary, Consolidated View, and Daily Transactions",
                       children: [
@@ -591,7 +592,7 @@ const e = {
                       onClick: () => x.current?.click(),
                       disabled: f,
                       className:
-                        "screen-freeze-header-action inline-flex h-6 items-center gap-1 px-2 text-[9px] sm:text-[9.25px] font-semibold text-white transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-55",
+                        "inline-flex h-6 items-center gap-1 px-2 text-[9px] sm:text-[9.25px] font-semibold text-white transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-55",
                       title: "Import Excel workbook",
                       children: [
                         (0, t.jsx)(E, {
@@ -605,16 +606,22 @@ const e = {
                     }),
                   ],
                 }),
-                (0, t.jsx)("time", {
-                  className: "portfolio-refresh-time",
-                  dateTime: A ? A.toISOString() : undefined,
-                  title: A
-                    ? `Market refresh: ${C} at ${N} (Eastern)`
-                    : "No market refresh recorded",
-                  "aria-label": A
-                    ? `${C} at ${N} Eastern time`
-                    : "No market refresh recorded",
-                  children: A ? `${C} · ${N}` : "—",
+                (0, t.jsxs)("div", {
+                  className: "flex items-center gap-1",
+                  children: [
+                    (0, t.jsx)("time", {
+                      className: "portfolio-refresh-time",
+                      dateTime: A ? A.toISOString() : undefined,
+                      title: A
+                        ? `Market refresh: ${C} at ${N} (Eastern)`
+                        : "No market refresh recorded",
+                      "aria-label": A
+                        ? `${C} at ${N} Eastern time`
+                        : "No market refresh recorded",
+                      children: A ? `${C} · ${N}` : "—",
+                    }),
+                    (0, t.jsx)(LogoutButton, {}),
+                  ],
                 }),
               ],
             }),
