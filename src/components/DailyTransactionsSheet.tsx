@@ -39,6 +39,11 @@ import {
   type TradeEdit,
   type TradeSide,
 } from "@/lib/daily-transactions";
+import {
+  highlightWorkbookRow,
+  selectorForHit,
+  type WorkbookHit,
+} from "@/lib/workbook-search";
 
 interface SelectedCell {
   cellId: string;
@@ -54,6 +59,8 @@ interface Props {
   onOpenAddModal: (side: TradeSide, accountNumber?: string) => void;
   onSellSelected: (row: DailyTransaction) => void;
   onSaveInlineField: (id: number, patch: TradeEdit) => Promise<void>;
+  jumpHit?: WorkbookHit | null;
+  onJumpHandled?: () => void;
 }
 
 const money = (value: number) =>
@@ -269,6 +276,8 @@ export default function DailyTransactionsSheet({
   onOpenAddModal,
   onSellSelected,
   onSaveInlineField,
+  jumpHit,
+  onJumpHandled,
 }: Props) {
   const [columns, setColumns] = useState<Record<TradeSide, TradeColumn[]>>({
     BUY: DEFAULT_TRADE_COLUMNS.BUY,
@@ -343,6 +352,32 @@ export default function DailyTransactionsSheet({
       document.removeEventListener("keydown", closeOnEscape);
     };
   }, [filterOpen]);
+
+  useEffect(() => {
+    if (!jumpHit || jumpHit.sheet !== "future") return;
+    const accountNumber = jumpHit.accountNumber;
+    if (accountNumber) {
+      setCollapsedGroups((prev) => {
+        const next = new Set(prev);
+        next.delete(`BUY:${accountNumber}`);
+        next.delete(`SELL:${accountNumber}`);
+        return next;
+      });
+    }
+    let tries = 0;
+    const timer = window.setInterval(() => {
+      const node = document.querySelector(selectorForHit(jumpHit) || "");
+      tries += 1;
+      if (
+        highlightWorkbookRow(node instanceof HTMLElement ? node : null) ||
+        tries > 20
+      ) {
+        window.clearInterval(timer);
+        onJumpHandled?.();
+      }
+    }, 50);
+    return () => window.clearInterval(timer);
+  }, [jumpHit, onJumpHandled]);
 
   const accountOptions = useMemo(
     () =>
@@ -705,6 +740,7 @@ export default function DailyTransactionsSheet({
                             key={row.id}
                             data-transaction-id={row.id}
                             data-account={accountNumber}
+                            data-symbol={row.symbol}
                             className={
                               selectedBuy?.id === row.id
                                 ? "transaction-data-row is-selected"

@@ -9,10 +9,12 @@ import {
   accountDetailsTable,
   depositDetailsTable,
   settingsTable,
+  marketCacheTable,
 } from "@/db/schema";
 import { and, eq, asc, desc } from "drizzle-orm";
 import seedData from "@/db/seed-data.json";
 import { DEFAULT_AUTO_REFRESH_INTERVAL, readAutoRefreshInterval } from "@/lib/auto-refresh";
+import { summarizeMarketRefresh, type SymbolQuote } from "@/lib/market-quotes";
 import { calculateTransactionValues } from "@/lib/daily-transactions";
 import {
   describeSchedule,
@@ -346,6 +348,23 @@ export async function ensureDbSeeded(): Promise<void> {
         value TEXT NOT NULL,
         updated_at TEXT NOT NULL DEFAULT ''
       );
+      CREATE TABLE IF NOT EXISTS market_cache (
+        symbol TEXT PRIMARY KEY,
+        price DOUBLE PRECISION NOT NULL DEFAULT 0,
+        previous_close DOUBLE PRECISION NOT NULL DEFAULT 0,
+        change_amount DOUBLE PRECISION NOT NULL DEFAULT 0,
+        change_percent DOUBLE PRECISION NOT NULL DEFAULT 0,
+        currency TEXT NOT NULL DEFAULT 'USD',
+        last_updated TEXT NOT NULL DEFAULT '',
+        source TEXT NOT NULL DEFAULT 'cached',
+        error TEXT NOT NULL DEFAULT '',
+        last_live_at TEXT NOT NULL DEFAULT ''
+      );
+    `);
+    await pool.query(`
+      ALTER TABLE market_cache ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'cached';
+      ALTER TABLE market_cache ADD COLUMN IF NOT EXISTS error TEXT NOT NULL DEFAULT '';
+      ALTER TABLE market_cache ADD COLUMN IF NOT EXISTS last_live_at TEXT NOT NULL DEFAULT '';
     `);
 
     // Keep existing supported preferences (especially Off); move obsolete
@@ -659,9 +678,90 @@ export async function ensureDbSeeded(): Promise<void> {
   return initializedPromise;
 }
 
-export async function fetchSymbolQuote(symbolRaw: string) {
+async function loadStoredQuote(symbol: string) {
+  const [row] = await db
+    .select()
+    .from(marketCacheTable)
+    .where(eq(marketCacheTable.symbol, symbol));
+  return row ?? null;
+}
+
+async function persistQuote(quote: SymbolQuote) {
+  marketCacheStore[quote.symbol] = quote.price;
+  await db
+    .insert(marketCacheTable)
+    .values({
+      symbol: quote.symbol,
+      price: quote.price,
+      previousClose: quote.previousClose,
+      changeAmount: quote.change,
+      changePercent: quote.changePercent,
+      currency: "USD",
+      lastUpdated: quote.quoteAt || new Date().toISOString(),
+      source: quote.source,
+      error: quote.error || "",
+      lastLiveAt: quote.lastLiveAt || "",
+    })
+    .onConflictDoUpdate({
+      target: marketCacheTable.symbol,
+      set: {
+        price: quote.price,
+        previousClose: quote.previousClose,
+        changeAmount: quote.change,
+        changePercent: quote.changePercent,
+        lastUpdated: quote.quoteAt || new Date().toISOString(),
+        source: quote.source,
+        error: quote.error || "",
+        lastLiveAt: quote.lastLiveAt || "",
+      },
+    });
+}
+
+function fallbackQuote(
+  symbol: string,
+  stored: {
+    price?: number | null;
+    previousClose?: number | null;
+    changeAmount?: number | null;
+    changePercent?: number | null;
+    lastUpdated?: string | null;
+    lastLiveAt?: string | null;
+  } | null,
+  error: string,
+): SymbolQuote {
+  const seeded = DEFAULT_QUOTES[symbol];
+  const price = round2(
+    stored?.price || marketCacheStore[symbol] || seeded?.price || 0,
+  );
+  const previousClose = round2(
+    stored?.previousClose || seeded?.previousClose || price,
+  );
+  const change = round2(
+    stored?.changeAmount ?? seeded?.change ?? price - previousClose,
+  );
+  const changePercent = round2(
+    stored?.changePercent ??
+      seeded?.changePercent ??
+      (previousClose > 0 ? (change / previousClose) * 100 : 0),
+  );
+  return {
+    symbol,
+    price,
+    previousClose,
+    change,
+    changePercent,
+    source: "cached",
+    quoteAt: stored?.lastLiveAt || stored?.lastUpdated || null,
+    lastLiveAt: stored?.lastLiveAt || null,
+    error,
+  };
+}
+
+export async function fetchSymbolQuote(symbolRaw: string): Promise<SymbolQuote> {
   await ensureDbSeeded();
   const symbol = symbolRaw.trim().toUpperCase();
+  const stored = await loadStoredQuote(symbol);
+  let error = "using last stored price";
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 3000);
@@ -674,7 +774,9 @@ export async function fetchSymbolQuote(symbolRaw: string) {
       },
     );
     clearTimeout(timer);
-    if (res.ok) {
+    if (!res.ok) {
+      error = `HTTP ${res.status}`;
+    } else {
       const json = await res.json();
       const meta = json?.chart?.result?.[0]?.meta;
       if (meta && typeof meta.regularMarketPrice === "number") {
@@ -685,43 +787,35 @@ export async function fetchSymbolQuote(symbolRaw: string) {
         const change = round2(price - previousClose);
         const changePercent =
           previousClose > 0 ? round2((change / previousClose) * 100) : 0;
-        marketCacheStore[symbol] = price;
-        return { price, previousClose, change, changePercent };
+        const nowIso = new Date().toISOString();
+        const quote: SymbolQuote = {
+          symbol,
+          price,
+          previousClose,
+          change,
+          changePercent,
+          source: "live",
+          quoteAt: nowIso,
+          lastLiveAt: nowIso,
+          error: null,
+        };
+        await persistQuote(quote);
+        return quote;
       }
+      error = "no quote";
     }
-  } catch {
-    // Fallback to cached / default quote
+  } catch (err) {
+    error =
+      err instanceof Error && err.name === "AbortError"
+        ? "timed out"
+        : "network error";
   }
 
-  if (DEFAULT_QUOTES[symbol]) {
-    const q = DEFAULT_QUOTES[symbol];
-    return {
-      price: marketCacheStore[symbol] ?? q.price,
-      previousClose: q.previousClose,
-      change: q.change,
-      changePercent: q.changePercent,
-    };
-  }
-
-  const cachedPrice = marketCacheStore[symbol] ?? 100.0;
-  const prevClose = round2(cachedPrice * 0.988);
-  const diff = round2(cachedPrice - prevClose);
-  const diffPct = prevClose > 0 ? round2((diff / prevClose) * 100) : 1.2;
-  return {
-    price: cachedPrice,
-    previousClose: prevClose,
-    change: diff,
-    changePercent: diffPct,
-  };
+  const quote = fallbackQuote(symbol, stored, error);
+  await persistQuote(quote);
+  return quote;
 }
 
-/**
- * Public state loader. Deliberately a thin wrapper: it first gives the
- * Saturday 9 PM Eastern history snapshot a chance to land, then builds the
- * payload via the *non-triggering* builder below. Keeping the two apart is what
- * stops snapshot capture (which needs portfolio values) from recursing back
- * into itself through getPortfolioState.
- */
 export async function getPortfolioState() {
   await captureDueSnapshots().catch((error: unknown) => {
     // History is a derived report: never let it break the live workbook.

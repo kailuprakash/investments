@@ -462,6 +462,27 @@
   .workbook-shell .transaction-table-scroll {
     max-height: 55vh;
   }
+  .workbook-shell .transaction-account-group-inner {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .workbook-shell .transaction-group-toggle,
+  .workbook-shell .transaction-group-add {
+    position: static;
+  }
+}
+@media (max-width: 640px) {
+  .workbook-shell .analytics-filter {
+    min-width: 100%;
+  }
+  .workbook-shell .analytics-combobox input {
+    min-width: 0;
+    width: 100% !important;
+  }
+  .workbook-shell .workbook-search {
+    max-width: none;
+    flex-basis: 100%;
+  }
 }
 @media (max-width: 520px) {
   .workbook-shell .transactions-toolbar {
@@ -475,9 +496,18 @@
     width: 100%;
   }
   .workbook-shell .transaction-account-options {
-    width: 250px;
+    width: min(250px, calc(100vw - 24px));
+    left: 0;
+    right: auto;
   }
   .workbook-shell .transaction-column-cards {
     grid-template-columns: minmax(0, 1fr);
+  }
+  .workbook-shell .transaction-pane-title,
+  .workbook-shell .transaction-account-group-inner {
+    width: 100%;
+  }
+  .workbook-shell .transaction-group-add span {
+    display: none;
   }
 }

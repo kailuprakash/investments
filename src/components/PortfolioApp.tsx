@@ -6,6 +6,13 @@ import * as XLSX from "xlsx-js-style";
 import AccountDetailsSheet from "@/components/AccountDetailsSheet";
 import DailyTransactionsSheet from "@/components/DailyTransactionsSheet";
 import HoldingsPerformanceTable from "@/components/HoldingsPerformanceTable";
+import WorkbookSearch from "@/components/WorkbookSearch";
+import {
+  buildWorkbookIndex,
+  highlightWorkbookRow,
+  selectorForHit,
+  type WorkbookHit,
+} from "@/lib/workbook-search";
 import {
   AUTO_REFRESH_OPTIONS,
   formatAutoRefreshInterval,
@@ -385,6 +392,8 @@ const e = {
     lastRefreshed: d,
     activeSheet: p,
     onSelectSheet: g,
+    searchHits,
+    onSearchJump,
   }) {
     let x = r.default.useRef(null),
       y = async (e) => {
@@ -415,7 +424,7 @@ const e = {
         : "—";
     return (0, t.jsxs)("header", {
       className:
-        "portfolio-app-header sticky top-0 z-50 w-full select-none overflow-hidden border-b border-emerald-950/40 bg-[linear-gradient(118deg,#05442b_0%,#0a6b3f_48%,#064e30_100%)] text-white shadow-[0_4px_14px_-8px_rgba(3,52,32,0.8)]",
+        "portfolio-app-header sticky top-0 z-50 w-full border-b border-emerald-950/40 bg-[linear-gradient(118deg,#05442b_0%,#0a6b3f_48%,#064e30_100%)] text-white shadow-[0_4px_14px_-8px_rgba(3,52,32,0.8)]",
       children: [
         (0, t.jsx)("input", {
           ref: x,
@@ -487,6 +496,10 @@ const e = {
                   ],
                 }),
               ],
+            }),
+            (0, t.jsx)(WorkbookSearch, {
+              hits: searchHits || [],
+              onJump: onSearchJump,
             }),
             (0, t.jsxs)("div", {
               className: "flex flex-wrap items-center gap-1.5",
@@ -810,6 +823,8 @@ const e = {
     selectedCell: a,
     onSelectCell: n,
     onSaveAccountComments: s,
+    jumpHit,
+    onJumpHandled,
   }) {
     let i = (cellId) => a?.cellId === cellId,
       l = "ring-2 ring-emerald-600 ring-inset bg-emerald-50";
@@ -821,6 +836,19 @@ const e = {
     let [editingCashAccNum, setEditingCashAccNum] = (0, r.useState)(null);
     let [cashVal, setCashVal] = (0, r.useState)("");
     let [isSavingCash, setIsSavingCash] = (0, r.useState)(false);
+    (0, r.useEffect)(() => {
+      if (!jumpHit || jumpHit.sheet !== "master") return;
+      let tries = 0;
+      const timer = window.setInterval(() => {
+        const node = document.querySelector(selectorForHit(jumpHit) || "");
+        tries += 1;
+        if (highlightWorkbookRow(node) || tries > 20) {
+          window.clearInterval(timer);
+          onJumpHandled && onJumpHandled();
+        }
+      }, 50);
+      return () => window.clearInterval(timer);
+    }, [jumpHit]);
 
     let startEditComment = (acc) => {
       setEditingAccNum(acc.accountNumber);
@@ -1093,6 +1121,7 @@ const e = {
                         className: isInactive
                           ? "bg-slate-100/90 text-slate-400 opacity-60 transition-colors hover:bg-slate-200/50"
                           : "bg-white transition-colors hover:bg-blue-50/40",
+                        "data-account": item.accountNumber,
                         children: [
                           (0, t.jsx)("td", {
                             "data-field-kind": "readonly",
@@ -1564,6 +1593,8 @@ const e = {
     onAddNewHolding: s,
     onSaveInlineField: o,
     onDeleteHolding,
+    jumpHit,
+    onJumpHandled,
   }) {
     let [i, l] = (0, r.useState)(ec),
       [c, f] = (0, r.useState)(!1),
@@ -1760,31 +1791,82 @@ const e = {
       F = () => {
         b(null), v("");
       },
-      R = async (e) => {
+      nextEditable = (holdingId, field, backward) => {
+        let fields = C.filter((col) => col.editable && col.id !== "actions" && col.id !== "symbol");
+        let holdings = e.flatMap((group) => group.holdings || []);
+        if (!fields.length || !holdings.length) return null;
+        let hi = holdings.findIndex((holding) => holding.id === holdingId);
+        let fi = fields.findIndex((col) => col.id === field);
+        if (hi < 0) return null;
+        if (fi < 0) fi = backward ? 0 : -1;
+        fi += backward ? -1 : 1;
+        if (fi < 0) {
+          hi -= 1;
+          fi = fields.length - 1;
+        } else if (fi >= fields.length) {
+          hi += 1;
+          fi = 0;
+        }
+        if (hi < 0 || hi >= holdings.length) return null;
+        let nextHolding = holdings[hi];
+        if (A.has(nextHolding.accountNumber)) {
+          T((collapsed) => {
+            let next = new Set(collapsed);
+            next.delete(nextHolding.accountNumber);
+            return next;
+          });
+        }
+        return { holding: nextHolding, field: fields[fi].id };
+      },
+      R = async (holdingId, nextCell) => {
         let t;
-        if (!g) return;
+        if (!g) return !1;
         let r = g.field;
         if (["quantity", "purchasePrice", "currentPrice"].includes(r)) {
-          let e = Number(x);
-          if (!Number.isFinite(e) || e < 0)
-            return void alert("Please enter a valid positive number.");
-          if ("quantity" === r && e <= 0)
-            return void alert("Quantity must be greater than zero.");
-          t = { [r]: e };
+          let parsed = Number(x);
+          if (!Number.isFinite(parsed) || parsed < 0) {
+            alert("Please enter a valid positive number.");
+            return !1;
+          }
+          if ("quantity" === r && parsed <= 0) {
+            alert("Quantity must be greater than zero.");
+            return !1;
+          }
+          t = { [r]: parsed };
         } else t = { comments: x.trim() };
         try {
-          w(e), await o(e, t), b(null), v("");
-        } catch (e) {
-          console.error(e),
-            alert(
-              e instanceof Error
-                ? e.message
-                : "Failed to save the edited cell.",
-            );
+          w(holdingId);
+          await o(holdingId, t);
+          nextCell ? O(nextCell.holding, nextCell.field) : (b(null), v(""));
+          return !0;
+        } catch (err) {
+          console.error(err);
+          alert(err instanceof Error ? err.message : "Failed to save the edited cell.");
+          return !1;
         } finally {
           w(null);
         }
       };
+    (0, r.useEffect)(() => {
+      if (!jumpHit || jumpHit.sheet !== "inventory") return;
+      if (jumpHit.accountNumber) {
+        T((collapsed) => {
+          let next = new Set(collapsed);
+          next.delete(jumpHit.accountNumber);
+          return next;
+        });
+      }
+      let tries = 0;
+      const timer = window.setInterval(() => {
+        const node = document.querySelector(selectorForHit(jumpHit) || "");
+        tries += 1;
+        if (highlightWorkbookRow(node) || tries > 20) {
+          window.clearInterval(timer);
+          onJumpHandled && onJumpHandled();
+        }
+      }, 50);
+      return () => window.clearInterval(timer);
+    }, [jumpHit]);
     return (0, t.jsxs)("section", {
       className:
         "section-font-consolidated relative my-4 w-full overflow-visible rounded-xl border border-slate-200/90 bg-white shadow-[0_12px_32px_-24px_rgba(15,23,42,0.65)]",
@@ -2134,6 +2216,9 @@ const e = {
                                       "tr",
                                       {
                                         className: `hover:bg-blue-50/40 transition-colors ${"yellow" === e.highlight ? "bg-[#FFFF99]" : ""}`,
+                                        "data-holding-id": e.id,
+                                        "data-account": e.accountNumber,
+                                        "data-symbol": e.symbol,
                                         children: C.map((r, o) => {
                                           if (r.id === "actions")
                                             return (0, t.jsx)(
@@ -2249,10 +2334,16 @@ const e = {
                                                           onChange: (e) =>
                                                             v(e.target.value),
                                                           onKeyDown: (t) => {
-                                                            "Enter" === t.key &&
-                                                              R(e.id),
-                                                              "Escape" ===
-                                                                t.key && F();
+                                                            if ("Enter" === t.key) {
+                                                              t.preventDefault();
+                                                              void R(e.id);
+                                                            } else if ("Escape" === t.key) {
+                                                              t.preventDefault();
+                                                              F();
+                                                            } else if ("Tab" === t.key) {
+                                                              t.preventDefault();
+                                                              void R(e.id, nextEditable(e.id, r.id, t.shiftKey));
+                                                            }
                                                           },
                                                           className: `w-full min-w-[80px] px-1.5 py-1 bg-white border-2 border-emerald-600 rounded font-mono font-bold text-xs outline-none shadow-sm ${"quantity" === c ? "text-center" : "comments" === c ? "text-left" : "text-right"}`,
                                                         }),
@@ -4777,7 +4868,7 @@ const e = {
     };
   e1.node;
   let e2 = i(e1);
-  function e3({ accounts: e, grandTotal: r }) {
+  function e3({ accounts: e, grandTotal: r, jumpHit, onJumpHandled }) {
     let a = e.flatMap((e) => e.holdings),
       n = r.accountOverallMoney || 1,
       s = ((r.cashAvailable / n) * 100).toFixed(1),
@@ -5050,7 +5141,11 @@ const e = {
                 }),
               ],
             }),
-            (0, t.jsx)(HoldingsPerformanceTable, { holdings: a }),
+            (0, t.jsx)(HoldingsPerformanceTable, {
+              holdings: a,
+              jumpHit,
+              onJumpHandled,
+            }),
           ],
         }),
       ],
@@ -6160,6 +6255,7 @@ const e = {
           [ea, en] = (0, r.useState)(),
           [es, eo] = (0, r.useState)(null),
           [adRefreshKey, setAdRefreshKey] = (0, r.useState)(0),
+          [jumpHit, setJumpHit] = (0, r.useState)(null),
           refreshIntervalRef = r.default.useRef(0),
           nextPullAtRef = r.default.useRef(0),
           refreshInFlightRef = r.default.useRef(false),
@@ -8027,6 +8123,12 @@ This replaces the current accounts, inventory, and transactions.`)
               onSelectSheet: (e) => {
                 b(e), "future" === e && v("ALL");
               },
+              searchHits: buildWorkbookIndex(e, o),
+              onSearchJump: (hit) => {
+                b(hit.sheet);
+                if (hit.sheet === "future") v("ALL");
+                setJumpHit(hit);
+              },
             }),
             es &&
               (0, t.jsxs)("div", {
@@ -8056,7 +8158,12 @@ This replaces the current accounts, inventory, and transactions.`)
                     ],
                   })
                 : "analytics" === g
-                  ? (0, t.jsx)(e3, { accounts: e, grandTotal: n })
+                  ? (0, t.jsx)(e3, {
+                      accounts: e,
+                      grandTotal: n,
+                      jumpHit,
+                      onJumpHandled: () => setJumpHit(null),
+                    })
                   : "market" === g
                     ? (0, t.jsx)(eq, {
                         defaultAccount: e[0]?.accountNumber || "CS - 9271",
@@ -8096,6 +8203,8 @@ This replaces the current accounts, inventory, and transactions.`)
                             onAddNewHolding: (e) => {
                               M(null), G(e), L(!0);
                             },
+                            jumpHit,
+                            onJumpHandled: () => setJumpHit(null),
                             onSaveInlineField: eh,
                             onDeleteHolding: async (id) => {
                               const response = await fetch(
@@ -8147,6 +8256,8 @@ This replaces the current accounts, inventory, and transactions.`)
                                     ),
                                     _(!0);
                                 },
+                                jumpHit,
+                                onJumpHandled: () => setJumpHit(null),
                                 onSaveInlineField: eu,
                                 activeOrderTypeTab:
                                   "buy" === g
@@ -8174,6 +8285,8 @@ This replaces the current accounts, inventory, and transactions.`)
                                   selectedCell: y,
                                   onSelectCell: w,
                                   onSaveAccountComments: eb,
+                                  jumpHit,
+                                  onJumpHandled: () => setJumpHit(null),
                                 }),
                                 (0, t.jsx)(e6, {}),
                                 (0, t.jsx)(te, {}),
