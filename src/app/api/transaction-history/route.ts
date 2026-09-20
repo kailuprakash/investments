@@ -1,21 +1,61 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { transactionHistoryTable } from "@/db/schema";
-import { ensureDbSeeded } from "@/db/portfolio-service";
+import {
+  ensureDbSeeded,
+  captureDueSnapshots,
+  getSnapshotStatus,
+} from "@/db/portfolio-service";
 import { desc, asc } from "drizzle-orm";
 
+/**
+ * Weekly / monthly buy–sell totals per account. Aggregates are reconstructed
+ * from the stored transactions (every trade carries its own date), so a
+ * catch-up run can back-fill several weeks at once — unlike the account-value
+ * snapshot, which can only be measured while it happens.
+ */
 export async function GET() {
   try {
     await ensureDbSeeded();
+    const capture = await captureDueSnapshots().catch((error: unknown) => {
+      console.error("[transaction-history] lazy capture failed:", error);
+      return null;
+    });
     const history = await db
       .select()
       .from(transactionHistoryTable)
       .orderBy(desc(transactionHistoryTable.snapshotWeek), asc(transactionHistoryTable.accountNumber));
-    return NextResponse.json({ history });
+    return NextResponse.json({
+      history,
+      snapshot: capture,
+      status: await getSnapshotStatus().catch(() => null),
+    });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Unable to load transaction history" },
-      { status: 500 }
+      { status: 500 },
+    );
+  }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json().catch(() => ({}));
+    const action = String(body?.action || "capture");
+    const capture = await captureDueSnapshots({
+      force: action === "recalculate",
+      lookbackWeeks: Number(body?.lookbackWeeks) || undefined,
+    });
+    const history = await db
+      .select()
+      .from(transactionHistoryTable)
+      .orderBy(desc(transactionHistoryTable.snapshotWeek), asc(transactionHistoryTable.accountNumber));
+
+    return NextResponse.json({ capture, history, status: await getSnapshotStatus() });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Unable to update transaction history" },
+      { status: 500 },
     );
   }
 }

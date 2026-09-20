@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { FieldHeader } from "@/components/WorkbookUI";
 import {
   Plus,
   Pencil,
@@ -60,8 +61,18 @@ function formatMDDYYYY(val: string | null | undefined): string {
   if (!str || str === "—") return "—";
 
   const months: Record<string, number> = {
-    jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6,
-    jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12
+    jan: 1,
+    feb: 2,
+    mar: 3,
+    apr: 4,
+    may: 5,
+    jun: 6,
+    jul: 7,
+    aug: 8,
+    sep: 9,
+    oct: 10,
+    nov: 11,
+    dec: 12,
   };
 
   // Month-YY format like Nov-23, Aug-24, Feb-24, Jan-24
@@ -126,23 +137,35 @@ export default function AccountDetailsSheet({
   const [selectedAccNum, setSelectedAccNum] = useState<string | null>(null);
 
   // Filter for Active Status column
-  const [statusFilter, setStatusFilter] = useState<"ALL" | "ACTIVE" | "INACTIVE">("ALL");
+  const [statusFilter, setStatusFilter] = useState<
+    "ALL" | "ACTIVE" | "INACTIVE"
+  >("ALL");
 
   const activeCount = useMemo(
-    () => accountDetails.filter((a) => String(a.activeStatus || "").toUpperCase() === "ACTIVE").length,
-    [accountDetails]
+    () =>
+      accountDetails.filter(
+        (a) => String(a.activeStatus || "").toUpperCase() === "ACTIVE",
+      ).length,
+    [accountDetails],
   );
   const inactiveCount = useMemo(
-    () => accountDetails.filter((a) => String(a.activeStatus || "").toUpperCase() === "INACTIVE").length,
-    [accountDetails]
+    () =>
+      accountDetails.filter(
+        (a) => String(a.activeStatus || "").toUpperCase() === "INACTIVE",
+      ).length,
+    [accountDetails],
   );
 
   const filteredAccountDetails = useMemo(() => {
     if (statusFilter === "ACTIVE") {
-      return accountDetails.filter((a) => String(a.activeStatus || "").toUpperCase() === "ACTIVE");
+      return accountDetails.filter(
+        (a) => String(a.activeStatus || "").toUpperCase() === "ACTIVE",
+      );
     }
     if (statusFilter === "INACTIVE") {
-      return accountDetails.filter((a) => String(a.activeStatus || "").toUpperCase() === "INACTIVE");
+      return accountDetails.filter(
+        (a) => String(a.activeStatus || "").toUpperCase() === "INACTIVE",
+      );
     }
     return accountDetails;
   }, [accountDetails, statusFilter]);
@@ -150,12 +173,14 @@ export default function AccountDetailsSheet({
   const filteredTotalAmount = useMemo(() => {
     return filteredAccountDetails.reduce(
       (sum, a) => sum + (Number(a.amountFromHand) || 0),
-      0
+      0,
     );
   }, [filteredAccountDetails]);
 
   // Expand / collapse state for deposit details accounts
-  const [collapsedAccounts, setCollapsedAccounts] = useState<Set<string>>(new Set());
+  const [collapsedAccounts, setCollapsedAccounts] = useState<Set<string>>(
+    new Set(),
+  );
 
   const toggleAccountCollapse = (accNum: string) => {
     setCollapsedAccounts((prev) => {
@@ -170,7 +195,8 @@ export default function AccountDetailsSheet({
   };
 
   const expandAllAccounts = () => setCollapsedAccounts(new Set());
-  const collapseAllAccounts = () => setCollapsedAccounts(new Set(allAccountsList));
+  const collapseAllAccounts = () =>
+    setCollapsedAccounts(new Set(allAccountsList));
 
   // In-cell editing state for Deposit Amount (allows negative numbers)
   const [editingAmountId, setEditingAmountId] = useState<number | null>(null);
@@ -179,7 +205,9 @@ export default function AccountDetailsSheet({
 
   // Modal state for Deposit
   const [depositModalOpen, setDepositModalOpen] = useState<boolean>(false);
-  const [editingDeposit, setEditingDeposit] = useState<DepositDetail | null>(null);
+  const [editingDeposit, setEditingDeposit] = useState<DepositDetail | null>(
+    null,
+  );
   const [depAccount, setDepAccount] = useState<string>("");
   const [depDate, setDepDate] = useState<string>("");
   const [depAmount, setDepAmount] = useState<string>("");
@@ -194,7 +222,9 @@ export default function AccountDetailsSheet({
   const [addNumber, setAddNumber] = useState<string>("");
   const [addStartDate, setAddStartDate] = useState<string>("");
   const [addComments, setAddComments] = useState<string>("");
-  const [addTaxPeriod, setAddTaxPeriod] = useState<string>("Yearly Tax on Profit in US.");
+  const [addTaxPeriod, setAddTaxPeriod] = useState<string>(
+    "Yearly Tax on Profit in US.",
+  );
   const [addInitialAmount, setAddInitialAmount] = useState<string>("");
 
   // Modal state for Edit Account Detail (near Add Account)
@@ -206,7 +236,9 @@ export default function AccountDetailsSheet({
   const [editNumber, setEditNumber] = useState<string>("");
   const [editStartDate, setEditStartDate] = useState<string>("");
   const [editComments, setEditComments] = useState<string>("");
-  const [editTaxPeriod, setEditTaxPeriod] = useState<string>("Yearly Tax on Profit in US.");
+  const [editTaxPeriod, setEditTaxPeriod] = useState<string>(
+    "Yearly Tax on Profit in US.",
+  );
 
   const fetchData = useCallback(
     async (silent = false) => {
@@ -214,7 +246,8 @@ export default function AccountDetailsSheet({
         if (!silent) setIsLoading(true);
         const res = await fetch("/api/account-details", { cache: "no-store" });
         const json = await res.json();
-        if (!res.ok) throw new Error(json.error || "Failed to load account details");
+        if (!res.ok)
+          throw new Error(json.error || "Failed to load account details");
         setAccountDetails(json.accountDetails || []);
         setDepositsByAccount(json.depositsByAccount || {});
         setTotalAmountFromHand(json.totalAmountFromHand || 0);
@@ -227,7 +260,7 @@ export default function AccountDetailsSheet({
         if (!silent) setIsLoading(false);
       }
     },
-    [onNotify]
+    [onNotify],
   );
 
   useEffect(() => {
@@ -238,7 +271,13 @@ export default function AccountDetailsSheet({
   const handleOpenAddDeposit = (accountNum?: string) => {
     setEditingDeposit(null);
     setDepAccount(accountNum || accountDetails[0]?.accountNumber || "CS 9271");
-    setDepDate(formatMDDYYYY(new Date().toLocaleDateString("en-US", { timeZone: "America/New_York" })));
+    setDepDate(
+      formatMDDYYYY(
+        new Date().toLocaleDateString("en-US", {
+          timeZone: "America/New_York",
+        }),
+      ),
+    );
     setDepAmount("");
     setDepComments("");
     setDepositModalOpen(true);
@@ -267,7 +306,9 @@ export default function AccountDetailsSheet({
   const handleSaveInlineAmount = async (deposit: DepositDetail) => {
     const val = parseFloat(editingAmountVal);
     if (isNaN(val) || !Number.isFinite(val) || val === 0) {
-      alert("Please enter a valid deposit amount (positive or negative, non-zero).");
+      alert(
+        "Please enter a valid deposit amount (positive or negative, non-zero).",
+      );
       return;
     }
 
@@ -285,7 +326,8 @@ export default function AccountDetailsSheet({
         }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Failed to update deposit amount");
+      if (!res.ok)
+        throw new Error(json.error || "Failed to update deposit amount");
       setAccountDetails(json.accountDetails || []);
       setDepositsByAccount(json.depositsByAccount || {});
       setTotalAmountFromHand(json.totalAmountFromHand || 0);
@@ -294,8 +336,8 @@ export default function AccountDetailsSheet({
       if (onNotify)
         onNotify(
           `Deposit amount updated to ${formatCurrency(
-            val
-          )}! Principle amount recalculated.`
+            val,
+          )}! Principle amount recalculated.`,
         );
       if (onDataChanged) onDataChanged();
     } catch (err) {
@@ -310,7 +352,9 @@ export default function AccountDetailsSheet({
     if (!depAccount) return alert("Select an account.");
     const amt = parseFloat(depAmount);
     if (isNaN(amt) || !Number.isFinite(amt) || amt === 0)
-      return alert("Enter a valid deposit amount (positive or negative, non-zero).");
+      return alert(
+        "Enter a valid deposit amount (positive or negative, non-zero).",
+      );
     if (!depDate.trim()) return alert("Enter a valid investment date.");
 
     try {
@@ -389,7 +433,7 @@ export default function AccountDetailsSheet({
       setTotalAmountFromHand(json.totalAmountFromHand || 0);
       if (onNotify)
         onNotify(
-          `Deposit deleted. Account ${accNum} principle amount recalculated!`
+          `Deposit deleted. Account ${accNum} principle amount recalculated!`,
         );
       if (onDataChanged) onDataChanged();
     } catch (err) {
@@ -400,8 +444,10 @@ export default function AccountDetailsSheet({
   // Open Edit Account Modal (placed near Add Account)
   const handleOpenEditAccountModal = (targetAccNum?: string) => {
     const acc =
-      (targetAccNum && accountDetails.find((a) => a.accountNumber === targetAccNum)) ||
-      (selectedAccNum && accountDetails.find((a) => a.accountNumber === selectedAccNum)) ||
+      (targetAccNum &&
+        accountDetails.find((a) => a.accountNumber === targetAccNum)) ||
+      (selectedAccNum &&
+        accountDetails.find((a) => a.accountNumber === selectedAccNum)) ||
       accountDetails[0];
 
     if (!acc) return alert("No account available to edit.");
@@ -449,7 +495,8 @@ export default function AccountDetailsSheet({
         }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Failed to update account details");
+      if (!res.ok)
+        throw new Error(json.error || "Failed to update account details");
       setAccountDetails(json.accountDetails || []);
       setDepositsByAccount(json.depositsByAccount || {});
       setTotalAmountFromHand(json.totalAmountFromHand || 0);
@@ -469,7 +516,7 @@ export default function AccountDetailsSheet({
     if (!acc) return;
     if (
       !window.confirm(
-        `Delete Account ${acc.accountNumber}? This will also delete its linked deposits and remove it from Account's Summary.`
+        `Delete Account ${acc.accountNumber}? This will also delete its linked deposits and remove it from Account's Summary.`,
       )
     )
       return;
@@ -489,7 +536,8 @@ export default function AccountDetailsSheet({
       setDepositsByAccount(json.depositsByAccount || {});
       setTotalAmountFromHand(json.totalAmountFromHand || 0);
       setEditAccModalOpen(false);
-      if (onNotify) onNotify(`Account ${acc.accountNumber} removed from all sheets!`);
+      if (onNotify)
+        onNotify(`Account ${acc.accountNumber} removed from all sheets!`);
       if (onDataChanged) onDataChanged();
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to delete account");
@@ -522,14 +570,15 @@ export default function AccountDetailsSheet({
         }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Failed to save account details");
+      if (!res.ok)
+        throw new Error(json.error || "Failed to save account details");
       setAccountDetails(json.accountDetails || []);
       setDepositsByAccount(json.depositsByAccount || {});
       setTotalAmountFromHand(json.totalAmountFromHand || 0);
       setAddAccModalOpen(false);
       if (onNotify)
         onNotify(
-          `Account ${addNumber} details saved and linked to Account's Summary!`
+          `Account ${addNumber} details saved and linked to Account's Summary!`,
         );
       if (onDataChanged) onDataChanged();
     } catch (err) {
@@ -547,34 +596,50 @@ export default function AccountDetailsSheet({
   // =========================================================================
 
   const accColWidths = useMemo(() => {
-    const calcMaxContentW = (header: string, values: string[], extraPadding = 22) => {
+    const calcMaxContentW = (
+      header: string,
+      values: string[],
+      extraPadding = 22,
+    ) => {
       const maxLen = Math.max(
         header.length,
-        ...values.map((v) => String(v || "").length)
+        ...values.map((v) => String(v || "").length),
       );
-      return Math.ceil(maxLen * 7.4 + extraPadding);
+      return Math.ceil(maxLen * 9 + extraPadding + 20);
     };
 
     return [
-      calcMaxContentW("Account #", accountDetails.map((a) => a.accountNumber), 26),
+      calcMaxContentW(
+        "Account #",
+        accountDetails.map((a) => a.accountNumber),
+        26,
+      ),
       // Reduced Financial Institute/Bank column width to fit text tightly
-      100,
-      // Active Status column width
-      105,
-      calcMaxContentW("Account Type", accountDetails.map((a) => a.accountType), 22),
-      calcMaxContentW("~Start Date", accountDetails.map((a) => formatMDDYYYY(a.startDate)), 22),
-      // Amount from Hand (Principle Amount) column width to fit max content size
-      155,
-      // Increased Comments column width bit more
-      165,
-      // Increased Tax period column width bit more
       210,
+      // Active Status column width
+      155,
+      calcMaxContentW(
+        "Account Type",
+        accountDetails.map((a) => a.accountType),
+        22,
+      ),
+      calcMaxContentW(
+        "~Start Date",
+        accountDetails.map((a) => formatMDDYYYY(a.startDate)),
+        22,
+      ),
+      // Amount from Hand (Principle Amount) column width to fit max content size
+      230,
+      // Increased Comments column width bit more
+      210,
+      // Increased Tax period column width bit more
+      280,
     ];
   }, [accountDetails]);
 
   const accTotalWidth = useMemo(
     () => accColWidths.reduce((s, w) => s + w, 0),
-    [accColWidths]
+    [accColWidths],
   );
 
   // Accounts list for Deposit Details (filtered when status filter active)
@@ -593,48 +658,52 @@ export default function AccountDetailsSheet({
   }, [depositsByAccount]);
 
   const depColWidths = useMemo(() => {
-    const calcMaxContentW = (header: string, values: string[], extraPadding = 22) => {
+    const calcMaxContentW = (
+      header: string,
+      values: string[],
+      extraPadding = 22,
+    ) => {
       const maxLen = Math.max(
         header.length,
-        ...values.map((v) => String(v || "").length)
+        ...values.map((v) => String(v || "").length),
       );
-      return Math.ceil(maxLen * 7.4 + extraPadding);
+      return Math.ceil(maxLen * 9 + extraPadding + 20);
     };
 
     return [
       calcMaxContentW(
         "Account #",
         [...allDeposits.map((d) => d.accountNumber), ...accountsList],
-        26
+        26,
       ),
       calcMaxContentW(
         "Deposit Date",
         allDeposits.map((d) => formatMDDYYYY(d.dateInvested)),
-        22
+        22,
       ),
       // Amount column: includes extra space for inline edit controls & negative sign
       calcMaxContentW(
         "Amount",
         allDeposits.map((d) => formatCurrency(d.amount)),
-        32
+        32,
       ),
       calcMaxContentW(
         "Cumulative Amt",
         allDeposits.map((d) => `Linked -> ${formatCurrency(d.cumulativeAmt)}`),
-        24
+        24,
       ),
       calcMaxContentW(
         "Comments",
         allDeposits.map((d) => d.comments || "—"),
-        24
+        24,
       ),
-      76, // Actions column (Edit full & Delete)
+      112, // Actions column (Edit full & Delete)
     ];
   }, [allDeposits, accountsList]);
 
   const depTotalWidth = useMemo(
     () => depColWidths.reduce((s, w) => s + w, 0),
-    [depColWidths]
+    [depColWidths],
   );
 
   return (
@@ -667,10 +736,16 @@ export default function AccountDetailsSheet({
           <div className="flex items-center gap-2">
             {/* Filter option in Account Details section */}
             <div className="flex items-center gap-1.5 normal-case bg-white/10 border border-white/20 rounded px-2 py-1 shadow-xs">
-              <span className="text-[9.5px] font-medium text-blue-100 hidden sm:inline">Filter Status:</span>
+              <span className="text-[9.5px] font-medium text-blue-100 hidden sm:inline">
+                Filter Status:
+              </span>
               <select
                 value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value as "ALL" | "ACTIVE" | "INACTIVE")}
+                onChange={(e) =>
+                  setStatusFilter(
+                    e.target.value as "ALL" | "ACTIVE" | "INACTIVE",
+                  )
+                }
                 className="cursor-pointer bg-transparent text-white font-bold text-[9.5px] sm:text-[10px] outline-none [&>option]:text-slate-900 [&>option]:bg-white"
                 title="Filter accounts by active status"
               >
@@ -714,7 +789,7 @@ export default function AccountDetailsSheet({
         {/* Account Details Spreadsheet Table: strictly fitted to max column width */}
         <div className="freeze-header-scroll relative max-h-[50vh] overflow-auto">
           <table
-            className="freeze-header-table table-fixed border-separate border-spacing-0 text-xs"
+            className="account-details-table freeze-header-table table-fixed border-separate border-spacing-0 text-xs"
             style={{ width: accTotalWidth, minWidth: accTotalWidth }}
           >
             <colgroup>
@@ -723,40 +798,68 @@ export default function AccountDetailsSheet({
               ))}
             </colgroup>
             <thead>
-              {/* Table 1 Header */}
-              <tr className="border-b border-slate-400 bg-[#D9E1F2] text-center font-bold text-[#1F4E79]">
-                <th className="border border-slate-300 px-3 py-1.5 text-left whitespace-nowrap">
-                  Account #
+              <tr>
+                <th
+                  scope="col"
+                  data-field-kind="editable"
+                  className="border border-slate-300 whitespace-normal"
+                >
+                  <FieldHeader label="Account #" kind="editable" />
                 </th>
-                {/* Reduced Financial Institute/Bank header with text wrap */}
-                <th className="border border-slate-300 px-2 py-1 text-center whitespace-normal leading-tight">
-                  <div>Financial Institute/</div>
-                  <div>Bank</div>
+                <th
+                  scope="col"
+                  data-field-kind="editable"
+                  className="border border-slate-300 whitespace-normal"
+                >
+                  <FieldHeader
+                    label="Financial Institute / Bank"
+                    kind="editable"
+                  />
                 </th>
-                <th className="border border-slate-300 px-3 py-1.5 text-center whitespace-nowrap">
-                  Active Status
+                <th
+                  scope="col"
+                  data-field-kind="editable"
+                  className="border border-slate-300 whitespace-normal"
+                >
+                  <FieldHeader label="Active Status" kind="editable" />
                 </th>
-                <th className="border border-slate-300 px-3 py-1.5 text-left whitespace-nowrap">
-                  Account Type
+                <th
+                  scope="col"
+                  data-field-kind="editable"
+                  className="border border-slate-300 whitespace-normal"
+                >
+                  <FieldHeader label="Account Type" kind="editable" />
                 </th>
-                {/* Start Date in m/dd/yyyy format */}
-                <th className="border border-slate-300 px-3 py-1.5 text-center whitespace-nowrap">
-                  ~Start Date
+                <th
+                  scope="col"
+                  data-field-kind="editable"
+                  className="border border-slate-300 whitespace-normal"
+                >
+                  <FieldHeader label="~Start Date" kind="editable" />
                 </th>
-                {/* Reduced Amount from Hand to fit max content size */}
-                <th className="border border-slate-300 px-2.5 py-1 text-right whitespace-nowrap bg-[#C6D9F1] text-[#1F4E79] font-bold">
-                  <div>Amount from Hand</div>
-                  <div className="text-[9px] font-normal text-slate-700">
-                    (Principle Amount)
-                  </div>
+                <th
+                  scope="col"
+                  data-field-kind="calculated"
+                  className="border border-slate-300 whitespace-normal"
+                >
+                  <FieldHeader
+                    label="Amount from Hand (Principal)"
+                    kind="calculated"
+                  />
                 </th>
-                {/* Slightly increased Comments */}
-                <th className="border border-slate-300 px-2.5 py-1.5 text-left whitespace-nowrap">
-                  Comments
+                <th
+                  scope="col"
+                  data-field-kind="editable"
+                  className="border border-slate-300 whitespace-normal"
+                >
+                  <FieldHeader label="Comments" kind="editable" />
                 </th>
-                {/* Slightly increased Tax period */}
-                <th className="border border-slate-300 px-2.5 py-1.5 text-left whitespace-nowrap">
-                  Tax period
+                <th
+                  scope="col"
+                  data-field-kind="editable"
+                  className="border border-slate-300 whitespace-normal"
+                >
+                  <FieldHeader label="Tax period" kind="editable" />
                 </th>
               </tr>
             </thead>
@@ -764,10 +867,12 @@ export default function AccountDetailsSheet({
               {filteredAccountDetails.length === 0 ? (
                 <tr>
                   <td
+                    data-align="center"
                     colSpan={8}
                     className="border border-slate-300 px-3 py-6 text-center text-slate-400 italic text-[11px] bg-slate-50/50"
                   >
-                    No accounts found matching the &quot;{statusFilter.toLowerCase()}&quot; status filter.
+                    No accounts found matching the &quot;
+                    {statusFilter.toLowerCase()}&quot; status filter.
                     <button
                       type="button"
                       onClick={() => setStatusFilter("ALL")}
@@ -779,119 +884,162 @@ export default function AccountDetailsSheet({
                 </tr>
               ) : (
                 filteredAccountDetails.map((acc, idx) => {
-                const isEven = idx % 2 === 1;
-                const isGreenHighlight = acc.accountNumber === "CS 9271";
-                const isSelected = selectedAccNum === acc.accountNumber;
-                const isActive = String(acc.activeStatus || "").toUpperCase() === "ACTIVE";
+                  const isEven = idx % 2 === 1;
+                  const isGreenHighlight = acc.accountNumber === "CS 9271";
+                  const isSelected = selectedAccNum === acc.accountNumber;
+                  const isActive =
+                    String(acc.activeStatus || "").toUpperCase() === "ACTIVE";
 
-                return (
-                  <tr
-                    key={acc.id}
-                    onClick={() => setSelectedAccNum(acc.accountNumber)}
-                    onDoubleClick={() => handleOpenEditAccountModal(acc.accountNumber)}
-                    className={`transition-colors cursor-pointer ${
-                      isSelected
-                        ? "bg-amber-100/70 ring-1 ring-amber-400 ring-inset"
-                        : !isActive
-                        ? "bg-slate-100/80 text-slate-500 hover:bg-slate-200/50"
-                        : isEven
-                        ? "bg-[#D9E1F2]/40 hover:bg-blue-50/60"
-                        : "bg-white hover:bg-blue-50/60"
-                    }`}
-                    title="Click to select, double-click or use Edit Account above to edit"
-                  >
-                    {/* Column 1: Account # */}
-                    <td className={`border border-slate-300 px-3 py-1.5 font-bold whitespace-nowrap font-mono ${isActive ? "text-[#1F4E79]" : "text-slate-600"}`}>
-                      {acc.accountNumber}
-                    </td>
-
-                    {/* Column 2: Reduced Financial Institute/Bank tightly fitting text */}
-                    <td className="border border-slate-300 px-2 py-1.5 font-bold text-center text-slate-800 whitespace-nowrap">
-                      {acc.financialInstitute}
-                    </td>
-
-                    {/* Column 3: Differentiated Active vs Inactive Status Color Coding */}
-                    <td className="border border-slate-300 px-2.5 py-1.5 text-center whitespace-nowrap">
-                      {isActive ? (
-                        <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9.5px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 shadow-2xs">
-                          <Check className="h-2.5 w-2.5 text-emerald-600" />
-                          Active
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9.5px] font-bold text-rose-800 bg-rose-100 border border-rose-300 shadow-2xs">
-                          <X className="h-2.5 w-2.5 text-rose-600" />
-                          Inactive
-                        </span>
-                      )}
-                    </td>
-
-                    <td className={`border border-slate-300 px-3 py-1.5 font-semibold whitespace-nowrap ${isActive ? "text-blue-950" : "text-slate-600"}`}>
-                      {acc.accountType}
-                    </td>
-
-                    {/* Column 5: ~Start Date (m/dd/yyyy format) */}
-                    <td className="border border-slate-300 px-3 py-1.5 text-center text-slate-700 whitespace-nowrap font-mono text-[11px]">
-                      {formatMDDYYYY(acc.startDate)}
-                    </td>
-
-                    {/* Column 6: Amount from Hand (Principle Amount) */}
-                    <td
-                      className={`border border-slate-300 px-3 py-1.5 text-right font-mono font-bold whitespace-nowrap ${
-                        isGreenHighlight
-                          ? "bg-[#E2EFDA] text-emerald-950"
+                  return (
+                    <tr
+                      key={acc.id}
+                      onClick={() => setSelectedAccNum(acc.accountNumber)}
+                      onDoubleClick={() =>
+                        handleOpenEditAccountModal(acc.accountNumber)
+                      }
+                      className={`transition-colors cursor-pointer ${
+                        isSelected
+                          ? "bg-amber-100/70 ring-1 ring-amber-400 ring-inset"
                           : !isActive
-                          ? "bg-slate-100 text-slate-700"
-                          : isEven
-                          ? "bg-[#D9E1F2]/60 text-slate-900"
-                          : "text-slate-900"
+                            ? "bg-slate-100/80 text-slate-500 hover:bg-slate-200/50"
+                            : isEven
+                              ? "bg-[#D9E1F2]/40 hover:bg-blue-50/60"
+                              : "bg-white hover:bg-blue-50/60"
                       }`}
-                      title={`Referenced strictly from the final Cumulative Amount in Deposit Details for ${acc.accountNumber}`}
+                      title="Click to select, double-click or use Edit Account above to edit"
                     >
-                      <div className="flex items-center justify-end gap-1.5">
-                        <span
-                          className="text-[9px] text-emerald-700 font-sans"
-                          title="Linked from Deposit Details table"
-                        >
-                          <LinkIcon className="h-2.5 w-2.5 inline" />
-                        </span>
-                        <span className={acc.amountFromHand < 0 ? "text-red-600" : ""}>
-                          {formatCurrency(acc.amountFromHand)}
-                        </span>
-                      </div>
-                    </td>
+                      {/* Column 1: Account # */}
+                      <td
+                        data-field-kind="editable"
+                        data-field="accountNumber"
+                        className={`border border-slate-300 px-3 py-1.5 font-bold whitespace-nowrap font-mono ${isActive ? "text-[#1F4E79]" : "text-slate-600"}`}
+                      >
+                        {acc.accountNumber}
+                      </td>
 
-                    {/* Column 7: Comments (Increased Column Width) */}
-                    <td
-                      className="border border-slate-300 px-2.5 py-1.5 text-slate-600 whitespace-nowrap truncate max-w-[165px]"
-                      title={acc.comments || "—"}
-                    >
-                      {acc.comments || "—"}
-                    </td>
+                      {/* Column 2: Reduced Financial Institute/Bank tightly fitting text */}
+                      <td
+                        data-field-kind="editable"
+                        data-field="financialInstitute"
+                        data-align="center"
+                        className="border border-slate-300 px-2 py-1.5 font-bold text-center text-slate-800 whitespace-nowrap"
+                      >
+                        {acc.financialInstitute}
+                      </td>
 
-                    {/* Column 8: Tax period (Increased Column Width) */}
-                    <td
-                      className="border border-slate-300 px-2.5 py-1.5 text-slate-700 whitespace-nowrap text-[11px] truncate max-w-[210px]"
-                      title={acc.taxPeriod}
-                    >
-                      {acc.taxPeriod}
-                    </td>
-                  </tr>
-                );
-              })
+                      {/* Column 3: Differentiated Active vs Inactive Status Color Coding */}
+                      <td
+                        data-align="center"
+                        className="border border-slate-300 px-2.5 py-1.5 text-center whitespace-nowrap"
+                      >
+                        {isActive ? (
+                          <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9.5px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 shadow-2xs">
+                            <Check className="h-2.5 w-2.5 text-emerald-600" />
+                            Active
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9.5px] font-bold text-rose-800 bg-rose-100 border border-rose-300 shadow-2xs">
+                            <X className="h-2.5 w-2.5 text-rose-600" />
+                            Inactive
+                          </span>
+                        )}
+                      </td>
+
+                      <td
+                        data-field-kind="editable"
+                        data-field="accountType"
+                        className={`border border-slate-300 px-3 py-1.5 font-semibold whitespace-nowrap ${isActive ? "text-blue-950" : "text-slate-600"}`}
+                      >
+                        {acc.accountType}
+                      </td>
+
+                      {/* Column 5: ~Start Date (m/dd/yyyy format) */}
+                      <td
+                        data-field-kind="editable"
+                        data-field="startDate"
+                        data-align="center"
+                        className="border border-slate-300 px-3 py-1.5 text-center text-slate-700 whitespace-nowrap font-mono text-[11px]"
+                      >
+                        {formatMDDYYYY(acc.startDate)}
+                      </td>
+
+                      {/* Column 6: Amount from Hand (Principle Amount) */}
+                      <td
+                        data-field-kind="calculated"
+                        data-field="amountFromHand"
+                        data-align="right"
+                        className={`border border-slate-300 px-3 py-1.5 text-right font-mono font-bold whitespace-nowrap ${
+                          isGreenHighlight
+                            ? "bg-[#E2EFDA] text-emerald-950"
+                            : !isActive
+                              ? "bg-slate-100 text-slate-700"
+                              : isEven
+                                ? "bg-[#D9E1F2]/60 text-slate-900"
+                                : "text-slate-900"
+                        }`}
+                        title={`Referenced strictly from the final Cumulative Amount in Deposit Details for ${acc.accountNumber}`}
+                      >
+                        <div className="flex items-center justify-end gap-1.5">
+                          <span
+                            className="text-[9px] text-emerald-700 font-sans"
+                            title="Linked from Deposit Details table"
+                          >
+                            <LinkIcon className="h-2.5 w-2.5 inline" />
+                          </span>
+                          <span
+                            className={
+                              acc.amountFromHand < 0 ? "text-red-600" : ""
+                            }
+                          >
+                            {formatCurrency(acc.amountFromHand)}
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* Column 7: Comments (Increased Column Width) */}
+                      <td
+                        data-field-kind="editable"
+                        data-field="comments"
+                        className="border border-slate-300 px-2.5 py-1.5 text-slate-600 whitespace-nowrap truncate max-w-[165px]"
+                        title={acc.comments || "—"}
+                      >
+                        {acc.comments || "—"}
+                      </td>
+
+                      {/* Column 8: Tax period (Increased Column Width) */}
+                      <td
+                        data-field-kind="editable"
+                        data-field="taxPeriod"
+                        className="border border-slate-300 px-2.5 py-1.5 text-slate-700 whitespace-nowrap text-[11px] truncate max-w-[210px]"
+                        title={acc.taxPeriod}
+                      >
+                        {acc.taxPeriod}
+                      </td>
+                    </tr>
+                  );
+                })
               )}
 
               {/* Total Row: "Total Amount" */}
               <tr className="bg-[#E2EFDA] font-extrabold text-slate-900 border-t-2 border-slate-400">
                 <td
+                  data-align="right"
                   colSpan={5}
                   className="border border-slate-400 px-3 py-2 text-right uppercase tracking-wider text-[11px]"
                 >
                   Total Amount:
                 </td>
-                <td className={`border border-slate-400 px-3 py-2 text-right font-mono text-[13px] bg-[#C6E0B4] whitespace-nowrap ${totalAmountFromHand < 0 ? "text-red-700" : "text-emerald-950"}`}>
+                <td
+                  data-align="right"
+                  className={`border border-slate-400 px-3 py-2 text-right font-mono text-[13px] bg-[#C6E0B4] whitespace-nowrap ${totalAmountFromHand < 0 ? "text-red-700" : "text-emerald-950"}`}
+                >
                   {formatCurrency(filteredTotalAmount)}
                 </td>
-                <td colSpan={2} className="border border-slate-400 text-center whitespace-nowrap text-slate-400">
+                <td
+                  data-align="center"
+                  colSpan={2}
+                  className="border border-slate-400 text-center whitespace-nowrap text-slate-400"
+                >
                   —
                 </td>
               </tr>
@@ -943,7 +1091,7 @@ export default function AccountDetailsSheet({
         {/* Deposit Details Table: strictly fitted to max column width */}
         <div className="freeze-header-scroll relative max-h-[60vh] overflow-auto">
           <table
-            className="freeze-header-table table-fixed border-separate border-spacing-0 text-xs"
+            className="deposit-details-table freeze-header-table table-fixed border-separate border-spacing-0 text-xs"
             style={{ width: depTotalWidth, minWidth: depTotalWidth }}
           >
             <colgroup>
@@ -952,48 +1100,76 @@ export default function AccountDetailsSheet({
               ))}
             </colgroup>
             <thead>
-              <tr className="border-b border-slate-400 bg-[#D9E1F2] text-center font-bold text-[#1F4E79]">
-                <th className="border border-slate-300 px-3 py-1.5 text-left whitespace-nowrap">
-                  Account #
+              <tr>
+                <th
+                  scope="col"
+                  data-field-kind="readonly"
+                  className="border border-slate-300 whitespace-normal"
+                >
+                  <FieldHeader label="Account #" kind="readonly" />
                 </th>
-                <th className="border border-slate-300 px-3 py-1.5 text-center whitespace-nowrap">
-                  Deposit Date
+                <th
+                  scope="col"
+                  data-field-kind="editable"
+                  className="border border-slate-300 whitespace-normal"
+                >
+                  <FieldHeader label="Deposit Date" kind="editable" />
                 </th>
-                {/* Amount column header highlighted in light amber with edit indication */}
-                <th className="border border-slate-300 px-3 py-1.5 text-right whitespace-nowrap bg-[#FFF2CC] text-[#78350F] font-bold">
-                  <div className="inline-flex items-center justify-end gap-1">
-                    <span>Amount</span>
-                    <Pencil className="h-2.5 w-2.5 text-amber-600 inline" />
-                  </div>
+                <th
+                  scope="col"
+                  data-field-kind="editable"
+                  className="border border-slate-300 whitespace-normal"
+                >
+                  <FieldHeader label="Amount" kind="editable" />
                 </th>
-                <th className="border border-slate-300 px-3 py-1.5 text-right whitespace-nowrap bg-[#C6D9F1] text-[#1F4E79] font-bold">
-                  Cumulative Amt
+                <th
+                  scope="col"
+                  data-field-kind="calculated"
+                  className="border border-slate-300 whitespace-normal"
+                >
+                  <FieldHeader label="Cumulative Amt" kind="calculated" />
                 </th>
-                <th className="border border-slate-300 px-3 py-1.5 text-left whitespace-nowrap">
-                  Comments
+                <th
+                  scope="col"
+                  data-field-kind="editable"
+                  className="border border-slate-300 whitespace-normal"
+                >
+                  <FieldHeader label="Comments" kind="editable" />
                 </th>
-                <th className="border border-slate-300 px-2 py-1.5 text-center whitespace-nowrap">
-                  Actions
+                <th
+                  scope="col"
+                  data-field-kind="readonly"
+                  className="border border-slate-300 whitespace-normal"
+                >
+                  <FieldHeader label="Actions" kind="readonly" />
                 </th>
               </tr>
             </thead>
             <tbody>
               {accountsList.map((accNum, accIdx) => {
                 const deps = depositsByAccount[accNum] || [];
-                const finalCumulative = deps.length > 0 ? deps[deps.length - 1].cumulativeAmt : 0;
+                const finalCumulative =
+                  deps.length > 0 ? deps[deps.length - 1].cumulativeAmt : 0;
                 const isCollapsed = collapsedAccounts.has(accNum);
 
                 return (
                   <React.Fragment key={accNum}>
                     {/* Collapsible Account Group Header Row */}
                     <tr className="bg-[#E7E6E6] border-y border-slate-300 transition-colors">
-                      <td colSpan={6} className="border border-slate-300 px-3 py-1">
+                      <td
+                        colSpan={6}
+                        className="border border-slate-300 px-3 py-1"
+                      >
                         <div className="flex items-center justify-between gap-3">
                           <button
                             type="button"
                             onClick={() => toggleAccountCollapse(accNum)}
                             className="inline-flex items-center gap-1.5 font-bold text-[#1F4E79] hover:text-blue-900 transition text-[11px]"
-                            title={isCollapsed ? `Expand deposits for ${accNum}` : `Collapse deposits for ${accNum}`}
+                            title={
+                              isCollapsed
+                                ? `Expand deposits for ${accNum}`
+                                : `Collapse deposits for ${accNum}`
+                            }
                             aria-expanded={!isCollapsed}
                           >
                             {isCollapsed ? (
@@ -1003,7 +1179,9 @@ export default function AccountDetailsSheet({
                             )}
                             <span className="font-mono">{accNum}</span>
                             <span className="text-[10px] font-normal text-slate-500">
-                              ({deps.length} {deps.length === 1 ? "deposit" : "deposits"} · Final: {formatCurrency(finalCumulative)})
+                              ({deps.length}{" "}
+                              {deps.length === 1 ? "deposit" : "deposits"} ·
+                              Final: {formatCurrency(finalCumulative)})
                             </span>
                           </button>
                           <button
@@ -1020,11 +1198,12 @@ export default function AccountDetailsSheet({
                     </tr>
 
                     {/* Deposit rows shown when expanded */}
-                    {!isCollapsed && (
-                      deps.length > 0 ? (
+                    {!isCollapsed &&
+                      (deps.length > 0 ? (
                         deps.map((dep, depIdx) => {
                           const isFinalRow = depIdx === deps.length - 1;
-                          const isEditingThisAmount = editingAmountId === dep.id;
+                          const isEditingThisAmount =
+                            editingAmountId === dep.id;
                           const isNegativeAmount = dep.amount < 0;
                           const isNegativeCumulative = dep.cumulativeAmt < 0;
 
@@ -1032,7 +1211,9 @@ export default function AccountDetailsSheet({
                             <tr
                               key={dep.id}
                               className={`transition-colors hover:bg-blue-50/40 ${
-                                isFinalRow ? "font-semibold bg-white" : "bg-white"
+                                isFinalRow
+                                  ? "font-semibold bg-white"
+                                  : "bg-white"
                               }`}
                             >
                               {/* Account # */}
@@ -1042,7 +1223,9 @@ export default function AccountDetailsSheet({
                                     <span>{accNum}</span>
                                     <button
                                       type="button"
-                                      onClick={() => handleOpenAddDeposit(accNum)}
+                                      onClick={() =>
+                                        handleOpenAddDeposit(accNum)
+                                      }
                                       className="p-0.5 text-slate-400 hover:text-emerald-700"
                                       title={`Add deposit for ${accNum}`}
                                     >
@@ -1057,12 +1240,22 @@ export default function AccountDetailsSheet({
                               </td>
 
                               {/* Deposit Date in m/dd/yyyy format */}
-                              <td className="border border-slate-300 px-3 py-1.5 text-center font-mono text-[11px] whitespace-nowrap text-slate-800">
+                              <td
+                                data-field-kind="editable"
+                                data-field="dateInvested"
+                                data-align="center"
+                                onDoubleClick={() => handleOpenEditDeposit(dep)}
+                                title="Double-click to edit deposit date"
+                                className="border border-slate-300 px-3 py-1.5 text-center font-mono text-[11px] whitespace-nowrap text-slate-800"
+                              >
                                 {formatMDDYYYY(dep.dateInvested)}
                               </td>
 
                               {/* EDITABLE AMOUNT CELL: Direct in-cell edit with double-click or pencil (allows negative) */}
                               <td
+                                data-field-kind="editable"
+                                data-field="amount"
+                                data-align="right"
                                 onDoubleClick={(e) => {
                                   e.stopPropagation();
                                   startInlineEditAmount(dep);
@@ -1084,7 +1277,9 @@ export default function AccountDetailsSheet({
                                       step="any"
                                       autoFocus
                                       value={editingAmountVal}
-                                      onChange={(e) => setEditingAmountVal(e.target.value)}
+                                      onChange={(e) =>
+                                        setEditingAmountVal(e.target.value)
+                                      }
                                       onKeyDown={(e) => {
                                         if (e.key === "Enter") {
                                           e.preventDefault();
@@ -1100,7 +1295,9 @@ export default function AccountDetailsSheet({
                                     />
                                     <button
                                       type="button"
-                                      onClick={() => handleSaveInlineAmount(dep)}
+                                      onClick={() =>
+                                        handleSaveInlineAmount(dep)
+                                      }
                                       disabled={isSavingInline}
                                       className="p-1 text-emerald-700 hover:bg-emerald-100 rounded"
                                       title="Save Amount (Enter)"
@@ -1131,7 +1328,9 @@ export default function AccountDetailsSheet({
                                     </button>
                                     <span
                                       className={`font-semibold ${
-                                        isNegativeAmount ? "text-red-600 font-bold" : "text-slate-900"
+                                        isNegativeAmount
+                                          ? "text-red-600 font-bold"
+                                          : "text-slate-900"
                                       }`}
                                     >
                                       {formatCurrency(dep.amount)}
@@ -1142,19 +1341,22 @@ export default function AccountDetailsSheet({
 
                               {/* Cumulative Amt */}
                               <td
+                                data-field-kind="calculated"
+                                data-field="cumulativeAmt"
+                                data-align="right"
                                 className={`border border-slate-300 px-3 py-1.5 text-right font-mono font-bold whitespace-nowrap ${
                                   isFinalRow
                                     ? isNegativeCumulative
                                       ? "bg-red-50 text-red-800"
                                       : "bg-[#E2EFDA] text-emerald-950"
                                     : isNegativeCumulative
-                                    ? "text-red-600"
-                                    : "text-slate-900"
+                                      ? "text-red-600"
+                                      : "text-slate-900"
                                 }`}
                                 title={
                                   isFinalRow
                                     ? `Final Cumulative Amount (${formatCurrency(
-                                        dep.cumulativeAmt
+                                        dep.cumulativeAmt,
                                       )}) referenced directly in Account Details for ${accNum}!`
                                     : undefined
                                 }
@@ -1163,7 +1365,9 @@ export default function AccountDetailsSheet({
                                   {isFinalRow && (
                                     <span
                                       className={`text-[9px] font-sans font-bold ${
-                                        isNegativeCumulative ? "text-red-700" : "text-emerald-700"
+                                        isNegativeCumulative
+                                          ? "text-red-700"
+                                          : "text-emerald-700"
                                       }`}
                                       title="Linked to Account Details table"
                                     >
@@ -1171,13 +1375,24 @@ export default function AccountDetailsSheet({
                                       <ArrowRight className="h-2.5 w-2.5 inline ml-0.5" />
                                     </span>
                                   )}
-                                  <span>{formatCurrency(dep.cumulativeAmt)}</span>
+                                  <span>
+                                    {formatCurrency(dep.cumulativeAmt)}
+                                  </span>
                                 </div>
                               </td>
-                              <td className="border border-slate-300 px-3 py-1.5 text-slate-700 text-[11px] whitespace-nowrap">
+                              <td
+                                data-field-kind="editable"
+                                data-field="comments"
+                                onDoubleClick={() => handleOpenEditDeposit(dep)}
+                                title="Double-click to edit deposit comments"
+                                className="border border-slate-300 px-3 py-1.5 text-slate-700 text-[11px] whitespace-nowrap"
+                              >
                                 {dep.comments || "—"}
                               </td>
-                              <td className="border border-slate-300 px-2 py-1.5 text-center whitespace-nowrap">
+                              <td
+                                data-align="center"
+                                className="border border-slate-300 px-2 py-1.5 text-center whitespace-nowrap"
+                              >
                                 <div className="flex items-center justify-center gap-1">
                                   <button
                                     type="button"
@@ -1189,7 +1404,9 @@ export default function AccountDetailsSheet({
                                   </button>
                                   <button
                                     type="button"
-                                    onClick={() => handleDeleteDeposit(dep.id, accNum)}
+                                    onClick={() =>
+                                      handleDeleteDeposit(dep.id, accNum)
+                                    }
                                     className="p-1 text-red-600 hover:text-red-800 rounded hover:bg-red-50"
                                     title="Delete Deposit"
                                   >
@@ -1203,12 +1420,16 @@ export default function AccountDetailsSheet({
                       ) : (
                         // Empty state for this account
                         <tr key={`empty-${accNum}`} className="bg-slate-50/50">
-                          <td colSpan={6} className="border border-slate-300 px-3 py-2 text-slate-400 italic text-[11px] text-center">
-                            No deposit records yet for {accNum}. Final Cumulative: $0.00
+                          <td
+                            data-align="center"
+                            colSpan={6}
+                            className="border border-slate-300 px-3 py-2 text-slate-400 italic text-[11px] text-center"
+                          >
+                            No deposit records yet for {accNum}. Final
+                            Cumulative: $0.00
                           </td>
                         </tr>
-                      )
-                    )}
+                      ))}
 
                     {/* Separator spacing row between accounts */}
                     {accIdx < accountsList.length - 1 && (
@@ -1229,8 +1450,6 @@ export default function AccountDetailsSheet({
           </table>
         </div>
       </div>
-
-
 
       {/* MODAL: ADD / EDIT DEPOSIT (ALLOWS NEGATIVE AMOUNTS) */}
       {depositModalOpen && (
@@ -1253,7 +1472,10 @@ export default function AccountDetailsSheet({
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <form onSubmit={handleSaveDepositModal} className="p-5 space-y-3.5 text-xs">
+            <form
+              onSubmit={handleSaveDepositModal}
+              className="p-5 space-y-3.5 text-xs"
+            >
               <div>
                 <label className="block text-slate-700 font-bold mb-1">
                   Account #
@@ -1288,7 +1510,10 @@ export default function AccountDetailsSheet({
 
               <div>
                 <label className="block text-slate-700 font-bold mb-1">
-                  Amount ($) <span className="text-[10px] font-normal text-slate-500">(Negative amounts allowed for withdrawals/adjustments)</span>
+                  Amount ($){" "}
+                  <span className="text-[10px] font-normal text-slate-500">
+                    (Negative amounts allowed for withdrawals/adjustments)
+                  </span>
                 </label>
                 <input
                   type="number"
@@ -1318,8 +1543,9 @@ export default function AccountDetailsSheet({
                 <span className="font-bold block mb-0.5">
                   Automatic Account Linking:
                 </span>
-                The running cumulative sum will be recalculated automatically and
-                linked to <strong>Amount from Hand (Principle Amount)</strong> in the
+                The running cumulative sum will be recalculated automatically
+                and linked to{" "}
+                <strong>Amount from Hand (Principle Amount)</strong> in the
                 Account Details table.
               </div>
 
@@ -1363,7 +1589,10 @@ export default function AccountDetailsSheet({
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <form onSubmit={handleSaveAddAccount} className="p-5 space-y-3.5 text-xs">
+            <form
+              onSubmit={handleSaveAddAccount}
+              className="p-5 space-y-3.5 text-xs"
+            >
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-slate-700 font-bold mb-1">
@@ -1451,7 +1680,10 @@ export default function AccountDetailsSheet({
 
               <div>
                 <label className="block text-slate-700 font-bold mb-1">
-                  Initial Principle Amount / Deposit ($) <span className="text-[10px] font-normal text-slate-500">(Optional - records initial deposit in Deposit Details)</span>
+                  Initial Principle Amount / Deposit ($){" "}
+                  <span className="text-[10px] font-normal text-slate-500">
+                    (Optional - records initial deposit in Deposit Details)
+                  </span>
                 </label>
                 <input
                   type="number"
@@ -1516,7 +1748,10 @@ export default function AccountDetailsSheet({
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <form onSubmit={handleSaveEditAccount} className="p-5 space-y-3.5 text-xs">
+            <form
+              onSubmit={handleSaveEditAccount}
+              className="p-5 space-y-3.5 text-xs"
+            >
               {/* Account Selector Dropdown */}
               <div className="bg-blue-50/70 border border-blue-200 rounded-lg p-2.5">
                 <label className="block text-blue-950 font-bold mb-1">
@@ -1524,12 +1759,16 @@ export default function AccountDetailsSheet({
                 </label>
                 <select
                   value={editSelectedAccId}
-                  onChange={(e) => handleSelectAccountToEdit(Number(e.target.value))}
+                  onChange={(e) =>
+                    handleSelectAccountToEdit(Number(e.target.value))
+                  }
                   className="w-full bg-white border border-blue-300 rounded p-2 text-xs font-bold text-[#1F4E79] focus:ring-2 focus:ring-[#1F4E79] outline-none"
                 >
                   {accountDetails.map((acc) => (
                     <option key={acc.id} value={acc.id}>
-                      {acc.accountNumber} ({acc.financialInstitute} · {acc.accountType}) — Principle: {formatCurrency(acc.amountFromHand)}
+                      {acc.accountNumber} ({acc.financialInstitute} ·{" "}
+                      {acc.accountType}) — Principle:{" "}
+                      {formatCurrency(acc.amountFromHand)}
                     </option>
                   ))}
                 </select>
