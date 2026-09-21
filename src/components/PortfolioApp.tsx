@@ -6,6 +6,7 @@ import * as XLSX from "xlsx-js-style";
 import AccountDetailsSheet from "@/components/AccountDetailsSheet";
 import DailyTransactionsSheet from "@/components/DailyTransactionsSheet";
 import HoldingsPerformanceTable from "@/components/HoldingsPerformanceTable";
+import LiveClock from "@/components/LiveClock";
 import LogoutButton from "@/components/LogoutButton";
 import ScreenFreezeBoundary from "@/components/ScreenFreezeBoundary";
 import TabFreezeToggle from "@/components/TabFreezeToggle";
@@ -609,16 +610,16 @@ const e = {
                 (0, t.jsxs)("div", {
                   className: "flex items-center gap-1",
                   children: [
-                    (0, t.jsx)("time", {
-                      className: "portfolio-refresh-time",
-                      dateTime: A ? A.toISOString() : undefined,
+                    (0, t.jsx)(LiveClock, {}),
+                    (0, t.jsx)("span", {
+                      className: "portfolio-refresh-stamp",
                       title: A
                         ? `Market refresh: ${C} at ${N} (Eastern)`
                         : "No market refresh recorded",
                       "aria-label": A
-                        ? `${C} at ${N} Eastern time`
+                        ? `Last market refresh ${C} at ${N} Eastern time`
                         : "No market refresh recorded",
-                      children: A ? `${C} · ${N}` : "—",
+                      children: A ? `Refreshed ${N}` : "Not synced",
                     }),
                     (0, t.jsx)(LogoutButton, {}),
                   ],

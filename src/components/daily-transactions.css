@@ -13,6 +13,30 @@
   font-variant-numeric: tabular-nums;
   font-weight: 600;
 }
+.workbook-shell .portfolio-live-clock {
+  gap: 5px;
+}
+.workbook-shell .portfolio-live-clock-value {
+  letter-spacing: 0.01em;
+}
+.workbook-shell .portfolio-refresh-stamp {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  color: #d1fae5cc;
+  white-space: nowrap;
+  font-family: var(--font-calibri);
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+@media (max-width: 640px) {
+  .workbook-shell .portfolio-refresh-stamp {
+    display: none;
+  }
+}
 .workbook-shell .daily-transactions-sheet {
   margin: 8px 0;
   min-width: 0;
