@@ -154,6 +154,56 @@
   background: #f4f7f6;
   border-radius: 0 0 10px 10px;
 }
+.workbook-shell .transactions-archive {
+  margin: 0 10px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: #eef2f7;
+  overflow: hidden;
+}
+.workbook-shell .transactions-archive-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  background: linear-gradient(110deg, #334155 0%, #475569 55%, #334155 100%);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  border: 0;
+  text-align: left;
+}
+.workbook-shell .transactions-archive-toggle:hover {
+  filter: brightness(1.08);
+}
+.workbook-shell .transactions-archive-count {
+  margin-left: auto;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.15);
+  font-size: 9.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.workbook-shell .transactions-archive-tables {
+  border-radius: 0;
+  background: #e2e8f0;
+}
+.workbook-shell .transaction-pane-archived {
+  border-color: #94a3b8;
+  opacity: 0.96;
+}
+.workbook-shell .transaction-pane-archived .transaction-pane-toolbar {
+  background: #dbe3ec;
+}
+@media (max-width: 900px) {
+  .workbook-shell .transactions-archive-tables {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
 .workbook-shell .transaction-pane {
   min-width: 0;
   border: 1px solid #bfcfc8;

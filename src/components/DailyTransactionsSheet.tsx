@@ -391,13 +391,38 @@ export default function DailyTransactionsSheet({
         .sort((a, b) => a.localeCompare(b, undefined, { numeric: true })),
     [inventoryAccounts, entries],
   );
+  // Transactions dated more than one week ago move out of the live Buy/Sell
+  // tables into a separate consolidated (archive) section. "Recent" keeps the
+  // last 7 days so the working view stays focused on current activity.
+  const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+  const { recentEntries, archivedEntries } = useMemo(() => {
+    const cutoff = Date.now() - ONE_WEEK_MS;
+    const recent: DailyTransaction[] = [];
+    const archived: DailyTransaction[] = [];
+    for (const entry of entries) {
+      const ts = Date.parse(entry.dateTime);
+      // Undated / unparseable rows stay in the recent view rather than vanish.
+      if (Number.isFinite(ts) && ts < cutoff) archived.push(entry);
+      else recent.push(entry);
+    }
+    return { recentEntries: recent, archivedEntries: archived };
+  }, [entries, ONE_WEEK_MS]);
+
   const buyGroups = useMemo(
-    () => groupTransactionsByAccount(entries, "BUY", selectedAccounts),
-    [entries, selectedAccounts],
+    () => groupTransactionsByAccount(recentEntries, "BUY", selectedAccounts),
+    [recentEntries, selectedAccounts],
   );
   const sellGroups = useMemo(
-    () => groupTransactionsByAccount(entries, "SELL", selectedAccounts),
-    [entries, selectedAccounts],
+    () => groupTransactionsByAccount(recentEntries, "SELL", selectedAccounts),
+    [recentEntries, selectedAccounts],
+  );
+  const archivedBuyGroups = useMemo(
+    () => groupTransactionsByAccount(archivedEntries, "BUY", selectedAccounts),
+    [archivedEntries, selectedAccounts],
+  );
+  const archivedSellGroups = useMemo(
+    () => groupTransactionsByAccount(archivedEntries, "SELL", selectedAccounts),
+    [archivedEntries, selectedAccounts],
   );
   const visibleBuys = buyGroups.flatMap((group) => group.rows);
   const selectedBuy = visibleBuys.find(
@@ -408,6 +433,16 @@ export default function DailyTransactionsSheet({
     (sum, group) => sum + group.rows.length,
     0,
   );
+  const archivedBuyCount = archivedBuyGroups.reduce(
+    (sum, group) => sum + group.rows.length,
+    0,
+  );
+  const archivedSellCount = archivedSellGroups.reduce(
+    (sum, group) => sum + group.rows.length,
+    0,
+  );
+  const archivedCount = archivedBuyCount + archivedSellCount;
+  const [showArchive, setShowArchive] = useState(false);
 
   function toggleGroup(key: string) {
     setCollapsedGroups((prev) => {
@@ -574,44 +609,62 @@ export default function DailyTransactionsSheet({
     );
   }
 
-  function renderTable(side: TradeSide) {
-    const groups = side === "BUY" ? buyGroups : sellGroups;
+  function renderTable(side: TradeSide, variant: "recent" | "archived" = "recent") {
+    const archived = variant === "archived";
+    const groups = archived
+      ? side === "BUY"
+        ? archivedBuyGroups
+        : archivedSellGroups
+      : side === "BUY"
+        ? buyGroups
+        : sellGroups;
     const visible = columns[side].filter((col) => col.visible);
-    const count = side === "BUY" ? buyCount : sellCount;
+    const count = archived
+      ? side === "BUY"
+        ? archivedBuyCount
+        : archivedSellCount
+      : side === "BUY"
+        ? buyCount
+        : sellCount;
     const buy = side === "BUY";
     const label = buy ? "Buy" : "Sell";
+    const keyPrefix = archived ? `ARCH-${side}` : side;
     const contextAccount =
       selectedAccounts?.length === 1 ? selectedAccounts[0] : undefined;
     return (
       <section
-        className={`transaction-pane transaction-pane-${side.toLowerCase()}`}
-        aria-labelledby={`${side}-transactions-title`}
+        className={`transaction-pane transaction-pane-${side.toLowerCase()}${archived ? " transaction-pane-archived" : ""}`}
+        aria-labelledby={`${keyPrefix}-transactions-title`}
         data-side={side}
       >
         <div className="transaction-pane-toolbar">
           <div className="transaction-pane-title">
-            <h3 id={`${side}-transactions-title`}>{label} Transactions</h3>
+            <h3 id={`${keyPrefix}-transactions-title`}>
+              {archived ? `Consolidated ${label}` : `${label} Transactions`}
+            </h3>
             <span className="transaction-count">
               {count} {count === 1 ? "row" : "rows"}
             </span>
           </div>
-          <div className="transaction-pane-actions">
-            {buy && selectedBuy && (
+          {!archived && (
+            <div className="transaction-pane-actions">
+              {buy && selectedBuy && (
+                <button
+                  type="button"
+                  className="transaction-sell-selected"
+                  onClick={() => onSellSelected(selectedBuy)}
+                >
+                  Sell Selected Buy
+                </button>
+              )}
               <button
                 type="button"
-                className="transaction-sell-selected"
-                onClick={() => onSellSelected(selectedBuy)}
+                onClick={() => onOpenAddModal(side, contextAccount)}
               >
-                Sell Selected Buy
+                <Plus size={15} /> Add {label}
               </button>
-            )}
-            <button
-              type="button"
-              onClick={() => onOpenAddModal(side, contextAccount)}
-            >
-              <Plus size={15} /> Add {label}
-            </button>
-          </div>
+            </div>
+          )}
         </div>
         <div
           className="transaction-table-scroll freeze-header-scroll"
@@ -683,7 +736,7 @@ export default function DailyTransactionsSheet({
                 </tr>
               ) : (
                 groups.map(({ accountNumber, rows }) => {
-                  const key = `${side}:${accountNumber}`;
+                  const key = `${keyPrefix}:${accountNumber}`;
                   const collapsed = collapsedGroups.has(key);
                   return (
                     <Fragment key={key}>
@@ -713,17 +766,19 @@ export default function DailyTransactionsSheet({
                                   : "transactions"}
                               </span>
                             </button>
-                            <button
-                              type="button"
-                              className="transaction-group-add"
-                              onClick={() =>
-                                onOpenAddModal(side, accountNumber)
-                              }
-                              aria-label={`Add ${label.toLowerCase()} for ${accountNumber}`}
-                            >
-                              <Plus size={14} />
-                              <span>Add {label}</span>
-                            </button>
+                            {!archived && (
+                              <button
+                                type="button"
+                                className="transaction-group-add"
+                                onClick={() =>
+                                  onOpenAddModal(side, accountNumber)
+                                }
+                                aria-label={`Add ${label.toLowerCase()} for ${accountNumber}`}
+                              >
+                                <Plus size={14} />
+                                <span>Add {label}</span>
+                              </button>
+                            )}
                           </div>
                         </th>
                       </tr>
@@ -996,6 +1051,37 @@ export default function DailyTransactionsSheet({
         {renderTable("BUY")}
         {renderTable("SELL")}
       </div>
+
+      {archivedCount > 0 && (
+        <div className="transactions-archive">
+          <button
+            type="button"
+            className="transactions-archive-toggle"
+            aria-expanded={showArchive}
+            aria-controls="transactions-archive-panel"
+            onClick={() => setShowArchive((prev) => !prev)}
+          >
+            {showArchive ? (
+              <ChevronDown size={15} />
+            ) : (
+              <ChevronRight size={15} />
+            )}
+            <span>Consolidated Transactions · older than 1 week</span>
+            <span className="transactions-archive-count">
+              {archivedBuyCount} Buy · {archivedSellCount} Sell
+            </span>
+          </button>
+          {showArchive && (
+            <div
+              id="transactions-archive-panel"
+              className="transactions-side-by-side transactions-archive-tables"
+            >
+              {renderTable("BUY", "archived")}
+              {renderTable("SELL", "archived")}
+            </div>
+          )}
+        </div>
+      )}
     </section>
   );
 }
