@@ -2759,7 +2759,7 @@ const e = {
     let [u, p] = (0, r.useState)(s || n[0]?.accountNumber || ""),
       [m, g] = (0, r.useState)(i),
       [b, x] = (0, r.useState)(o || "GOOG"),
-      [v, y] = (0, r.useState)("5"),
+      [v, y] = (0, r.useState)("0"),
       [w, A] = (0, r.useState)(""),
       [T, C] = (0, r.useState)(""),
       [E, k] = (0, r.useState)(null),
@@ -2797,7 +2797,7 @@ const e = {
       s && p(s),
         o && x(o),
         i && g(i),
-        y(void 0 !== l ? l.toString() : "5"),
+        y(void 0 !== l ? l.toString() : "0"),
         A("");
       let accObj = n.find((item) => item.accountNumber === nextAcc) || n[0];
       let matchH =

@@ -528,13 +528,6 @@ export default function DailyTransactionsSheet({
         display = (
           <span className="transaction-quantity">
             <span>{quantity(row.quantity)}</span>
-            {!isSell && (
-              <span className="transaction-secondary">
-                {row.remainingQuantity > 0
-                  ? `${quantity(row.remainingQuantity)} available`
-                  : "Fully sold"}
-              </span>
-            )}
           </span>
         );
         break;
