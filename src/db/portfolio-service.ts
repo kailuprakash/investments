@@ -1265,22 +1265,26 @@ export async function executeFutureTrade(data: {
       });
     }
   } else {
-    // SELL: deduct sold quantity and sold cost basis
+    // SELL: reduce the Consolidated View holding using the average-cost method.
     if (existingHolding) {
       const newQty = Math.max(0, round2(existingHolding.quantity - quantity));
       if (newQty <= 0) {
+        // Fully sold: nothing left to hold, so remove the row entirely.
         await db
           .delete(holdingsTable)
           .where(eq(holdingsTable.id, existingHolding.id));
       } else {
-        const priorInvest =
-          existingHolding.investAmount > 0
-            ? existingHolding.investAmount
-            : round2(existingHolding.quantity * existingHolding.purchasePrice);
-        const soldCost = round2(quantity * basePrice);
-        const newInvest = Math.max(0, round2(priorInvest - soldCost));
-        const newAvg =
-          newQty > 0 ? round2(newInvest / newQty) : round2(basePrice);
+        // Average-cost method: the per-share average of the *remaining* shares
+        // does not change on a sale. The average that shares carried before the
+        // sale is preserved and only quantity + invested amount shrink. We use
+        // the holding's own maintained average (purchasePrice) as the source of
+        // truth so repeated partial sells never let rounding drift the average.
+        const remainingAvg = round2(
+          existingHolding.purchasePrice > 0
+            ? existingHolding.purchasePrice
+            : basePrice,
+        );
+        const newInvest = round2(newQty * remainingAvg);
         const newOverall = round2(newQty * currentPrice);
         const newPL = round2(newOverall - newInvest);
         const newPLPct = newInvest > 0 ? round2((newPL / newInvest) * 100) : 0;
@@ -1288,7 +1292,7 @@ export async function executeFutureTrade(data: {
           .update(holdingsTable)
           .set({
             quantity: newQty,
-            purchasePrice: newAvg,
+            purchasePrice: remainingAvg,
             investAmount: newInvest,
             currentPrice,
             overallCurrentPrice: newOverall,

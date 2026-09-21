@@ -2813,16 +2813,28 @@ const e = {
               0,
             ) / totQ
           : null;
+      // SELL prefills the Consolidated View weighted average (holdAvg). BUY /
+      // "Sell Selected Buy" fall back to the passed lot cost when present.
       let initAvg =
-        void 0 !== h && null !== h && h > 0
-          ? Number(h).toFixed(2)
-          : holdAvg && holdAvg > 0
+        "SELL" === (i || "BUY")
+          ? holdAvg && holdAvg > 0
             ? Number(holdAvg).toFixed(2)
-            : "";
+            : void 0 !== h && null !== h && h > 0
+              ? Number(h).toFixed(2)
+              : ""
+          : void 0 !== h && null !== h && h > 0
+            ? Number(h).toFixed(2)
+            : holdAvg && holdAvg > 0
+              ? Number(holdAvg).toFixed(2)
+              : "";
       setAvgCostInput(initAvg), k(null), O([]), R(!1), B(!1), C(""), V(null);
     }, [s, o, i, l, f, e]),
       (0, r.useEffect)(() => {
-        if (!e || f) return;
+        if (!e) return;
+        // SELL always refreshes its average from the Consolidated View holding
+        // (account-level weighted average), including "Sell Selected Buy".
+        // BUY without a source lot keeps its existing prefill behaviour.
+        if ("SELL" !== m && f) return;
         let accObj = n.find((item) => item.accountNumber === u) || n[0];
         let matchH =
           accObj?.holdings.filter(
@@ -2837,10 +2849,8 @@ const e = {
                 0,
               ) / totQ
             : null;
-        setAvgCostInput(
-          holdAvg && holdAvg > 0 ? Number(holdAvg).toFixed(2) : "",
-        );
-      }, [u, b, e, f]),
+        if (holdAvg && holdAvg > 0) setAvgCostInput(Number(holdAvg).toFixed(2));
+      }, [u, b, e, f, m, n]),
       (0, r.useEffect)(() => {
         let t = b.trim();
         if (!e || !L || !t) return void O([]);
@@ -2905,7 +2915,11 @@ const e = {
         (ei = Number(((et * (ee?.purchasePrice || 0) + q * J) / eo).toFixed(4)))
       : (eo = Math.max(0, et - q));
     let parsedAvgCost = parseFloat(avgCostInput),
-      defaultAvgCost = h ?? er ?? J,
+      // For SELL, the average cost must come from the Consolidated View holding
+      // (er = weighted average of quantity × purchasePrice). Only if that is
+      // unavailable do we fall back to a passed-in lot cost, then the price.
+      defaultAvgCost =
+        "SELL" === m ? (er ?? h ?? J) : (h ?? er ?? J),
       ec =
         "SELL" === m
           ? Number.isFinite(parsedAvgCost) && parsedAvgCost > 0
