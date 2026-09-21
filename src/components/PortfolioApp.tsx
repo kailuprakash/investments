@@ -5177,13 +5177,14 @@ const e = {
       [o, i] = r.default.useState(!0),
       [l, c] = r.default.useState(null),
       [f, d] = r.default.useState(new Set()),
+      [lv, setLv] = r.default.useState(null),
       u = r.default.useCallback(async (e = !1) => {
         try {
           e || i(!0);
           let t = await fetch("/api/weekly-history", { cache: "no-store" }),
             r = await t.json();
           if (!t.ok) throw Error(r.error || "Unable to load account history");
-          a(r.history || []), c(null);
+          a(r.history || []), setLv(r.live || null), c(null);
         } catch (e) {
           c(e instanceof Error ? e.message : "Unable to load account history");
         } finally {
@@ -5203,13 +5204,36 @@ const e = {
         [e],
       ),
       m = r.default.useMemo(() => {
+        // Live current-period timestamp label (Eastern), e.g. "as of 09/20 3:14 PM".
+        let liveStamp = lv?.capturedAt
+          ? new Intl.DateTimeFormat("en-US", {
+              month: "2-digit",
+              day: "2-digit",
+              hour: "2-digit",
+              minute: "2-digit",
+              timeZone: "America/New_York",
+            }).format(new Date(lv.capturedAt))
+          : "";
         if ("WEEKLY" === n) {
           let t = new Map();
-          return (
-            e.forEach((e) => {
-              let r = t.get(e.snapshotWeek) || [];
-              r.push(e), t.set(e.snapshotWeek, r);
-            }),
+          e.forEach((e) => {
+            let r = t.get(e.snapshotWeek) || [];
+            r.push(e), t.set(e.snapshotWeek, r);
+          });
+          let liveWeek = lv?.weekEnding || "";
+          // Live current week: derived at load time, never a stored snapshot.
+          let columns = [];
+          if (liveWeek && Array.isArray(lv?.weekly) && lv.weekly.length > 0) {
+            columns.push({
+              key: `W-LIVE-${liveWeek}`,
+              label: `Current week · as of ${liveStamp} ET`,
+              rows: lv.weekly,
+              isLive: true,
+            });
+            // Avoid duplicating the same Saturday if a stored row already exists.
+            t.delete(liveWeek);
+          }
+          return columns.concat(
             Array.from(t.entries())
               .sort(([e], [t]) => t.localeCompare(e))
               .slice(0, 8)
@@ -5217,29 +5241,39 @@ const e = {
                 key: `W-${e}`,
                 label: `Week ending ${new Intl.DateTimeFormat("en-US", { month: "2-digit", day: "2-digit", year: "numeric", timeZone: "America/New_York" }).format(new Date(`${e}T12:00:00.000Z`))}`,
                 rows: t,
-              }))
+              })),
           );
         }
         let t = new Map();
-        return (
-          e
-            .slice()
-            .sort((e, t) => t.snapshotWeek.localeCompare(e.snapshotWeek))
-            .forEach((e) => {
-              let r = e.snapshotWeek.slice(0, 7),
-                a = `${r}|${e.accountNumber}`;
-              t.has(a) || t.set(a, e);
-            }),
+        e.slice()
+          .sort((e, t) => t.snapshotWeek.localeCompare(e.snapshotWeek))
+          .forEach((e) => {
+            let r = e.snapshotWeek.slice(0, 7),
+              a = `${r}|${e.accountNumber}`;
+            t.has(a) || t.set(a, e);
+          });
+        let liveMonth = lv?.monthKey || "";
+        let monthCols = [];
+        if (liveMonth && Array.isArray(lv?.weekly) && lv.weekly.length > 0) {
+          monthCols.push({
+            key: `M-LIVE-${liveMonth}`,
+            label: `Current month · as of ${liveStamp} ET`,
+            rows: lv.weekly,
+            isLive: true,
+          });
+        }
+        return monthCols.concat(
           Array.from(new Set(e.map((e) => e.snapshotWeek.slice(0, 7))))
+            .filter((e) => e !== liveMonth)
             .sort((e, t) => t.localeCompare(e))
             .slice(0, 12)
             .map((e) => ({
               key: `M-${e}`,
               label: `Month ${new Intl.DateTimeFormat("en-US", { month: "short", year: "numeric", timeZone: "America/New_York" }).format(new Date(`${e}-01T12:00:00.000Z`))}`,
               rows: p.map((r) => t.get(`${e}|${r}`)).filter((e) => !!e),
-            }))
+            })),
         );
-      }, [p, e, n]),
+      }, [p, e, n, lv]),
       g = Math.ceil(
         Math.max("Account".length, ...p.map((x) => String(x || "").length)) *
           9 +
@@ -5629,6 +5663,7 @@ const e = {
       [o, i] = r.default.useState(!0),
       [l, c] = r.default.useState(null),
       [f, h] = r.default.useState(new Set()),
+      [lv, setLv] = r.default.useState(null),
       d = r.default.useCallback(async (e = !1) => {
         try {
           e || i(!0);
@@ -5638,7 +5673,7 @@ const e = {
             r = await t.json();
           if (!t.ok)
             throw Error(r.error || "Unable to load transaction history");
-          a(r.history || []), c(null);
+          a(r.history || []), setLv(r.live || null), c(null);
         } catch (e) {
           c(
             e instanceof Error
@@ -5662,13 +5697,33 @@ const e = {
         [e],
       ),
       p = r.default.useMemo(() => {
+        let liveStamp = lv?.capturedAt
+          ? new Intl.DateTimeFormat("en-US", {
+              month: "2-digit",
+              day: "2-digit",
+              hour: "2-digit",
+              minute: "2-digit",
+              timeZone: "America/New_York",
+            }).format(new Date(lv.capturedAt))
+          : "";
         if ("WEEKLY" === n) {
           let t = new Map();
-          return (
-            e.forEach((e) => {
-              let r = t.get(e.snapshotWeek) || [];
-              r.push(e), t.set(e.snapshotWeek, r);
-            }),
+          e.forEach((e) => {
+            let r = t.get(e.snapshotWeek) || [];
+            r.push(e), t.set(e.snapshotWeek, r);
+          });
+          let liveWeek = lv?.weekEnding || "";
+          let columns = [];
+          if (liveWeek && Array.isArray(lv?.transactions) && lv.transactions.length > 0) {
+            columns.push({
+              key: `W-LIVE-${liveWeek}`,
+              label: `Current week · as of ${liveStamp} ET`,
+              rows: lv.transactions,
+              isLive: true,
+            });
+            t.delete(liveWeek);
+          }
+          return columns.concat(
             Array.from(t.entries())
               .sort(([e], [t]) => t.localeCompare(e))
               .slice(0, 8)
@@ -5676,41 +5731,69 @@ const e = {
                 key: `W-${e}`,
                 label: `Week ending ${new Intl.DateTimeFormat("en-US", { month: "2-digit", day: "2-digit", year: "numeric", timeZone: "America/New_York" }).format(new Date(`${e}T12:00:00.000Z`))}`,
                 rows: t,
-              }))
+              })),
           );
         }
-        return Array.from(new Set(e.map((e) => e.snapshotWeek.slice(0, 7))))
-          .sort((e, t) => t.localeCompare(e))
-          .slice(0, 12)
-          .map((t) => ({
-            key: `M-${t}`,
-            label: `Month ${new Intl.DateTimeFormat("en-US", { month: "short", year: "numeric", timeZone: "America/New_York" }).format(new Date(`${t}-01T12:00:00.000Z`))}`,
+        let liveMonth = lv?.monthKey || "";
+        let monthCols = [];
+        if (liveMonth && Array.isArray(lv?.monthTransactions) && lv.monthTransactions.length > 0) {
+          monthCols.push({
+            key: `M-LIVE-${liveMonth}`,
+            label: `Current month · as of ${liveStamp} ET`,
             rows: u.map((r) => {
-              var a;
-              return (
-                (a = e.filter(
-                  (e) => e.accountNumber === r && e.snapshotWeek.startsWith(t),
-                )),
-                {
-                  id: -1,
-                  accountNumber: r,
-                  snapshotWeek: t,
-                  buyValue: a.reduce((e, t) => e + t.buyValue, 0),
-                  sellValue: a.reduce((e, t) => e + t.sellValue, 0),
-                  netCashFlow: a.reduce((e, t) => e + t.netCashFlow, 0),
-                  realizedGainLoss: a.reduce(
-                    (e, t) => e + t.realizedGainLoss,
-                    0,
-                  ),
-                  buyCount: a.reduce((e, t) => e + t.buyCount, 0),
-                  sellCount: a.reduce((e, t) => e + t.sellCount, 0),
-                  capturedAt: null,
-                  source: "AGGREGATED",
-                }
-              );
+              let m = lv.monthTransactions.find((x) => x.accountNumber === r);
+              return {
+                id: -1,
+                accountNumber: r,
+                snapshotWeek: liveMonth,
+                buyValue: m?.buyValue || 0,
+                sellValue: m?.sellValue || 0,
+                netCashFlow: m?.netCashFlow || 0,
+                realizedGainLoss: m?.realizedGainLoss || 0,
+                buyCount: m?.buyCount || 0,
+                sellCount: m?.sellCount || 0,
+                capturedAt: lv.capturedAt,
+                source: "LIVE_CURRENT",
+              };
             }),
-          }));
-      }, [u, e, n]),
+            isLive: true,
+          });
+        }
+        return monthCols.concat(
+          Array.from(new Set(e.map((e) => e.snapshotWeek.slice(0, 7))))
+            .filter((e) => e !== liveMonth)
+            .sort((e, t) => t.localeCompare(e))
+            .slice(0, 12)
+            .map((t) => ({
+              key: `M-${t}`,
+              label: `Month ${new Intl.DateTimeFormat("en-US", { month: "short", year: "numeric", timeZone: "America/New_York" }).format(new Date(`${t}-01T12:00:00.000Z`))}`,
+              rows: u.map((r) => {
+                var a;
+                return (
+                  (a = e.filter(
+                    (e) => e.accountNumber === r && e.snapshotWeek.startsWith(t),
+                  )),
+                  {
+                    id: -1,
+                    accountNumber: r,
+                    snapshotWeek: t,
+                    buyValue: a.reduce((e, t) => e + t.buyValue, 0),
+                    sellValue: a.reduce((e, t) => e + t.sellValue, 0),
+                    netCashFlow: a.reduce((e, t) => e + t.netCashFlow, 0),
+                    realizedGainLoss: a.reduce(
+                      (e, t) => e + t.realizedGainLoss,
+                      0,
+                    ),
+                    buyCount: a.reduce((e, t) => e + t.buyCount, 0),
+                    sellCount: a.reduce((e, t) => e + t.sellCount, 0),
+                    capturedAt: null,
+                    source: "AGGREGATED",
+                  }
+                );
+              }),
+            })),
+        );
+      }, [u, e, n, lv]),
       m = Math.ceil(
         Math.max("Account".length, ...u.map((x) => String(x || "").length)) *
           9 +

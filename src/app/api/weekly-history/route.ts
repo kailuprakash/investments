@@ -6,6 +6,7 @@ import {
   ensureDbSeeded,
   captureDueSnapshots,
   getSnapshotStatus,
+  buildLivePeriodSnapshot,
 } from "@/db/portfolio-service";
 import { desc, asc } from "drizzle-orm";
 
@@ -28,8 +29,15 @@ export async function GET(req: NextRequest) {
       .select()
       .from(weeklyHistoryTable)
       .orderBy(desc(weeklyHistoryTable.snapshotWeek), asc(weeklyHistoryTable.accountNumber));
+    // Live, un-persisted values for the current (still-open) week/month so the
+    // page always shows a fresh current-period column at load time.
+    const live = await buildLivePeriodSnapshot().catch((error: unknown) => {
+      console.error("[weekly-history] live snapshot failed:", error);
+      return null;
+    });
     return NextResponse.json({
       history,
+      live: live ? { capturedAt: live.capturedAt, weekEnding: live.weekEnding, monthKey: live.monthKey, nextSnapshotAt: live.nextSnapshotAt, weekly: live.weekly } : null,
       snapshot: capture,
       status: await getSnapshotStatus().catch(() => null),
     });

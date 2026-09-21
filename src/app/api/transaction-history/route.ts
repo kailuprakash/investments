@@ -6,6 +6,8 @@ import {
   ensureDbSeeded,
   captureDueSnapshots,
   getSnapshotStatus,
+  buildLivePeriodSnapshot,
+  buildLiveMonthTransactionTotals,
 } from "@/db/portfolio-service";
 import { desc, asc } from "drizzle-orm";
 
@@ -29,8 +31,29 @@ export async function GET(req: NextRequest) {
       .select()
       .from(transactionHistoryTable)
       .orderBy(desc(transactionHistoryTable.snapshotWeek), asc(transactionHistoryTable.accountNumber));
+    // Fresh current-period totals computed at load time (never persisted).
+    const [live, liveMonth] = await Promise.all([
+      buildLivePeriodSnapshot().catch((error: unknown) => {
+        console.error("[transaction-history] live snapshot failed:", error);
+        return null;
+      }),
+      buildLiveMonthTransactionTotals().catch((error: unknown) => {
+        console.error("[transaction-history] live month totals failed:", error);
+        return null;
+      }),
+    ]);
     return NextResponse.json({
       history,
+      live: live
+        ? {
+            capturedAt: live.capturedAt,
+            weekEnding: live.weekEnding,
+            monthKey: live.monthKey,
+            nextSnapshotAt: live.nextSnapshotAt,
+            transactions: live.transactions,
+            monthTransactions: liveMonth,
+          }
+        : null,
       snapshot: capture,
       status: await getSnapshotStatus().catch(() => null),
     });

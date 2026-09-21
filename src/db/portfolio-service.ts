@@ -20,7 +20,9 @@ import {
   describeSchedule,
   dueWeekKeys,
   mostRecentSnapshotMoment,
+  nextSnapshotMoment,
   weekEndingForDateMs,
+  weekEndingForInstant,
 } from "@/lib/snapshot-schedule";
 
 let initializedPromise: Promise<void> | null = null;
@@ -2882,6 +2884,156 @@ export async function captureDueSnapshots(
   };
   lastSnapshotCapture = result;
   return result;
+}
+
+/**
+ * Live, in-progress snapshot for the *current* (still-open) week and month.
+ *
+ * The scheduled Saturday 9 PM ET capture only records closed periods. To show
+ * the current week/month with fresh numbers, this derives — at the caller's
+ * timestamp, without persisting anything — the same shape the history rows use.
+ * Account values come from live holdings; transaction totals come from trades
+ * dated within the current open week / month.
+ */
+export async function buildLivePeriodSnapshot(now: Date = new Date()): Promise<{
+  capturedAt: string;
+  weekEnding: string;
+  monthKey: string;
+  nextSnapshotAt: string;
+  weekly: Array<{
+    accountNumber: string;
+    snapshotWeek: string;
+    investmentCurrentValue: number;
+    gainLossAmount: number;
+    gainLossPercent: number;
+    capturedAt: string;
+    source: string;
+  }>;
+  transactions: Array<{
+    accountNumber: string;
+    snapshotWeek: string;
+    buyValue: number;
+    sellValue: number;
+    netCashFlow: number;
+    realizedGainLoss: number;
+    buyCount: number;
+    sellCount: number;
+    capturedAt: string;
+    source: string;
+  }>;
+}> {
+  await ensureDbSeeded();
+  const capturedAt = now.toISOString();
+  const weekEnding = weekEndingForInstant(now);
+  const monthKey = weekEnding.slice(0, 7);
+  const nextSnapshotAt = nextSnapshotMoment(now).at.toISOString();
+
+  const state = await buildPortfolioState();
+
+  // Account value: a live now() observation of current holdings.
+  const weekly = state.accounts.map((acc) => ({
+    accountNumber: acc.accountNumber,
+    snapshotWeek: weekEnding,
+    investmentCurrentValue: round2(acc.investmentCurrent),
+    gainLossAmount: round2(acc.gainLoss),
+    gainLossPercent: round2(acc.gainLossPercent),
+    capturedAt,
+    source: "LIVE_CURRENT",
+  }));
+
+  // Transaction totals: every trade whose date falls in the current open week.
+  const totals = await buildTransactionWeeklyTotals();
+  const perAccount = totals.get(weekEnding);
+  const transactions = state.accounts.map((acc) => {
+    const agg = perAccount?.get(acc.accountNumber) ?? {
+      buyValue: 0,
+      sellValue: 0,
+      netCashFlow: 0,
+      realizedGainLoss: 0,
+      buyCount: 0,
+      sellCount: 0,
+    };
+    return {
+      accountNumber: acc.accountNumber,
+      snapshotWeek: weekEnding,
+      buyValue: agg.buyValue,
+      sellValue: agg.sellValue,
+      netCashFlow: agg.netCashFlow,
+      realizedGainLoss: agg.realizedGainLoss,
+      buyCount: agg.buyCount,
+      sellCount: agg.sellCount,
+      capturedAt,
+      source: "LIVE_CURRENT",
+    };
+  });
+
+  return { capturedAt, weekEnding, monthKey, nextSnapshotAt, weekly, transactions };
+}
+
+/**
+ * Live current-*month* transaction totals: aggregate every trade dated within
+ * the current calendar month (matches the client's YYYY-MM monthly grouping).
+ */
+export async function buildLiveMonthTransactionTotals(now: Date = new Date()): Promise<
+  Array<{
+    accountNumber: string;
+    buyValue: number;
+    sellValue: number;
+    netCashFlow: number;
+    realizedGainLoss: number;
+    buyCount: number;
+    sellCount: number;
+  }>
+> {
+  await ensureDbSeeded();
+  const monthKey = weekEndingForInstant(now).slice(0, 7);
+  const state = await buildPortfolioState();
+  const totals = await buildTransactionWeeklyTotals();
+
+  const merged = new Map<
+    string,
+    {
+      buyValue: number;
+      sellValue: number;
+      netCashFlow: number;
+      realizedGainLoss: number;
+      buyCount: number;
+      sellCount: number;
+    }
+  >();
+  for (const [week, perAccount] of totals.entries()) {
+    if (week.slice(0, 7) !== monthKey) continue;
+    for (const [account, agg] of perAccount.entries()) {
+      const current =
+        merged.get(account) ?? {
+          buyValue: 0,
+          sellValue: 0,
+          netCashFlow: 0,
+          realizedGainLoss: 0,
+          buyCount: 0,
+          sellCount: 0,
+        };
+      current.buyValue = round2(current.buyValue + agg.buyValue);
+      current.sellValue = round2(current.sellValue + agg.sellValue);
+      current.realizedGainLoss = round2(current.realizedGainLoss + agg.realizedGainLoss);
+      current.buyCount += agg.buyCount;
+      current.sellCount += agg.sellCount;
+      current.netCashFlow = round2(current.sellValue - current.buyValue);
+      merged.set(account, current);
+    }
+  }
+
+  return state.accounts.map((acc) => ({
+    accountNumber: acc.accountNumber,
+    ...(merged.get(acc.accountNumber) ?? {
+      buyValue: 0,
+      sellValue: 0,
+      netCashFlow: 0,
+      realizedGainLoss: 0,
+      buyCount: 0,
+      sellCount: 0,
+    }),
+  }));
 }
 
 /** Snapshot bookkeeping for status panels / the cron endpoint. */
