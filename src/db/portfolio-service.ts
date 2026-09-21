@@ -1274,17 +1274,20 @@ export async function executeFutureTrade(data: {
           .delete(holdingsTable)
           .where(eq(holdingsTable.id, existingHolding.id));
       } else {
-        // Average-cost method: the per-share average of the *remaining* shares
-        // does not change on a sale. The average that shares carried before the
-        // sale is preserved and only quantity + invested amount shrink. We use
-        // the holding's own maintained average (purchasePrice) as the source of
-        // truth so repeated partial sells never let rounding drift the average.
-        const remainingAvg = round2(
-          existingHolding.purchasePrice > 0
-            ? existingHolding.purchasePrice
-            : basePrice,
-        );
-        const newInvest = round2(newQty * remainingAvg);
+        // Partial sell: recalculate the Consolidated View average from the
+        // remaining quantity. Remove the sold shares' cost (soldQty × the sell's
+        // average cost) from the prior invested amount, then re-derive the
+        // per-share average as remaining invested ÷ remaining quantity.
+        //   - Selling at the same average leaves the average unchanged.
+        //   - Selling at a different average (overridden in the sell modal)
+        //     shifts the remaining average, weighted by quantity.
+        const priorInvest =
+          existingHolding.investAmount > 0
+            ? existingHolding.investAmount
+            : round2(existingHolding.quantity * existingHolding.purchasePrice);
+        const soldCost = round2(quantity * basePrice);
+        const newInvest = Math.max(0, round2(priorInvest - soldCost));
+        const remainingAvg = newQty > 0 ? round2(newInvest / newQty) : 0;
         const newOverall = round2(newQty * currentPrice);
         const newPL = round2(newOverall - newInvest);
         const newPLPct = newInvest > 0 ? round2((newPL / newInvest) * 100) : 0;
