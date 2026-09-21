@@ -1526,8 +1526,8 @@ const e = {
       id: "purchasePrice",
       label: "Avg Price",
       visible: true,
-      editable: true,
-      kind: "editable",
+      editable: false,
+      kind: "calculated",
       align: "right",
     },
     {
