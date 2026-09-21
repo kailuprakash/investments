@@ -21,6 +21,7 @@ import {
   dueWeekKeys,
   mostRecentSnapshotMoment,
   weekEndingForDateMs,
+  weekEndingForInstant,
 } from "@/lib/snapshot-schedule";
 
 let initializedPromise: Promise<void> | null = null;
@@ -2752,11 +2753,10 @@ export async function captureDueSnapshots(
 
   const missingWeeks = due.filter((k) => k > weeklyDone);
   const missingTxWeeks = due.filter((k) => k > txDone);
-  if (!force && missingWeeks.length === 0 && missingTxWeeks.length === 0) {
-    const result = { ...empty, ran: false, reason: "up-to-date" as const };
-    lastSnapshotCapture = result;
-    return result;
-  }
+  // Note: we do NOT early-return when there are no missing closed weeks. The
+  // current in-progress week must still be refreshed live on each load so the
+  // weekly/monthly views reflect the current timestamp. The 60s throttle above
+  // keeps this cheap, and every write below is an idempotent upsert.
 
   const state = await buildPortfolioState();
   if (state.accounts.length === 0) {
@@ -2766,29 +2766,52 @@ export async function captureDueSnapshots(
   }
 
   const capturedAt = mostRecentSnapshotMoment(now).at.toISOString();
+  const nowIso = now.toISOString();
   const sourceTag = force ? "MANUAL_RECALCULATE" : "SATURDAY_9PM_ET";
 
+  // The Sun–Sat week that is still open right now. Its Saturday 9 PM backup has
+  // not fired yet, so we keep a live, page-load-time measurement for it.
+  const currentWeek = weekEndingForInstant(now);
+
   // ---- Account-value history -------------------------------------------------
-  // Only the just-closed week can be measured: prices are a now() observation,
-  // so writing "values" for older unrecorded weeks would fabricate history.
-  const valueWeeks = (force ? [mostRecentClosed] : missingWeeks).filter(
+  // Two things happen here:
+  //   1. The just-closed week is the authoritative Saturday 9 PM ET backup.
+  //   2. The still-open current week is refreshed live from now()'s prices on
+  //      every load, so the weekly AND monthly views always show the current
+  //      period. Older unrecorded weeks are never fabricated (no live prices).
+  const backupWeeks = (force ? [mostRecentClosed] : missingWeeks).filter(
     (k) => k === mostRecentClosed,
   );
+  // A per-week map so the current week is measured "as of now", while the
+  // closed backup week keeps the Saturday 9 PM timestamp.
+  const valueWeekPlan = new Map<string, { source: string; capturedAt: string }>();
+  for (const week of backupWeeks) {
+    valueWeekPlan.set(week, { source: sourceTag, capturedAt });
+  }
+  // Always refresh the live current-week row (unless it *is* the just-closed
+  // backup week, already handled above).
+  if (!valueWeekPlan.has(currentWeek)) {
+    valueWeekPlan.set(currentWeek, { source: "LIVE_CURRENT", capturedAt: nowIso });
+  }
+
   let weeklyRowsWritten = 0;
-  for (const week of valueWeeks) {
+  for (const [week, meta] of valueWeekPlan) {
     for (const acc of state.accounts) {
       const values = {
         investmentCurrentValue: round2(acc.investmentCurrent),
         gainLossAmount: round2(acc.gainLoss),
         gainLossPercent: round2(acc.gainLossPercent),
-        capturedAt,
-        source: sourceTag,
+        capturedAt: meta.capturedAt,
+        source: meta.source,
       };
       const target = [
         weeklyHistoryTable.accountNumber,
         weeklyHistoryTable.snapshotWeek,
       ];
-      if (force) {
+      // The current live week and forced recalcs overwrite; the closed backup
+      // week is written once and then preserved.
+      const overwrite = force || meta.source === "LIVE_CURRENT";
+      if (overwrite) {
         await db
           .insert(weeklyHistoryTable)
           .values({
@@ -2814,7 +2837,10 @@ export async function captureDueSnapshots(
   // ---- Transaction history ---------------------------------------------------
   // Reconstructable for any past week, because transactions carry their own
   // dates — so catch-up runs fill the whole backlog here, not just last week.
-  const txWeeks = force ? due : missingTxWeeks;
+  // The current in-progress week is always (re)derived on load so this week's
+  // and this month's buy/sell totals stay live between Saturday backups.
+  const closedTxWeeks = force ? due : missingTxWeeks;
+  const txWeeks = Array.from(new Set([...closedTxWeeks, currentWeek]));
   let transactionRowsWritten = 0;
   if (txWeeks.length > 0) {
     const totals = await buildTransactionWeeklyTotals();
@@ -2824,6 +2850,11 @@ export async function captureDueSnapshots(
     ];
     for (const week of txWeeks) {
       const perAccount = totals.get(week);
+      const isCurrentWeek = week === currentWeek;
+      const isClosedBackup = week === mostRecentClosed;
+      // Overwrite when forced, or for the live current week; closed weeks are
+      // written once and preserved as the Saturday 9 PM ET backup.
+      const overwrite = force || (isCurrentWeek && !isClosedBackup);
       for (const acc of state.accounts) {
         const agg = perAccount?.get(acc.accountNumber) ?? {
           buyValue: 0,
@@ -2840,15 +2871,15 @@ export async function captureDueSnapshots(
           realizedGainLoss: agg.realizedGainLoss,
           buyCount: agg.buyCount,
           sellCount: agg.sellCount,
-          capturedAt,
-          source: sourceTag,
+          capturedAt: isCurrentWeek && !isClosedBackup ? nowIso : capturedAt,
+          source: isCurrentWeek && !isClosedBackup ? "LIVE_CURRENT" : sourceTag,
         };
         const insertValues = {
           accountNumber: acc.accountNumber,
           snapshotWeek: week,
           ...values,
         };
-        if (force) {
+        if (overwrite) {
           await db
             .insert(transactionHistoryTable)
             .values(insertValues)
