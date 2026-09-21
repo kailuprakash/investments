@@ -149,7 +149,7 @@ export async function POST(req: NextRequest) {
       if (seconds === null) {
         return NextResponse.json(
           {
-            error: "Choose 5 mins, 10 mins, 30 mins, 60 mins, or Off.",
+            error: "Choose 5 m, 10 m, 30 m, 60 m, or Off.",
           },
           { status: 400 },
         );

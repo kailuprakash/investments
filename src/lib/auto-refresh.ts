@@ -1,9 +1,9 @@
 /** UI labels use minutes; API/database values and timers use seconds. */
 export const AUTO_REFRESH_OPTIONS = [
-  { value: 300, label: "5 mins" },
-  { value: 600, label: "10 mins" },
-  { value: 1800, label: "30 mins" },
-  { value: 3600, label: "60 mins" },
+  { value: 300, label: "5 m" },
+  { value: 600, label: "10 m" },
+  { value: 1800, label: "30 m" },
+  { value: 3600, label: "60 m" },
   { value: 0, label: "Off" },
 ] as const;
 

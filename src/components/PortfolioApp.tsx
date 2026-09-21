@@ -512,23 +512,18 @@ const e = {
                   className:
                     "flex items-center overflow-hidden rounded border border-white/15 bg-white/10 shadow-inner",
                   children: [
-                    (0, t.jsxs)("button", {
+                    (0, t.jsx)("button", {
                       type: "button",
                       onClick: e,
                       disabled: a,
+                      "aria-label": a ? "Updating market data" : "Pull market data",
                       className:
-                        "group inline-flex h-6 items-center gap-1 border-r border-white/15 bg-white px-2 text-[9px] sm:text-[9.25px] font-semibold text-emerald-900 transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:bg-amber-50 disabled:text-amber-800",
+                        "group inline-flex h-6 w-8 items-center justify-center border-r border-white/15 bg-white px-2 text-emerald-900 transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:bg-amber-50 disabled:text-amber-800",
                       title:
-                        "Update Account's Summary, Consolidated View, and Daily Transactions",
-                      children: [
-                        (0, t.jsx)(T, {
-                          className: `h-2.5 w-2.5 ${a ? "animate-spin" : "transition-transform group-hover:rotate-45"}`,
-                        }),
-                        (0, t.jsx)("span", {
-                          className: "hidden sm:inline",
-                          children: a ? "Updating…" : "Pull market",
-                        }),
-                      ],
+                        "Pull market — updates Account's Summary, Consolidated View, and Daily Transactions",
+                      children: (0, t.jsx)(T, {
+                        className: `h-3 w-3 ${a ? "animate-spin" : "transition-transform group-hover:rotate-45"}`,
+                      }),
                     }),
                     (0, t.jsxs)("div", {
                       className:

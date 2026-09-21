@@ -43,6 +43,12 @@ html {
   background: var(--canvas);
   scroll-behavior: smooth;
   min-width: 320px;
+  /* Always reserve the vertical scrollbar gutter so switching between tall and
+     short tabs never changes the viewport width. Without this, the scrollbar
+     appearing/disappearing shifts the sticky header and centered content,
+     making header alignment look like it "jumps" between screens. */
+  scrollbar-gutter: stable;
+  overflow-y: scroll;
 }
 
 body {
