@@ -610,7 +610,6 @@ const e = {
                 (0, t.jsxs)("div", {
                   className: "flex items-center gap-1",
                   children: [
-                    (0, t.jsx)(LiveClock, {}),
                     (0, t.jsx)("span", {
                       className: "portfolio-refresh-stamp",
                       title: A
@@ -621,6 +620,7 @@ const e = {
                         : "No market refresh recorded",
                       children: A ? `Refreshed ${N}` : "Not synced",
                     }),
+                    (0, t.jsx)(LiveClock, {}),
                     (0, t.jsx)(LogoutButton, {}),
                   ],
                 }),
