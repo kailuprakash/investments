@@ -311,6 +311,53 @@
   color: #cbd5e1;
   text-align: right;
 }
+
+/* ---- All tab: single-row Date/time and Gain/Loss ---- */
+.workbook-shell .transaction-pane-all .transaction-date {
+  flex-direction: row;
+  align-items: baseline;
+  gap: 6px;
+  white-space: nowrap;
+}
+.workbook-shell .transaction-pane-all .transaction-date .transaction-secondary {
+  display: inline;
+}
+.workbook-shell .transaction-pane-all .gain-loss-value {
+  flex-direction: row;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+/* ---- All tab: freeze the Symbol column (with its Type + Account context) ---- */
+/* Column widths: Type = 74, Account = 132 → Symbol starts at 206px. */
+.workbook-shell .transaction-pane-all .daily-transactions-table :is(th, td).transaction-action-cell,
+.workbook-shell .transaction-pane-all .daily-transactions-table thead th[data-field="action"] {
+  position: sticky;
+  left: 0;
+  z-index: 12;
+  background: #fff;
+}
+.workbook-shell .transaction-pane-all .daily-transactions-table :is(th, td).transaction-account-cell,
+.workbook-shell .transaction-pane-all .daily-transactions-table thead th[data-field="accountNumber"] {
+  position: sticky;
+  left: 74px;
+  z-index: 12;
+  background: #fff;
+}
+.workbook-shell .transaction-pane-all .daily-transactions-table .transaction-symbol-cell,
+.workbook-shell .transaction-pane-all .daily-transactions-table thead th[data-field="symbol"] {
+  position: sticky;
+  left: 206px;
+  z-index: 12;
+  background: #fff;
+  box-shadow: 3px 0 5px -4px #33415566;
+}
+.workbook-shell .transaction-pane-all .daily-transactions-table thead th:is([data-field="action"], [data-field="accountNumber"], [data-field="symbol"]) {
+  z-index: 36;
+  background: #eef3f8;
+}
 .workbook-shell .transaction-all-filter-label {
   display: block;
   margin-bottom: 3px;
