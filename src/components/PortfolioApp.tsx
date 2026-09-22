@@ -8369,19 +8369,17 @@ This replaces the current accounts, inventory, and transactions.`)
                                 onJumpHandled: () => setJumpHit(null),
                                 onSaveInlineField: eu,
                                 activeOrderTypeTab:
-                                  "buy" === g
+                                  "buy" === g || "sell" === g
                                     ? "BUY"
-                                    : "sell" === g
-                                      ? "SELL"
-                                      : x,
+                                    : "ALL" === x
+                                      ? "ALL"
+                                      : "BUY",
                                 onSelectOrderTypeTab: (e) => {
+                                  // Remember the chosen sub-tab (All vs Buy & Sell)
+                                  // and keep the unified transactions view active.
                                   v(e),
                                     ("buy" === g || "sell" === g) &&
-                                      b(
-                                        "ALL" === e
-                                          ? "future"
-                                          : e.toLowerCase(),
-                                      );
+                                      b("future");
                                 },
                               }),
                             })

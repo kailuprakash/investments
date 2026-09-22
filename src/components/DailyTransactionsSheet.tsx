@@ -16,6 +16,7 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
+  ChevronUp,
   GripVertical,
   LoaderCircle,
   Pencil,
@@ -61,6 +62,9 @@ interface Props {
   onSaveInlineField: (id: number, patch: TradeEdit) => Promise<void>;
   jumpHit?: WorkbookHit | null;
   onJumpHandled?: () => void;
+  /** Active sub-tab: All (consolidated), Buy, or Sell. */
+  activeOrderTypeTab?: "ALL" | "BUY" | "SELL";
+  onSelectOrderTypeTab?: (tab: "ALL" | "BUY" | "SELL") => void;
 }
 
 const money = (value: number) =>
@@ -98,6 +102,209 @@ function TransactionDate({ value }: { value: string }) {
         })}
       </span>
     </span>
+  );
+}
+
+/**
+ * Analytics-style multi-select combobox filter with type-ahead, chips, and
+ * All/Clear controls. `null` selection means "all". Mirrors the Visual
+ * Analytics MultiFilter so the two screens feel consistent.
+ */
+function TransactionMultiFilter({
+  label,
+  options,
+  selected,
+  onChange,
+}: {
+  label: string;
+  options: string[];
+  selected: string[] | null;
+  onChange: (next: string[] | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [activeIndex, setActiveIndex] = useState(0);
+  const root = useRef<HTMLDivElement>(null);
+  const input = useRef<HTMLInputElement>(null);
+  const listId = `tx-${label.toLowerCase()}-filter-suggestions`;
+  const chosen = selected ?? [];
+  const matches = useMemo(
+    () =>
+      options.filter((option) =>
+        option.toLowerCase().includes(query.trim().toLowerCase()),
+      ),
+    [options, query],
+  );
+
+  useEffect(() => {
+    setActiveIndex(0);
+  }, [query, open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const closeOutside = (event: PointerEvent) => {
+      if (!root.current?.contains(event.target as Node)) {
+        setOpen(false);
+        setQuery("");
+      }
+    };
+    document.addEventListener("pointerdown", closeOutside);
+    return () => document.removeEventListener("pointerdown", closeOutside);
+  }, [open]);
+
+  function selectOption(option: string) {
+    if (!options.includes(option)) return;
+    const next = chosen.includes(option) ? chosen : [...chosen, option];
+    onChange(next.length === options.length ? null : next);
+    setQuery("");
+    setOpen(true);
+    input.current?.focus();
+  }
+  function removeOption(option: string) {
+    const next = chosen.filter((item) => item !== option);
+    onChange(next.length === 0 ? null : next);
+  }
+  function commitTypedValue() {
+    const typed = query.trim();
+    if (!typed) return false;
+    const exact = options.find(
+      (option) => option.toLowerCase() === typed.toLowerCase(),
+    );
+    const highlighted = matches[activeIndex];
+    const unique = matches.length === 1 ? matches[0] : null;
+    const next = exact ?? highlighted ?? unique;
+    if (!next) return false;
+    selectOption(next);
+    return true;
+  }
+
+  return (
+    <div className="analytics-filter" ref={root}>
+      <div className="analytics-combobox">
+        {chosen.map((option) => (
+          <button
+            key={option}
+            type="button"
+            className="analytics-filter-chip"
+            aria-label={`Remove ${label} filter ${option}`}
+            onClick={() => removeOption(option)}
+          >
+            <span>{option}</span>
+            <X size={12} aria-hidden="true" />
+          </button>
+        ))}
+        <input
+          ref={input}
+          type="text"
+          role="combobox"
+          aria-expanded={open}
+          aria-controls={listId}
+          aria-autocomplete="list"
+          aria-label={`Filter by ${label}`}
+          placeholder={
+            chosen.length
+              ? `Add ${label.toLowerCase()}…`
+              : `Type to filter ${label.toLowerCase()}s`
+          }
+          value={query}
+          autoComplete="off"
+          spellCheck={false}
+          onFocus={() => setOpen(true)}
+          onChange={(event) => {
+            setQuery(event.target.value);
+            setOpen(true);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "ArrowDown") {
+              event.preventDefault();
+              setOpen(true);
+              setActiveIndex((index) =>
+                matches.length === 0 ? 0 : (index + 1) % matches.length,
+              );
+            } else if (event.key === "ArrowUp") {
+              event.preventDefault();
+              setOpen(true);
+              setActiveIndex((index) =>
+                matches.length === 0
+                  ? 0
+                  : (index - 1 + matches.length) % matches.length,
+              );
+            } else if (event.key === "Enter") {
+              event.preventDefault();
+              if (!commitTypedValue()) setOpen(true);
+            } else if (event.key === "Escape") {
+              event.preventDefault();
+              setOpen(false);
+              setQuery("");
+            } else if (event.key === "Backspace" && !query && chosen.length) {
+              removeOption(chosen[chosen.length - 1]);
+            }
+          }}
+        />
+      </div>
+      {open && (
+        <div
+          className="analytics-filter-menu"
+          id={listId}
+          role="listbox"
+          aria-label={`${label} suggestions`}
+        >
+          <div className="analytics-filter-controls">
+            <button
+              type="button"
+              onClick={() => {
+                onChange(null);
+                setQuery("");
+              }}
+            >
+              All
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                onChange([]);
+                setQuery("");
+              }}
+            >
+              Clear
+            </button>
+          </div>
+          {options.length === 0 ? (
+            <p className="analytics-filter-empty">
+              No {label.toLowerCase()}s available.
+            </p>
+          ) : matches.length === 0 ? (
+            <p className="analytics-filter-empty" role="status">
+              No matching {label.toLowerCase()}s for “{query.trim()}”.
+            </p>
+          ) : (
+            matches.map((option, index) => {
+              const active = index === activeIndex;
+              const checked = chosen.includes(option);
+              return (
+                <button
+                  key={option}
+                  type="button"
+                  id={`${listId}-${index}`}
+                  role="option"
+                  aria-selected={active}
+                  className={`analytics-filter-option ${active ? "is-active" : ""} ${checked ? "is-checked" : ""}`}
+                  onMouseEnter={() => setActiveIndex(index)}
+                  onClick={() => selectOption(option)}
+                >
+                  {option}
+                  {checked ? (
+                    <span className="analytics-filter-selected-mark">
+                      Selected
+                    </span>
+                  ) : null}
+                </button>
+              );
+            })
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -278,7 +485,19 @@ export default function DailyTransactionsSheet({
   onSaveInlineField,
   jumpHit,
   onJumpHandled,
+  activeOrderTypeTab = "ALL",
+  onSelectOrderTypeTab,
 }: Props) {
+  // Two sub-tabs within Daily Transactions:
+  //   ALL    – a single consolidated, filterable/sortable table.
+  //   TRADES – the classic Buy & Sell tables shown side by side.
+  // BUY/SELL from the parent both resolve to the combined TRADES view.
+  const activeTab: "ALL" | "TRADES" =
+    activeOrderTypeTab === "BUY" || activeOrderTypeTab === "SELL"
+      ? "TRADES"
+      : "ALL";
+  const selectTab = (tab: "ALL" | "TRADES") =>
+    onSelectOrderTypeTab?.(tab === "ALL" ? "ALL" : "BUY");
   const [columns, setColumns] = useState<Record<TradeSide, TradeColumn[]>>({
     BUY: DEFAULT_TRADE_COLUMNS.BUY,
     SELL: DEFAULT_TRADE_COLUMNS.SELL,
@@ -299,6 +518,19 @@ export default function DailyTransactionsSheet({
   );
   const [selectedBuyId, setSelectedBuyId] = useState<number | null>(null);
   const filterRef = useRef<HTMLDivElement>(null);
+
+  // "All" tab consolidated view: multi-select account / symbol / type filters
+  // (analytics-style comboboxes), a date range, and a sortable single table.
+  // `null` means "all" for a given filter.
+  const [allAccountFilter, setAllAccountFilter] = useState<string[] | null>(null);
+  const [allSymbolFilter, setAllSymbolFilter] = useState<string[] | null>(null);
+  const [allTypeFilter, setAllTypeFilter] = useState<string[] | null>(null);
+  const [allFromDate, setAllFromDate] = useState<string>("");
+  const [allToDate, setAllToDate] = useState<string>("");
+  const [allSort, setAllSort] = useState<{
+    key: "dateTime" | "accountNumber" | "symbol" | "action" | "quantity" | "pricePerShare" | "totalAmount" | "gainLoss";
+    dir: "asc" | "desc";
+  }>({ key: "dateTime", dir: "desc" });
 
   useEffect(() => {
     try {
@@ -408,6 +640,98 @@ export default function DailyTransactionsSheet({
     (sum, group) => sum + group.rows.length,
     0,
   );
+
+  // Distinct account / symbol option lists for the "All" tab filters.
+  const allAccountOptions = useMemo(
+    () =>
+      Array.from(new Set(entries.map((e) => e.accountNumber.trim())))
+        .filter(Boolean)
+        .sort((a, b) => a.localeCompare(b, undefined, { numeric: true })),
+    [entries],
+  );
+  const allSymbolOptions = useMemo(
+    () =>
+      Array.from(new Set(entries.map((e) => e.symbol.trim().toUpperCase())))
+        .filter(Boolean)
+        .sort((a, b) => a.localeCompare(b)),
+    [entries],
+  );
+
+  // Combined "All" view: a single flat table of every transaction (Buy + Sell),
+  // filtered by account / symbol / type / date range and sorted by column.
+  const allRows = useMemo(() => {
+    const accountSet = allAccountFilter ? new Set(allAccountFilter) : null;
+    const symbolSet = allSymbolFilter ? new Set(allSymbolFilter) : null;
+    const typeSet = allTypeFilter ? new Set(allTypeFilter) : null;
+    const fromMs = allFromDate ? Date.parse(`${allFromDate}T00:00:00`) : null;
+    const toMs = allToDate ? Date.parse(`${allToDate}T23:59:59.999`) : null;
+    const filtered = entries.filter((e) => {
+      if (accountSet && !accountSet.has(e.accountNumber.trim())) return false;
+      if (symbolSet && !symbolSet.has(e.symbol.trim().toUpperCase()))
+        return false;
+      if (typeSet && !typeSet.has(e.action.toUpperCase())) return false;
+      if (fromMs !== null || toMs !== null) {
+        const ts = Date.parse(e.dateTime);
+        if (!Number.isFinite(ts)) return false;
+        if (fromMs !== null && ts < fromMs) return false;
+        if (toMs !== null && ts > toMs) return false;
+      }
+      return true;
+    });
+    const dir = allSort.dir === "asc" ? 1 : -1;
+    const val = (row: DailyTransaction): string | number => {
+      switch (allSort.key) {
+        case "dateTime":
+          return Date.parse(row.dateTime) || 0;
+        case "accountNumber":
+          return row.accountNumber.toUpperCase();
+        case "symbol":
+          return row.symbol.toUpperCase();
+        case "action":
+          return row.action.toUpperCase();
+        case "quantity":
+          return Number(row.quantity) || 0;
+        case "pricePerShare":
+          return Number(row.pricePerShare) || 0;
+        case "totalAmount":
+          return calculateTransactionValues(row).totalAmount;
+        case "gainLoss":
+          return calculateTransactionValues(row).gainLoss;
+      }
+    };
+    return [...filtered].sort((a, b) => {
+      const av = val(a);
+      const bv = val(b);
+      const cmp =
+        typeof av === "string" && typeof bv === "string"
+          ? av.localeCompare(bv, undefined, { numeric: true })
+          : Number(av) - Number(bv);
+      return (cmp || a.id - b.id) * dir;
+    });
+  }, [
+    entries,
+    allAccountFilter,
+    allSymbolFilter,
+    allTypeFilter,
+    allFromDate,
+    allToDate,
+    allSort,
+  ]);
+  const allCount = allRows.length;
+  const allFiltersActive =
+    allAccountFilter !== null ||
+    allSymbolFilter !== null ||
+    allTypeFilter !== null ||
+    allFromDate !== "" ||
+    allToDate !== "";
+
+  function toggleAllSort(key: typeof allSort.key) {
+    setAllSort((cur) =>
+      cur.key === key
+        ? { key, dir: cur.dir === "asc" ? "desc" : "asc" }
+        : { key, dir: key === "dateTime" ? "desc" : "asc" },
+    );
+  }
 
   function toggleGroup(key: string) {
     setCollapsedGroups((prev) => {
@@ -574,23 +898,294 @@ export default function DailyTransactionsSheet({
     );
   }
 
+  // Combined columns for the "All" tab. Fixed single-table layout showing both
+  // Buy and Sell rows. `sortKey` marks columns whose header can sort the table.
+  const ALL_COLUMNS: {
+    id: TradeColumnId | "action" | "accountNumber";
+    label: string;
+    kind: TradeColumn["kind"];
+    align: TradeColumn["align"];
+    width: number;
+    sortKey?: typeof allSort.key;
+  }[] = [
+    { id: "action", label: "Type", kind: "readonly", align: "center", width: 74, sortKey: "action" },
+    { id: "accountNumber", label: "Account", kind: "readonly", align: "left", width: 132, sortKey: "accountNumber" },
+    { id: "symbol", label: "Symbol", kind: "readonly", align: "left", width: 120, sortKey: "symbol" },
+    { id: "dateTime", label: "Date/time", kind: "readonly", align: "center", width: 130, sortKey: "dateTime" },
+    { id: "quantity", label: "Quantity", kind: "editable", align: "center", width: 100, sortKey: "quantity" },
+    { id: "pricePerShare", label: "Price/Share", kind: "editable", align: "right", width: 128, sortKey: "pricePerShare" },
+    { id: "averageCost", label: "Avg. Cost/Share", kind: "readonly", align: "right", width: 138 },
+    { id: "currentPrice", label: "Market Price/Share", kind: "readonly", align: "right", width: 138 },
+    { id: "totalAmount", label: "Total Amount", kind: "calculated", align: "right", width: 138, sortKey: "totalAmount" },
+    { id: "gainLoss", label: "Gain/Loss", kind: "calculated", align: "right", width: 148, sortKey: "gainLoss" },
+    { id: "comments", label: "Comments", kind: "editable", align: "left", width: 180 },
+  ];
+
+  function renderAllTable() {
+    const totalWidth = ALL_COLUMNS.reduce((sum, col) => sum + col.width, 0);
+    return (
+      <section
+        className="transaction-pane transaction-pane-all"
+        aria-labelledby="ALL-transactions-title"
+        data-side="ALL"
+      >
+        <div className="transaction-pane-toolbar">
+          <div className="transaction-pane-title">
+            <h3 id="ALL-transactions-title">All Transactions</h3>
+            <span className="transaction-count">
+              {allCount} {allCount === 1 ? "row" : "rows"}
+            </span>
+          </div>
+          <div className="transaction-pane-actions">
+            {selectedBuy && (
+              <button
+                type="button"
+                className="transaction-sell-selected"
+                onClick={() => onSellSelected(selectedBuy)}
+              >
+                Sell Selected Buy
+              </button>
+            )}
+            <button type="button" onClick={() => onOpenAddModal("BUY")}>
+              <Plus size={15} /> Add Buy
+            </button>
+            <button type="button" onClick={() => onOpenAddModal("SELL")}>
+              <Plus size={15} /> Add Sell
+            </button>
+          </div>
+        </div>
+
+        <div className="transaction-all-filters">
+          <div className="transaction-all-filter">
+            <span className="transaction-all-filter-label">Account</span>
+            <TransactionMultiFilter
+              label="Account"
+              options={allAccountOptions}
+              selected={allAccountFilter}
+              onChange={setAllAccountFilter}
+            />
+          </div>
+          <div className="transaction-all-filter">
+            <span className="transaction-all-filter-label">Symbol</span>
+            <TransactionMultiFilter
+              label="Symbol"
+              options={allSymbolOptions}
+              selected={allSymbolFilter}
+              onChange={setAllSymbolFilter}
+            />
+          </div>
+          <div className="transaction-all-filter">
+            <span className="transaction-all-filter-label">Type</span>
+            <TransactionMultiFilter
+              label="Type"
+              options={["BUY", "SELL"]}
+              selected={allTypeFilter}
+              onChange={setAllTypeFilter}
+            />
+          </div>
+          <div className="transaction-all-filter">
+            <span className="transaction-all-filter-label">From date</span>
+            <input
+              type="date"
+              className="transaction-all-date"
+              value={allFromDate}
+              max={allToDate || undefined}
+              onChange={(e) => setAllFromDate(e.target.value)}
+            />
+          </div>
+          <div className="transaction-all-filter">
+            <span className="transaction-all-filter-label">To date</span>
+            <input
+              type="date"
+              className="transaction-all-date"
+              value={allToDate}
+              min={allFromDate || undefined}
+              onChange={(e) => setAllToDate(e.target.value)}
+            />
+          </div>
+          {allFiltersActive && (
+            <button
+              type="button"
+              className="transaction-all-filter-reset"
+              onClick={() => {
+                setAllAccountFilter(null);
+                setAllSymbolFilter(null);
+                setAllTypeFilter(null);
+                setAllFromDate("");
+                setAllToDate("");
+              }}
+            >
+              <X size={13} /> Reset filters
+            </button>
+          )}
+        </div>
+
+        <div
+          className="transaction-table-scroll freeze-header-scroll"
+          tabIndex={0}
+          role="region"
+          aria-label="All transactions"
+        >
+          <table
+            className="daily-transactions-table freeze-header-table"
+            aria-label="All transactions"
+            style={{ minWidth: totalWidth }}
+          >
+            <colgroup>
+              {ALL_COLUMNS.map((col) => (
+                <col key={col.id} style={{ width: col.width }} />
+              ))}
+            </colgroup>
+            <thead>
+              <tr>
+                {ALL_COLUMNS.map((col) => {
+                  const active = col.sortKey && allSort.key === col.sortKey;
+                  return (
+                    <th
+                      key={col.id}
+                      scope="col"
+                      data-field={col.id}
+                      data-field-kind={col.kind}
+                      aria-sort={
+                        active
+                          ? allSort.dir === "asc"
+                            ? "ascending"
+                            : "descending"
+                          : "none"
+                      }
+                    >
+                      {col.sortKey ? (
+                        <button
+                          type="button"
+                          className="transaction-sort-button"
+                          onClick={() => toggleAllSort(col.sortKey!)}
+                          title={`Sort by ${col.label}`}
+                        >
+                          <FieldHeader label={col.label} kind={col.kind} />
+                          <span
+                            className={`transaction-sort-icon ${active ? "is-active" : ""}`}
+                            aria-hidden="true"
+                          >
+                            {active && allSort.dir === "desc" ? (
+                              <ChevronDown size={12} />
+                            ) : (
+                              <ChevronUp size={12} />
+                            )}
+                          </span>
+                        </button>
+                      ) : (
+                        <div className="transaction-column-heading">
+                          <FieldHeader label={col.label} kind={col.kind} />
+                        </div>
+                      )}
+                    </th>
+                  );
+                })}
+              </tr>
+            </thead>
+            <tbody>
+              {allRows.length === 0 ? (
+                <tr>
+                  <td className="transaction-empty" colSpan={ALL_COLUMNS.length}>
+                    No transactions match the selected filters.
+                  </td>
+                </tr>
+              ) : (
+                allRows.map((row) => (
+                  <tr
+                    key={row.id}
+                    data-transaction-id={row.id}
+                    data-account={row.accountNumber}
+                    data-symbol={row.symbol}
+                    className={
+                      selectedBuy?.id === row.id
+                        ? "transaction-data-row is-selected"
+                        : "transaction-data-row"
+                    }
+                  >
+                    {ALL_COLUMNS.map((col) =>
+                      col.id === "action" ? (
+                        <td
+                          key="action"
+                          data-field="action"
+                          data-field-kind="readonly"
+                          data-align="center"
+                          className="transaction-cell transaction-action-cell"
+                        >
+                          <span
+                            className={`transaction-action-badge ${row.action.toUpperCase() === "SELL" ? "is-sell" : "is-buy"}`}
+                          >
+                            {row.action.toUpperCase() === "SELL" ? "Sell" : "Buy"}
+                          </span>
+                        </td>
+                      ) : col.id === "accountNumber" ? (
+                        <td
+                          key="accountNumber"
+                          data-field="accountNumber"
+                          data-field-kind="readonly"
+                          data-align="left"
+                          className="transaction-cell transaction-account-cell"
+                        >
+                          {row.accountNumber}
+                        </td>
+                      ) : col.id === "averageCost" &&
+                        row.action.toUpperCase() !== "SELL" ? (
+                        // Avg. Cost/Share is meaningful for Sell rows only.
+                        <td
+                          key="averageCost"
+                          data-field="averageCost"
+                          data-field-kind="readonly"
+                          data-align="right"
+                          className="transaction-cell transaction-blank-cell"
+                        >
+                          —
+                        </td>
+                      ) : col.id === "currentPrice" &&
+                        row.action.toUpperCase() === "SELL" ? (
+                        // Market Price/Share is meaningful for Buy rows only.
+                        <td
+                          key="currentPrice"
+                          data-field="currentPrice"
+                          data-field-kind="readonly"
+                          data-align="right"
+                          className="transaction-cell transaction-blank-cell"
+                        >
+                          —
+                        </td>
+                      ) : (
+                        renderCell(row, col as TradeColumn)
+                      ),
+                    )}
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    );
+  }
+
   function renderTable(side: TradeSide) {
     const groups = side === "BUY" ? buyGroups : sellGroups;
     const visible = columns[side].filter((col) => col.visible);
     const count = side === "BUY" ? buyCount : sellCount;
     const buy = side === "BUY";
     const label = buy ? "Buy" : "Sell";
+    const keyPrefix = side;
     const contextAccount =
       selectedAccounts?.length === 1 ? selectedAccounts[0] : undefined;
     return (
       <section
         className={`transaction-pane transaction-pane-${side.toLowerCase()}`}
-        aria-labelledby={`${side}-transactions-title`}
+        aria-labelledby={`${keyPrefix}-transactions-title`}
         data-side={side}
       >
         <div className="transaction-pane-toolbar">
           <div className="transaction-pane-title">
-            <h3 id={`${side}-transactions-title`}>{label} Transactions</h3>
+            <h3 id={`${keyPrefix}-transactions-title`}>
+              {`${label} Transactions`}
+            </h3>
             <span className="transaction-count">
               {count} {count === 1 ? "row" : "rows"}
             </span>
@@ -683,7 +1278,7 @@ export default function DailyTransactionsSheet({
                 </tr>
               ) : (
                 groups.map(({ accountNumber, rows }) => {
-                  const key = `${side}:${accountNumber}`;
+                  const key = `${keyPrefix}:${accountNumber}`;
                   const collapsed = collapsedGroups.has(key);
                   return (
                     <Fragment key={key}>
@@ -712,7 +1307,7 @@ export default function DailyTransactionsSheet({
                                   ? "transaction"
                                   : "transactions"}
                               </span>
-                            </button>
+                             </button>
                             <button
                               type="button"
                               className="transaction-group-add"
@@ -992,10 +1587,57 @@ export default function DailyTransactionsSheet({
           </div>
         </div>
       )}
-      <div className="transactions-side-by-side">
-        {renderTable("BUY")}
-        {renderTable("SELL")}
+      <div
+        className="transaction-subtabs"
+        role="tablist"
+        aria-label="All and Buy & Sell transaction pages"
+      >
+        <button
+          type="button"
+          role="tab"
+          id="subtab-all"
+          aria-selected={activeTab === "ALL"}
+          aria-controls="subtab-panel-all"
+          className={`transaction-subtab ${activeTab === "ALL" ? "is-active" : ""}`}
+          onClick={() => selectTab("ALL")}
+        >
+          All
+          <span className="transaction-subtab-count">{buyCount + sellCount}</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          id="subtab-trades"
+          aria-selected={activeTab === "TRADES"}
+          aria-controls="subtab-panel-trades"
+          className={`transaction-subtab ${activeTab === "TRADES" ? "is-active" : ""}`}
+          onClick={() => selectTab("TRADES")}
+        >
+          Buy &amp; Sell
+          <span className="transaction-subtab-count">{buyCount + sellCount}</span>
+        </button>
       </div>
+
+      {activeTab === "ALL" ? (
+        <div
+          className="transaction-subtab-panel"
+          role="tabpanel"
+          id="subtab-panel-all"
+          aria-labelledby="subtab-all"
+        >
+          {renderAllTable()}
+        </div>
+      ) : (
+        <div
+          className="transaction-subtab-panel transactions-side-by-side"
+          role="tabpanel"
+          id="subtab-panel-trades"
+          aria-labelledby="subtab-trades"
+        >
+          {renderTable("BUY")}
+          {renderTable("SELL")}
+        </div>
+      )}
     </section>
   );
 }

@@ -154,6 +154,232 @@
   background: #f4f7f6;
   border-radius: 0 0 10px 10px;
 }
+.workbook-shell .transaction-subtabs {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  padding: 8px 10px 0;
+  background: #f4f7f6;
+}
+.workbook-shell .transaction-subtab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 16px;
+  border: 1px solid #cbd5e1;
+  border-bottom: 0;
+  border-radius: 8px 8px 0 0;
+  background: #e2e8f0;
+  color: #475569;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition:
+    background-color 0.14s ease,
+    color 0.14s ease;
+}
+.workbook-shell .transaction-subtab:hover {
+  background: #eef2f7;
+  color: #1e293b;
+}
+.workbook-shell .transaction-subtab.is-active {
+  background: #ffffff;
+  color: #0b7041;
+  border-color: #bfcfc8;
+  box-shadow: 0 -2px 8px -5px rgba(15, 23, 42, 0.5);
+}
+.workbook-shell .transaction-subtab-count {
+  min-width: 20px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(100, 116, 139, 0.18);
+  color: inherit;
+  font-size: 9.5px;
+  font-weight: 700;
+  text-align: center;
+}
+.workbook-shell .transaction-subtab.is-active .transaction-subtab-count {
+  background: rgba(11, 112, 65, 0.16);
+}
+.workbook-shell .transaction-subtab-panel {
+  padding: 10px;
+  background: #f4f7f6;
+  border-radius: 0 0 10px 10px;
+}
+.workbook-shell .transaction-subtab-panel .transaction-pane {
+  width: 100%;
+}
+.workbook-shell .transaction-action-cell {
+  text-align: center;
+}
+.workbook-shell .transaction-action-badge {
+  display: inline-block;
+  min-width: 42px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+.workbook-shell .transaction-action-badge.is-buy {
+  background: #dcfce7;
+  color: #166534;
+  border: 1px solid #86efac;
+}
+.workbook-shell .transaction-action-badge.is-sell {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fca5a5;
+}
+.workbook-shell .transaction-all-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  padding: 10px 12px;
+  background: #eef2f7;
+  border-bottom: 1px solid #d5dee7;
+}
+.workbook-shell .transaction-all-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.workbook-shell .transaction-all-filter select {
+  min-width: 150px;
+  padding: 5px 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  color: #1e293b;
+  text-transform: none;
+  letter-spacing: normal;
+  cursor: pointer;
+}
+.workbook-shell .transaction-all-filter-reset {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #fff;
+  color: #b91c1c;
+  font-size: 10.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.workbook-shell .transaction-all-filter-reset:hover {
+  background: #fef2f2;
+  border-color: #fca5a5;
+}
+.workbook-shell .transaction-sort-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+.workbook-shell .transaction-sort-icon {
+  opacity: 0.35;
+  display: inline-flex;
+}
+.workbook-shell .transaction-sort-icon.is-active {
+  opacity: 1;
+  color: #0b7041;
+}
+.workbook-shell .transaction-account-cell {
+  font-weight: 700;
+  color: #1e3a5f;
+  white-space: nowrap;
+}
+.workbook-shell .transaction-blank-cell {
+  color: #cbd5e1;
+  text-align: right;
+}
+
+/* ---- All tab: single-row Date/time and Gain/Loss ---- */
+.workbook-shell .transaction-pane-all .transaction-date {
+  flex-direction: row;
+  align-items: baseline;
+  gap: 6px;
+  white-space: nowrap;
+}
+.workbook-shell .transaction-pane-all .transaction-date .transaction-secondary {
+  display: inline;
+}
+.workbook-shell .transaction-pane-all .gain-loss-value {
+  flex-direction: row;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+/* ---- All tab: freeze the Symbol column (with its Type + Account context) ---- */
+/* Column widths: Type = 74, Account = 132 → Symbol starts at 206px. */
+.workbook-shell .transaction-pane-all .daily-transactions-table :is(th, td).transaction-action-cell,
+.workbook-shell .transaction-pane-all .daily-transactions-table thead th[data-field="action"] {
+  position: sticky;
+  left: 0;
+  z-index: 12;
+  background: #fff;
+}
+.workbook-shell .transaction-pane-all .daily-transactions-table :is(th, td).transaction-account-cell,
+.workbook-shell .transaction-pane-all .daily-transactions-table thead th[data-field="accountNumber"] {
+  position: sticky;
+  left: 74px;
+  z-index: 12;
+  background: #fff;
+}
+.workbook-shell .transaction-pane-all .daily-transactions-table .transaction-symbol-cell,
+.workbook-shell .transaction-pane-all .daily-transactions-table thead th[data-field="symbol"] {
+  position: sticky;
+  left: 206px;
+  z-index: 12;
+  background: #fff;
+  box-shadow: 3px 0 5px -4px #33415566;
+}
+.workbook-shell .transaction-pane-all .daily-transactions-table thead th:is([data-field="action"], [data-field="accountNumber"], [data-field="symbol"]) {
+  z-index: 36;
+  background: #eef3f8;
+}
+.workbook-shell .transaction-all-filter-label {
+  display: block;
+  margin-bottom: 3px;
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.workbook-shell .transaction-all-date {
+  padding: 6px 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  color: #1e293b;
+  cursor: pointer;
+}
+.workbook-shell .transaction-all-filters .analytics-filter {
+  min-width: 190px;
+}
 .workbook-shell .transaction-pane {
   min-width: 0;
   border: 1px solid #bfcfc8;
