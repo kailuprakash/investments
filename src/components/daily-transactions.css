@@ -312,24 +312,6 @@
   text-align: right;
 }
 
-/* ---- All tab: single-row Date/time and Gain/Loss ---- */
-.workbook-shell .transaction-pane-all .transaction-date {
-  flex-direction: row;
-  align-items: baseline;
-  gap: 6px;
-  white-space: nowrap;
-}
-.workbook-shell .transaction-pane-all .transaction-date .transaction-secondary {
-  display: inline;
-}
-.workbook-shell .transaction-pane-all .gain-loss-value {
-  flex-direction: row;
-  align-items: baseline;
-  justify-content: flex-end;
-  gap: 5px;
-  white-space: nowrap;
-}
-
 /* ---- All tab: freeze the Symbol column (with its Type + Account context) ---- */
 /* Column widths: Type = 74, Account = 132 → Symbol starts at 206px. */
 .workbook-shell .transaction-pane-all .daily-transactions-table :is(th, td).transaction-action-cell,
@@ -379,6 +361,82 @@
 }
 .workbook-shell .transaction-all-filters .analytics-filter {
   min-width: 190px;
+}
+
+/* ---- Pagination footer (All table) ---- */
+.workbook-shell .transaction-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 12px;
+  border-top: 1px solid #d5dee7;
+  background: #f4f7f6;
+  border-radius: 0 0 10px 10px;
+  font-size: 10.5px;
+  color: #475569;
+}
+.workbook-shell .transaction-pagination-info {
+  font-weight: 600;
+}
+.workbook-shell .transaction-pagination-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+.workbook-shell .transaction-pagination-size {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  font-size: 9.5px;
+  color: #475569;
+}
+.workbook-shell .transaction-pagination-size select {
+  padding: 4px 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  color: #1e293b;
+  text-transform: none;
+  letter-spacing: normal;
+  cursor: pointer;
+}
+.workbook-shell .transaction-pagination-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.workbook-shell .transaction-pagination-nav button {
+  min-width: 26px;
+  height: 26px;
+  padding: 0 6px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #fff;
+  color: #1e293b;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.workbook-shell .transaction-pagination-nav button:hover:not(:disabled) {
+  background: #eef3f8;
+  border-color: #94a3b8;
+}
+.workbook-shell .transaction-pagination-nav button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.workbook-shell .transaction-pagination-page {
+  padding: 0 6px;
+  font-weight: 700;
+  white-space: nowrap;
 }
 .workbook-shell .transaction-pane {
   min-width: 0;
@@ -502,11 +560,21 @@
   outline: 2px solid #158454;
   outline-offset: -2px;
 }
-.workbook-shell .transaction-date,
 .workbook-shell .transaction-quantity {
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+/* Date and time on a single row across Buy / Sell / All tables. */
+.workbook-shell .transaction-date {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 6px;
+  white-space: nowrap;
+}
+.workbook-shell .transaction-date .transaction-secondary {
+  display: inline;
 }
 .workbook-shell .transaction-secondary {
   display: block;

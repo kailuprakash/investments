@@ -698,9 +698,10 @@ select:focus-visible {
 .workbook-shell .gain-loss-value {
   display: flex;
   width: 100%;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 2px;
+  flex-direction: row;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 5px;
   text-align: right;
   font-weight: 600;
   font-variant-numeric: tabular-nums;

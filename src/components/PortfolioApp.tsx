@@ -2418,45 +2418,46 @@ const e = {
                                                                     e.accountNumber,
                                                                 },
                                                               );
-                                                            case "symbol":
-                                                              return (0,
-                                                              t.jsxs)("span", {
-                                                                className:
-                                                                  "flex flex-col font-sans",
-                                                                children: [
-                                                                  (0, t.jsx)(
-                                                                    "span",
-                                                                    {
-                                                                      className:
-                                                                        "font-mono font-bold text-gray-900",
-                                                                      children:
-                                                                        e.symbol,
-                                                                    },
-                                                                  ),
-                                                                  (0, t.jsxs)(
-                                                                    "span",
-                                                                    {
-                                                                      className:
-                                                                        "mt-0.5 text-[9px] leading-tight text-gray-500 whitespace-nowrap",
-                                                                      children:
-                                                                        [
-                                                                          "Updated: ",
-                                                                          e.updatedAt
-                                                                            ? new Date(
-                                                                                e.updatedAt,
-                                                                              ).toLocaleDateString(
-                                                                                "en-US",
-                                                                                {
-                                                                                  timeZone:
-                                                                                    "America/New_York",
-                                                                                },
-                                                                              )
-                                                                            : "Not recorded",
-                                                                        ],
-                                                                    },
-                                                                  ),
-                                                                ],
-                                                              });
+                                                             case "symbol":
+                                                               return (0,
+                                                               t.jsxs)("span", {
+                                                                 className:
+                                                                   "inline-flex items-baseline gap-1 font-sans whitespace-nowrap",
+                                                                 children: [
+                                                                   (0, t.jsx)(
+                                                                     "span",
+                                                                     {
+                                                                       className:
+                                                                         "font-mono font-bold text-gray-900",
+                                                                       children:
+                                                                         e.symbol,
+                                                                     },
+                                                                   ),
+                                                                   (0, t.jsxs)(
+                                                                     "span",
+                                                                     {
+                                                                       className:
+                                                                         "text-[9px] leading-tight text-gray-500 whitespace-nowrap",
+                                                                       children:
+                                                                         [
+                                                                           "(",
+                                                                           e.updatedAt
+                                                                             ? new Date(
+                                                                                 e.updatedAt,
+                                                                               ).toLocaleDateString(
+                                                                                 "en-US",
+                                                                                 {
+                                                                                   timeZone:
+                                                                                     "America/New_York",
+                                                                                 },
+                                                                               )
+                                                                             : "Not recorded",
+                                                                           ")",
+                                                                         ],
+                                                                     },
+                                                                   ),
+                                                                 ],
+                                                               });
                                                             case "quantity":
                                                               return B(
                                                                 e.quantity,
