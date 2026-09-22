@@ -937,6 +937,15 @@ export default function DailyTransactionsSheet({
             </span>
           </div>
           <div className="transaction-pane-actions">
+            {selectedBuy && (
+              <button
+                type="button"
+                className="transaction-sell-selected"
+                onClick={() => onSellSelected(selectedBuy)}
+              >
+                Sell Selected Buy
+              </button>
+            )}
             <button type="button" onClick={() => onOpenAddModal("BUY")}>
               <Plus size={15} /> Add Buy
             </button>
@@ -1088,7 +1097,11 @@ export default function DailyTransactionsSheet({
                     data-transaction-id={row.id}
                     data-account={row.accountNumber}
                     data-symbol={row.symbol}
-                    className="transaction-data-row"
+                    className={
+                      selectedBuy?.id === row.id
+                        ? "transaction-data-row is-selected"
+                        : "transaction-data-row"
+                    }
                   >
                     {ALL_COLUMNS.map((col) =>
                       col.id === "action" ? (
