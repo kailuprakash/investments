@@ -1053,6 +1053,74 @@ export default function DailyTransactionsSheet({
           )}
         </div>
 
+        <div className="transaction-pagination transaction-pagination-top">
+          <div className="transaction-pagination-info">
+            {allCount === 0
+              ? "No rows"
+              : `Showing ${allRangeStart}–${allRangeEnd} of ${allCount}`}
+          </div>
+          <div className="transaction-pagination-controls">
+            <label className="transaction-pagination-size">
+              <span>Rows per page</span>
+              <select
+                value={String(allPageSize)}
+                onChange={(e) =>
+                  setAllPageSize(
+                    e.target.value === "All" ? "All" : Number(e.target.value),
+                  )
+                }
+              >
+                {ALL_PAGE_SIZE_OPTIONS.map((opt) => (
+                  <option key={String(opt)} value={String(opt)}>
+                    {opt}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {allPageSize !== "All" && allTotalPages > 1 && (
+              <div className="transaction-pagination-nav">
+                <button
+                  type="button"
+                  disabled={allCurrentPage <= 1}
+                  onClick={() => setAllPage(1)}
+                  aria-label="First page"
+                >
+                  «
+                </button>
+                <button
+                  type="button"
+                  disabled={allCurrentPage <= 1}
+                  onClick={() => setAllPage((p) => Math.max(1, p - 1))}
+                  aria-label="Previous page"
+                >
+                  ‹
+                </button>
+                <span className="transaction-pagination-page">
+                  Page {allCurrentPage} of {allTotalPages}
+                </span>
+                <button
+                  type="button"
+                  disabled={allCurrentPage >= allTotalPages}
+                  onClick={() =>
+                    setAllPage((p) => Math.min(allTotalPages, p + 1))
+                  }
+                  aria-label="Next page"
+                >
+                  ›
+                </button>
+                <button
+                  type="button"
+                  disabled={allCurrentPage >= allTotalPages}
+                  onClick={() => setAllPage(allTotalPages)}
+                  aria-label="Last page"
+                >
+                  »
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
         <div
           className="transaction-table-scroll freeze-header-scroll"
           tabIndex={0}
@@ -1194,74 +1262,6 @@ export default function DailyTransactionsSheet({
               )}
             </tbody>
           </table>
-        </div>
-
-        <div className="transaction-pagination">
-          <div className="transaction-pagination-info">
-            {allCount === 0
-              ? "No rows"
-              : `Showing ${allRangeStart}–${allRangeEnd} of ${allCount}`}
-          </div>
-          <div className="transaction-pagination-controls">
-            <label className="transaction-pagination-size">
-              <span>Rows per page</span>
-              <select
-                value={String(allPageSize)}
-                onChange={(e) =>
-                  setAllPageSize(
-                    e.target.value === "All" ? "All" : Number(e.target.value),
-                  )
-                }
-              >
-                {ALL_PAGE_SIZE_OPTIONS.map((opt) => (
-                  <option key={String(opt)} value={String(opt)}>
-                    {opt}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {allPageSize !== "All" && allTotalPages > 1 && (
-              <div className="transaction-pagination-nav">
-                <button
-                  type="button"
-                  disabled={allCurrentPage <= 1}
-                  onClick={() => setAllPage(1)}
-                  aria-label="First page"
-                >
-                  «
-                </button>
-                <button
-                  type="button"
-                  disabled={allCurrentPage <= 1}
-                  onClick={() => setAllPage((p) => Math.max(1, p - 1))}
-                  aria-label="Previous page"
-                >
-                  ‹
-                </button>
-                <span className="transaction-pagination-page">
-                  Page {allCurrentPage} of {allTotalPages}
-                </span>
-                <button
-                  type="button"
-                  disabled={allCurrentPage >= allTotalPages}
-                  onClick={() =>
-                    setAllPage((p) => Math.min(allTotalPages, p + 1))
-                  }
-                  aria-label="Next page"
-                >
-                  ›
-                </button>
-                <button
-                  type="button"
-                  disabled={allCurrentPage >= allTotalPages}
-                  onClick={() => setAllPage(allTotalPages)}
-                  aria-label="Last page"
-                >
-                  »
-                </button>
-              </div>
-            )}
-          </div>
         </div>
       </section>
     );

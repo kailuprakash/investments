@@ -450,10 +450,10 @@ const e = {
         }),
         (0, t.jsxs)("div", {
           className:
-            "relative flex min-h-8 flex-wrap items-center justify-between gap-2 px-2.5 py-1 sm:px-4",
+            "relative flex min-h-8 flex-nowrap items-center justify-between gap-2 px-2.5 py-1 sm:px-4",
           children: [
             (0, t.jsxs)("div", {
-              className: "flex min-w-0 items-center gap-2",
+              className: "flex min-w-0 shrink items-center gap-2",
               children: [
                 (0, t.jsx)("div", {
                   className:
@@ -507,7 +507,7 @@ const e = {
               onJump: onSearchJump,
             }),
             (0, t.jsxs)("div", {
-              className: "flex flex-wrap items-center gap-1.5",
+              className: "flex shrink-0 flex-nowrap items-center gap-1.5",
               children: [
                 (0, t.jsxs)("div", {
                   className:
