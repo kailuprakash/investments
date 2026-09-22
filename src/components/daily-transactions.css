@@ -312,24 +312,6 @@
   text-align: right;
 }
 
-/* ---- All tab: single-row Date/time and Gain/Loss ---- */
-.workbook-shell .transaction-pane-all .transaction-date {
-  flex-direction: row;
-  align-items: baseline;
-  gap: 6px;
-  white-space: nowrap;
-}
-.workbook-shell .transaction-pane-all .transaction-date .transaction-secondary {
-  display: inline;
-}
-.workbook-shell .transaction-pane-all .gain-loss-value {
-  flex-direction: row;
-  align-items: baseline;
-  justify-content: flex-end;
-  gap: 5px;
-  white-space: nowrap;
-}
-
 /* ---- All tab: freeze the Symbol column (with its Type + Account context) ---- */
 /* Column widths: Type = 74, Account = 132 → Symbol starts at 206px. */
 .workbook-shell .transaction-pane-all .daily-transactions-table :is(th, td).transaction-action-cell,
@@ -380,6 +362,7 @@
 .workbook-shell .transaction-all-filters .analytics-filter {
   min-width: 190px;
 }
+
 .workbook-shell .transaction-pane {
   min-width: 0;
   border: 1px solid #bfcfc8;
@@ -458,7 +441,7 @@
   position: sticky;
   top: 0;
   z-index: 25;
-  padding: 9px 8px !important;
+  padding: var(--header-pad-y) var(--header-pad-x) !important;
   white-space: normal;
   line-height: 1.25 !important;
   vertical-align: middle;
@@ -483,7 +466,9 @@
   gap: 4px;
 }
 .workbook-shell .daily-transactions-table .transaction-cell {
-  padding: 8px 9px;
+  padding: var(--cell-pad-y) var(--cell-pad-x);
+  min-height: var(--cell-min-h);
+  line-height: var(--cell-line-h);
   white-space: nowrap;
   vertical-align: middle;
 }
@@ -500,11 +485,21 @@
   outline: 2px solid #158454;
   outline-offset: -2px;
 }
-.workbook-shell .transaction-date,
 .workbook-shell .transaction-quantity {
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+/* Date and time on a single row across Buy / Sell / All tables. */
+.workbook-shell .transaction-date {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 6px;
+  white-space: nowrap;
+}
+.workbook-shell .transaction-date .transaction-secondary {
+  display: inline;
 }
 .workbook-shell .transaction-secondary {
   display: block;

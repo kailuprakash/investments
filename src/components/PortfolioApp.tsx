@@ -6,6 +6,7 @@ import * as XLSX from "xlsx-js-style";
 import AccountDetailsSheet from "@/components/AccountDetailsSheet";
 import DailyTransactionsSheet from "@/components/DailyTransactionsSheet";
 import HoldingsPerformanceTable from "@/components/HoldingsPerformanceTable";
+import DensityToggle from "@/components/DensityToggle";
 import LiveClock from "@/components/LiveClock";
 import LogoutButton from "@/components/LogoutButton";
 import ScreenFreezeBoundary from "@/components/ScreenFreezeBoundary";
@@ -449,10 +450,10 @@ const e = {
         }),
         (0, t.jsxs)("div", {
           className:
-            "relative flex min-h-8 flex-wrap items-center justify-between gap-2 px-2.5 py-1 sm:px-4",
+            "relative flex min-h-8 flex-nowrap items-center justify-between gap-2 px-2.5 py-1 sm:px-4",
           children: [
             (0, t.jsxs)("div", {
-              className: "flex min-w-0 items-center gap-2",
+              className: "flex min-w-0 shrink items-center gap-2",
               children: [
                 (0, t.jsx)("div", {
                   className:
@@ -506,7 +507,7 @@ const e = {
               onJump: onSearchJump,
             }),
             (0, t.jsxs)("div", {
-              className: "flex flex-wrap items-center gap-1.5",
+              className: "flex shrink-0 flex-nowrap items-center gap-1.5",
               children: [
                 (0, t.jsxs)("div", {
                   className:
@@ -615,6 +616,7 @@ const e = {
                         : "No market refresh recorded",
                       children: A ? `Refreshed ${N}` : "Not synced",
                     }),
+                    (0, t.jsx)(DensityToggle, {}),
                     (0, t.jsx)(LiveClock, {}),
                     (0, t.jsx)(LogoutButton, {}),
                   ],
@@ -2416,45 +2418,46 @@ const e = {
                                                                     e.accountNumber,
                                                                 },
                                                               );
-                                                            case "symbol":
-                                                              return (0,
-                                                              t.jsxs)("span", {
-                                                                className:
-                                                                  "flex flex-col font-sans",
-                                                                children: [
-                                                                  (0, t.jsx)(
-                                                                    "span",
-                                                                    {
-                                                                      className:
-                                                                        "font-mono font-bold text-gray-900",
-                                                                      children:
-                                                                        e.symbol,
-                                                                    },
-                                                                  ),
-                                                                  (0, t.jsxs)(
-                                                                    "span",
-                                                                    {
-                                                                      className:
-                                                                        "mt-0.5 text-[9px] leading-tight text-gray-500 whitespace-nowrap",
-                                                                      children:
-                                                                        [
-                                                                          "Updated: ",
-                                                                          e.updatedAt
-                                                                            ? new Date(
-                                                                                e.updatedAt,
-                                                                              ).toLocaleDateString(
-                                                                                "en-US",
-                                                                                {
-                                                                                  timeZone:
-                                                                                    "America/New_York",
-                                                                                },
-                                                                              )
-                                                                            : "Not recorded",
-                                                                        ],
-                                                                    },
-                                                                  ),
-                                                                ],
-                                                              });
+                                                             case "symbol":
+                                                               return (0,
+                                                               t.jsxs)("span", {
+                                                                 className:
+                                                                   "inline-flex items-baseline gap-1 font-sans whitespace-nowrap",
+                                                                 children: [
+                                                                   (0, t.jsx)(
+                                                                     "span",
+                                                                     {
+                                                                       className:
+                                                                         "font-mono font-bold text-gray-900",
+                                                                       children:
+                                                                         e.symbol,
+                                                                     },
+                                                                   ),
+                                                                   (0, t.jsxs)(
+                                                                     "span",
+                                                                     {
+                                                                       className:
+                                                                         "text-[9px] leading-tight text-gray-500 whitespace-nowrap",
+                                                                       children:
+                                                                         [
+                                                                           "(",
+                                                                           e.updatedAt
+                                                                             ? new Date(
+                                                                                 e.updatedAt,
+                                                                               ).toLocaleDateString(
+                                                                                 "en-US",
+                                                                                 {
+                                                                                   timeZone:
+                                                                                     "America/New_York",
+                                                                                 },
+                                                                               )
+                                                                             : "Not recorded",
+                                                                           ")",
+                                                                         ],
+                                                                     },
+                                                                   ),
+                                                                 ],
+                                                               });
                                                             case "quantity":
                                                               return B(
                                                                 e.quantity,
@@ -8214,6 +8217,7 @@ This replaces the current accounts, inventory, and transactions.`)
         return (0, t.jsxs)("div", {
           className:
             "workbook-shell min-h-screen text-slate-800 flex flex-col font-sans selection:bg-emerald-200",
+          "data-density": "comfortable",
           children: [
             (0, t.jsx)(S, {
               onRefreshMarket: ec,

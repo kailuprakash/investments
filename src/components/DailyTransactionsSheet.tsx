@@ -531,7 +531,6 @@ export default function DailyTransactionsSheet({
     key: "dateTime" | "accountNumber" | "symbol" | "action" | "quantity" | "pricePerShare" | "totalAmount" | "gainLoss";
     dir: "asc" | "desc";
   }>({ key: "dateTime", dir: "desc" });
-
   useEffect(() => {
     try {
       const saved = localStorage.getItem(TRADE_COLUMNS_STORAGE_KEY);
