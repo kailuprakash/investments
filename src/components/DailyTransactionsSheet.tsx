@@ -16,6 +16,7 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
+  ChevronUp,
   GripVertical,
   LoaderCircle,
   Pencil,
@@ -315,6 +316,16 @@ export default function DailyTransactionsSheet({
   const [selectedBuyId, setSelectedBuyId] = useState<number | null>(null);
   const filterRef = useRef<HTMLDivElement>(null);
 
+  // "All" tab consolidated view: independent account / symbol / type filters
+  // and a sortable single table.
+  const [allAccount, setAllAccount] = useState<string>("ALL");
+  const [allSymbol, setAllSymbol] = useState<string>("ALL");
+  const [allType, setAllType] = useState<"ALL" | "BUY" | "SELL">("ALL");
+  const [allSort, setAllSort] = useState<{
+    key: "dateTime" | "accountNumber" | "symbol" | "action" | "quantity" | "pricePerShare" | "totalAmount" | "gainLoss";
+    dir: "asc" | "desc";
+  }>({ key: "dateTime", dir: "desc" });
+
   useEffect(() => {
     try {
       const saved = localStorage.getItem(TRADE_COLUMNS_STORAGE_KEY);
@@ -423,6 +434,74 @@ export default function DailyTransactionsSheet({
     (sum, group) => sum + group.rows.length,
     0,
   );
+
+  // Distinct account / symbol option lists for the "All" tab filters.
+  const allAccountOptions = useMemo(
+    () =>
+      Array.from(new Set(entries.map((e) => e.accountNumber.trim())))
+        .filter(Boolean)
+        .sort((a, b) => a.localeCompare(b, undefined, { numeric: true })),
+    [entries],
+  );
+  const allSymbolOptions = useMemo(
+    () =>
+      Array.from(new Set(entries.map((e) => e.symbol.trim().toUpperCase())))
+        .filter(Boolean)
+        .sort((a, b) => a.localeCompare(b)),
+    [entries],
+  );
+
+  // Combined "All" view: a single flat table of every transaction (Buy + Sell),
+  // filtered by account / symbol / type and sorted by the chosen column.
+  const allRows = useMemo(() => {
+    const filtered = entries.filter((e) => {
+      if (allAccount !== "ALL" && e.accountNumber.trim() !== allAccount)
+        return false;
+      if (allSymbol !== "ALL" && e.symbol.trim().toUpperCase() !== allSymbol)
+        return false;
+      if (allType !== "ALL" && e.action.toUpperCase() !== allType) return false;
+      return true;
+    });
+    const dir = allSort.dir === "asc" ? 1 : -1;
+    const val = (row: DailyTransaction): string | number => {
+      switch (allSort.key) {
+        case "dateTime":
+          return Date.parse(row.dateTime) || 0;
+        case "accountNumber":
+          return row.accountNumber.toUpperCase();
+        case "symbol":
+          return row.symbol.toUpperCase();
+        case "action":
+          return row.action.toUpperCase();
+        case "quantity":
+          return Number(row.quantity) || 0;
+        case "pricePerShare":
+          return Number(row.pricePerShare) || 0;
+        case "totalAmount":
+          return calculateTransactionValues(row).totalAmount;
+        case "gainLoss":
+          return calculateTransactionValues(row).gainLoss;
+      }
+    };
+    return [...filtered].sort((a, b) => {
+      const av = val(a);
+      const bv = val(b);
+      const cmp =
+        typeof av === "string" && typeof bv === "string"
+          ? av.localeCompare(bv, undefined, { numeric: true })
+          : Number(av) - Number(bv);
+      return (cmp || a.id - b.id) * dir;
+    });
+  }, [entries, allAccount, allSymbol, allType, allSort]);
+  const allCount = allRows.length;
+
+  function toggleAllSort(key: typeof allSort.key) {
+    setAllSort((cur) =>
+      cur.key === key
+        ? { key, dir: cur.dir === "asc" ? "desc" : "asc" }
+        : { key, dir: key === "dateTime" ? "desc" : "asc" },
+    );
+  }
 
   function toggleGroup(key: string) {
     setCollapsedGroups((prev) => {
@@ -586,6 +665,230 @@ export default function DailyTransactionsSheet({
       >
         {display}
       </td>
+    );
+  }
+
+  // Combined columns for the "All" tab. Fixed single-table layout showing both
+  // Buy and Sell rows. `sortKey` marks columns whose header can sort the table.
+  const ALL_COLUMNS: {
+    id: TradeColumnId | "action" | "accountNumber";
+    label: string;
+    kind: TradeColumn["kind"];
+    align: TradeColumn["align"];
+    width: number;
+    sortKey?: typeof allSort.key;
+  }[] = [
+    { id: "action", label: "Type", kind: "readonly", align: "center", width: 74, sortKey: "action" },
+    { id: "accountNumber", label: "Account", kind: "readonly", align: "left", width: 132, sortKey: "accountNumber" },
+    { id: "symbol", label: "Symbol", kind: "readonly", align: "left", width: 120, sortKey: "symbol" },
+    { id: "dateTime", label: "Date/time", kind: "readonly", align: "center", width: 130, sortKey: "dateTime" },
+    { id: "quantity", label: "Quantity", kind: "editable", align: "center", width: 100, sortKey: "quantity" },
+    { id: "pricePerShare", label: "Price/Share", kind: "editable", align: "right", width: 128, sortKey: "pricePerShare" },
+    { id: "averageCost", label: "Avg. Cost/Share", kind: "editable", align: "right", width: 138 },
+    { id: "totalAmount", label: "Total Amount", kind: "calculated", align: "right", width: 138, sortKey: "totalAmount" },
+    { id: "gainLoss", label: "Gain/Loss", kind: "calculated", align: "right", width: 148, sortKey: "gainLoss" },
+    { id: "comments", label: "Comments", kind: "editable", align: "left", width: 180 },
+  ];
+
+  function renderAllTable() {
+    const totalWidth = ALL_COLUMNS.reduce((sum, col) => sum + col.width, 0);
+    return (
+      <section
+        className="transaction-pane transaction-pane-all"
+        aria-labelledby="ALL-transactions-title"
+        data-side="ALL"
+      >
+        <div className="transaction-pane-toolbar">
+          <div className="transaction-pane-title">
+            <h3 id="ALL-transactions-title">All Transactions</h3>
+            <span className="transaction-count">
+              {allCount} {allCount === 1 ? "row" : "rows"}
+            </span>
+          </div>
+          <div className="transaction-pane-actions">
+            <button type="button" onClick={() => onOpenAddModal("BUY")}>
+              <Plus size={15} /> Add Buy
+            </button>
+            <button type="button" onClick={() => onOpenAddModal("SELL")}>
+              <Plus size={15} /> Add Sell
+            </button>
+          </div>
+        </div>
+
+        <div className="transaction-all-filters">
+          <label className="transaction-all-filter">
+            <span>Account</span>
+            <select
+              value={allAccount}
+              onChange={(e) => setAllAccount(e.target.value)}
+            >
+              <option value="ALL">All accounts</option>
+              {allAccountOptions.map((acc) => (
+                <option key={acc} value={acc}>
+                  {acc}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="transaction-all-filter">
+            <span>Symbol</span>
+            <select
+              value={allSymbol}
+              onChange={(e) => setAllSymbol(e.target.value)}
+            >
+              <option value="ALL">All symbols</option>
+              {allSymbolOptions.map((sym) => (
+                <option key={sym} value={sym}>
+                  {sym}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="transaction-all-filter">
+            <span>Type</span>
+            <select
+              value={allType}
+              onChange={(e) =>
+                setAllType(e.target.value as "ALL" | "BUY" | "SELL")
+              }
+            >
+              <option value="ALL">Buy &amp; Sell</option>
+              <option value="BUY">Buy only</option>
+              <option value="SELL">Sell only</option>
+            </select>
+          </label>
+          {(allAccount !== "ALL" ||
+            allSymbol !== "ALL" ||
+            allType !== "ALL") && (
+            <button
+              type="button"
+              className="transaction-all-filter-reset"
+              onClick={() => {
+                setAllAccount("ALL");
+                setAllSymbol("ALL");
+                setAllType("ALL");
+              }}
+            >
+              <X size={13} /> Reset
+            </button>
+          )}
+        </div>
+
+        <div
+          className="transaction-table-scroll freeze-header-scroll"
+          tabIndex={0}
+          role="region"
+          aria-label="All transactions"
+        >
+          <table
+            className="daily-transactions-table freeze-header-table"
+            aria-label="All transactions"
+            style={{ minWidth: totalWidth }}
+          >
+            <colgroup>
+              {ALL_COLUMNS.map((col) => (
+                <col key={col.id} style={{ width: col.width }} />
+              ))}
+            </colgroup>
+            <thead>
+              <tr>
+                {ALL_COLUMNS.map((col) => {
+                  const active = col.sortKey && allSort.key === col.sortKey;
+                  return (
+                    <th
+                      key={col.id}
+                      scope="col"
+                      data-field={col.id}
+                      data-field-kind={col.kind}
+                      aria-sort={
+                        active
+                          ? allSort.dir === "asc"
+                            ? "ascending"
+                            : "descending"
+                          : "none"
+                      }
+                    >
+                      {col.sortKey ? (
+                        <button
+                          type="button"
+                          className="transaction-sort-button"
+                          onClick={() => toggleAllSort(col.sortKey!)}
+                          title={`Sort by ${col.label}`}
+                        >
+                          <FieldHeader label={col.label} kind={col.kind} />
+                          <span
+                            className={`transaction-sort-icon ${active ? "is-active" : ""}`}
+                            aria-hidden="true"
+                          >
+                            {active && allSort.dir === "desc" ? (
+                              <ChevronDown size={12} />
+                            ) : (
+                              <ChevronUp size={12} />
+                            )}
+                          </span>
+                        </button>
+                      ) : (
+                        <div className="transaction-column-heading">
+                          <FieldHeader label={col.label} kind={col.kind} />
+                        </div>
+                      )}
+                    </th>
+                  );
+                })}
+              </tr>
+            </thead>
+            <tbody>
+              {allRows.length === 0 ? (
+                <tr>
+                  <td className="transaction-empty" colSpan={ALL_COLUMNS.length}>
+                    No transactions match the selected filters.
+                  </td>
+                </tr>
+              ) : (
+                allRows.map((row) => (
+                  <tr
+                    key={row.id}
+                    data-transaction-id={row.id}
+                    data-account={row.accountNumber}
+                    data-symbol={row.symbol}
+                    className="transaction-data-row"
+                  >
+                    {ALL_COLUMNS.map((col) =>
+                      col.id === "action" ? (
+                        <td
+                          key="action"
+                          data-field="action"
+                          data-field-kind="readonly"
+                          data-align="center"
+                          className="transaction-cell transaction-action-cell"
+                        >
+                          <span
+                            className={`transaction-action-badge ${row.action.toUpperCase() === "SELL" ? "is-sell" : "is-buy"}`}
+                          >
+                            {row.action.toUpperCase() === "SELL" ? "Sell" : "Buy"}
+                          </span>
+                        </td>
+                      ) : col.id === "accountNumber" ? (
+                        <td
+                          key="accountNumber"
+                          data-field="accountNumber"
+                          data-field-kind="readonly"
+                          data-align="left"
+                          className="transaction-cell transaction-account-cell"
+                        >
+                          {row.accountNumber}
+                        </td>
+                      ) : (
+                        renderCell(row, col as TradeColumn)
+                      ),
+                    )}
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
     );
   }
 
@@ -1055,13 +1358,12 @@ export default function DailyTransactionsSheet({
 
       {activeTab === "ALL" ? (
         <div
-          className="transaction-subtab-panel transactions-side-by-side"
+          className="transaction-subtab-panel"
           role="tabpanel"
           id="subtab-panel-all"
           aria-labelledby="subtab-all"
         >
-          {renderTable("BUY")}
-          {renderTable("SELL")}
+          {renderAllTable()}
         </div>
       ) : (
         <div
