@@ -31,13 +31,13 @@
   --header-pad-x: 8px;
 }
 
-/* Comfortable: a touch more breathing room. */
+/* Comfortable: tighter default rows to keep tables compact and readable. */
 .workbook-shell[data-density="comfortable"] {
-  --cell-pad-y: 6px;
+  --cell-pad-y: 3px;
   --cell-pad-x: 9px;
-  --cell-min-h: 32px;
-  --cell-line-h: 1.35;
-  --header-pad-y: 9px;
+  --cell-min-h: 26px;
+  --cell-line-h: 1.25;
+  --header-pad-y: 6px;
   --header-pad-x: 8px;
 }
 
@@ -255,27 +255,17 @@ select:focus-visible {
 .workbook-shell table tbody th {
   vertical-align: middle;
   min-height: var(--cell-min-h);
-  padding-top: var(--cell-pad-y);
-  padding-bottom: var(--cell-pad-y);
-  padding-left: var(--cell-pad-x);
-  padding-right: var(--cell-pad-x);
+  /* !important so the shared density tokens win over per-cell inline Tailwind
+     paddings (py-1 / py-1.5) used across Summary, Consolidated, Account
+     Details, etc. — giving every workbook table one compact row height. */
+  padding-top: var(--cell-pad-y) !important;
+  padding-bottom: var(--cell-pad-y) !important;
   font-size: var(--workbook-font-size);
   line-height: var(--cell-line-h);
 }
 
 .workbook-shell table tbody td {
   background-clip: padding-box;
-}
-
-/* Account Details & Deposit Details grids set inline Tailwind px-3 py-1.5 on
-   every cell. Force those onto the shared density tokens so the density toggle
-   affects them too and their row height matches the other workbook tables. */
-.workbook-shell .account-details-table tbody :is(td, th),
-.workbook-shell .deposit-details-table tbody :is(td, th) {
-  padding-top: var(--cell-pad-y) !important;
-  padding-bottom: var(--cell-pad-y) !important;
-  min-height: var(--cell-min-h);
-  line-height: var(--cell-line-h);
 }
 
 .workbook-shell table tbody tr:hover td:not(.frozen-symbol-column) {
@@ -696,8 +686,7 @@ select:focus-visible {
   font-size: inherit !important;
 }
 .workbook-shell .gain-loss-value {
-  display: flex;
-  width: 100%;
+  display: inline-flex;
   flex-direction: row;
   align-items: baseline;
   justify-content: flex-end;
@@ -774,6 +763,13 @@ select:focus-visible {
 .workbook-shell .history-table thead tr:last-child th:not([rowspan]) {
   background-color: var(--field-calculated) !important;
   color: #22593f !important;
+}
+/* Keep a guaranteed gap between adjacent right-aligned numeric columns
+   (e.g. Market Value vs Gain/Loss) so their values never visually collide,
+   regardless of density or computed column widths. */
+.workbook-shell .summary-table :is(td, th)[data-align="right"] {
+  padding-left: 12px !important;
+  padding-right: 10px !important;
 }
 .workbook-shell .summary-table tbody tr:last-child td {
   background-color: var(--field-calculated);
