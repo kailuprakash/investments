@@ -1139,7 +1139,7 @@ export default function AccountDetailsSheet({
                 <th
                   scope="col"
                   data-field-kind="readonly"
-                  className="border border-slate-300 whitespace-normal"
+                  className="deposit-actions-col border border-slate-300 whitespace-normal"
                 >
                   <FieldHeader label="Actions" kind="readonly" />
                 </th>
@@ -1391,7 +1391,7 @@ export default function AccountDetailsSheet({
                               </td>
                               <td
                                 data-align="center"
-                                className="border border-slate-300 px-2 py-1.5 text-center whitespace-nowrap"
+                                className="deposit-actions-col border border-slate-300 px-2 py-1.5 text-center whitespace-nowrap"
                               >
                                 <div className="flex items-center justify-center gap-1">
                                   <button

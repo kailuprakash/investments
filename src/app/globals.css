@@ -764,12 +764,26 @@ select:focus-visible {
   background-color: var(--field-calculated) !important;
   color: #22593f !important;
 }
-/* Keep a guaranteed gap between adjacent right-aligned numeric columns
-   (e.g. Market Value vs Gain/Loss) so their values never visually collide,
-   regardless of density or computed column widths. */
-.workbook-shell .summary-table :is(td, th)[data-align="right"] {
+/* Keep a guaranteed gap on every summary cell so adjacent values never collide
+   (Market Value vs Gain/Loss, and Gain/Loss vs Comments), regardless of density
+   or computed column widths. */
+.workbook-shell .summary-table tbody :is(td, th) {
   padding-left: 12px !important;
-  padding-right: 10px !important;
+  padding-right: 12px !important;
+}
+
+/* Freeze the Deposit Details "Actions" column to the right edge so Edit/Delete
+   stay reachable without horizontal scrolling to the far corner. */
+.workbook-shell .deposit-details-table .deposit-actions-col {
+  position: sticky;
+  right: 0;
+  z-index: 12;
+  background: #fff;
+  box-shadow: -3px 0 5px -4px #33415566;
+}
+.workbook-shell .deposit-details-table thead .deposit-actions-col {
+  z-index: 36;
+  background: #eef3f8;
 }
 .workbook-shell .summary-table tbody tr:last-child td {
   background-color: var(--field-calculated);
