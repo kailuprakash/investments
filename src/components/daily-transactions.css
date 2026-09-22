@@ -154,55 +154,61 @@
   background: #f4f7f6;
   border-radius: 0 0 10px 10px;
 }
-.workbook-shell .transactions-archive {
-  margin: 0 10px 10px;
-  border: 1px solid #cbd5e1;
-  border-radius: 10px;
-  background: #eef2f7;
-  overflow: hidden;
-}
-.workbook-shell .transactions-archive-toggle {
+.workbook-shell .transaction-subtabs {
   display: flex;
+  align-items: stretch;
+  gap: 4px;
+  padding: 8px 10px 0;
+  background: #f4f7f6;
+}
+.workbook-shell .transaction-subtab {
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 8px 12px;
-  background: linear-gradient(110deg, #334155 0%, #475569 55%, #334155 100%);
-  color: #fff;
-  font-size: 11px;
+  gap: 7px;
+  padding: 7px 16px;
+  border: 1px solid #cbd5e1;
+  border-bottom: 0;
+  border-radius: 8px 8px 0 0;
+  background: #e2e8f0;
+  color: #475569;
+  font-size: 11.5px;
   font-weight: 700;
   letter-spacing: 0.02em;
   cursor: pointer;
-  border: 0;
-  text-align: left;
+  transition:
+    background-color 0.14s ease,
+    color 0.14s ease;
 }
-.workbook-shell .transactions-archive-toggle:hover {
-  filter: brightness(1.08);
+.workbook-shell .transaction-subtab:hover {
+  background: #eef2f7;
+  color: #1e293b;
 }
-.workbook-shell .transactions-archive-count {
-  margin-left: auto;
-  padding: 2px 8px;
+.workbook-shell .transaction-subtab.is-active {
+  background: #ffffff;
+  color: #0b7041;
+  border-color: #bfcfc8;
+  box-shadow: 0 -2px 8px -5px rgba(15, 23, 42, 0.5);
+}
+.workbook-shell .transaction-subtab-count {
+  min-width: 20px;
+  padding: 1px 7px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(100, 116, 139, 0.18);
+  color: inherit;
   font-size: 9.5px;
   font-weight: 700;
-  white-space: nowrap;
+  text-align: center;
 }
-.workbook-shell .transactions-archive-tables {
-  border-radius: 0;
-  background: #e2e8f0;
+.workbook-shell .transaction-subtab.is-active .transaction-subtab-count {
+  background: rgba(11, 112, 65, 0.16);
 }
-.workbook-shell .transaction-pane-archived {
-  border-color: #94a3b8;
-  opacity: 0.96;
+.workbook-shell .transaction-subtab-panel {
+  padding: 10px;
+  background: #f4f7f6;
+  border-radius: 0 0 10px 10px;
 }
-.workbook-shell .transaction-pane-archived .transaction-pane-toolbar {
-  background: #dbe3ec;
-}
-@media (max-width: 900px) {
-  .workbook-shell .transactions-archive-tables {
-    grid-template-columns: minmax(0, 1fr);
-  }
+.workbook-shell .transaction-subtab-panel .transaction-pane {
+  width: 100%;
 }
 .workbook-shell .transaction-pane {
   min-width: 0;

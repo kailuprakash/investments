@@ -61,6 +61,9 @@ interface Props {
   onSaveInlineField: (id: number, patch: TradeEdit) => Promise<void>;
   jumpHit?: WorkbookHit | null;
   onJumpHandled?: () => void;
+  /** Active sub-tab. "ALL" is treated as the default "BUY" page. */
+  activeOrderTypeTab?: "BUY" | "SELL" | "ALL";
+  onSelectOrderTypeTab?: (tab: "BUY" | "SELL") => void;
 }
 
 const money = (value: number) =>
@@ -278,7 +281,13 @@ export default function DailyTransactionsSheet({
   onSaveInlineField,
   jumpHit,
   onJumpHandled,
+  activeOrderTypeTab = "BUY",
+  onSelectOrderTypeTab,
 }: Props) {
+  // Two sub-tabs within Daily Transactions: Buy and Sell. "ALL" (the legacy
+  // side-by-side default) is treated as the Buy page.
+  const activeSide: TradeSide = activeOrderTypeTab === "SELL" ? "SELL" : "BUY";
+  const selectSide = (side: TradeSide) => onSelectOrderTypeTab?.(side);
   const [columns, setColumns] = useState<Record<TradeSide, TradeColumn[]>>({
     BUY: DEFAULT_TRADE_COLUMNS.BUY,
     SELL: DEFAULT_TRADE_COLUMNS.SELL,
@@ -391,38 +400,13 @@ export default function DailyTransactionsSheet({
         .sort((a, b) => a.localeCompare(b, undefined, { numeric: true })),
     [inventoryAccounts, entries],
   );
-  // Transactions dated more than one week ago move out of the live Buy/Sell
-  // tables into a separate consolidated (archive) section. "Recent" keeps the
-  // last 7 days so the working view stays focused on current activity.
-  const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
-  const { recentEntries, archivedEntries } = useMemo(() => {
-    const cutoff = Date.now() - ONE_WEEK_MS;
-    const recent: DailyTransaction[] = [];
-    const archived: DailyTransaction[] = [];
-    for (const entry of entries) {
-      const ts = Date.parse(entry.dateTime);
-      // Undated / unparseable rows stay in the recent view rather than vanish.
-      if (Number.isFinite(ts) && ts < cutoff) archived.push(entry);
-      else recent.push(entry);
-    }
-    return { recentEntries: recent, archivedEntries: archived };
-  }, [entries, ONE_WEEK_MS]);
-
   const buyGroups = useMemo(
-    () => groupTransactionsByAccount(recentEntries, "BUY", selectedAccounts),
-    [recentEntries, selectedAccounts],
+    () => groupTransactionsByAccount(entries, "BUY", selectedAccounts),
+    [entries, selectedAccounts],
   );
   const sellGroups = useMemo(
-    () => groupTransactionsByAccount(recentEntries, "SELL", selectedAccounts),
-    [recentEntries, selectedAccounts],
-  );
-  const archivedBuyGroups = useMemo(
-    () => groupTransactionsByAccount(archivedEntries, "BUY", selectedAccounts),
-    [archivedEntries, selectedAccounts],
-  );
-  const archivedSellGroups = useMemo(
-    () => groupTransactionsByAccount(archivedEntries, "SELL", selectedAccounts),
-    [archivedEntries, selectedAccounts],
+    () => groupTransactionsByAccount(entries, "SELL", selectedAccounts),
+    [entries, selectedAccounts],
   );
   const visibleBuys = buyGroups.flatMap((group) => group.rows);
   const selectedBuy = visibleBuys.find(
@@ -433,16 +417,6 @@ export default function DailyTransactionsSheet({
     (sum, group) => sum + group.rows.length,
     0,
   );
-  const archivedBuyCount = archivedBuyGroups.reduce(
-    (sum, group) => sum + group.rows.length,
-    0,
-  );
-  const archivedSellCount = archivedSellGroups.reduce(
-    (sum, group) => sum + group.rows.length,
-    0,
-  );
-  const archivedCount = archivedBuyCount + archivedSellCount;
-  const [showArchive, setShowArchive] = useState(false);
 
   function toggleGroup(key: string) {
     setCollapsedGroups((prev) => {
@@ -609,62 +583,47 @@ export default function DailyTransactionsSheet({
     );
   }
 
-  function renderTable(side: TradeSide, variant: "recent" | "archived" = "recent") {
-    const archived = variant === "archived";
-    const groups = archived
-      ? side === "BUY"
-        ? archivedBuyGroups
-        : archivedSellGroups
-      : side === "BUY"
-        ? buyGroups
-        : sellGroups;
+  function renderTable(side: TradeSide) {
+    const groups = side === "BUY" ? buyGroups : sellGroups;
     const visible = columns[side].filter((col) => col.visible);
-    const count = archived
-      ? side === "BUY"
-        ? archivedBuyCount
-        : archivedSellCount
-      : side === "BUY"
-        ? buyCount
-        : sellCount;
+    const count = side === "BUY" ? buyCount : sellCount;
     const buy = side === "BUY";
     const label = buy ? "Buy" : "Sell";
-    const keyPrefix = archived ? `ARCH-${side}` : side;
+    const keyPrefix = side;
     const contextAccount =
       selectedAccounts?.length === 1 ? selectedAccounts[0] : undefined;
     return (
       <section
-        className={`transaction-pane transaction-pane-${side.toLowerCase()}${archived ? " transaction-pane-archived" : ""}`}
+        className={`transaction-pane transaction-pane-${side.toLowerCase()}`}
         aria-labelledby={`${keyPrefix}-transactions-title`}
         data-side={side}
       >
         <div className="transaction-pane-toolbar">
           <div className="transaction-pane-title">
             <h3 id={`${keyPrefix}-transactions-title`}>
-              {archived ? `Consolidated ${label}` : `${label} Transactions`}
+              {`${label} Transactions`}
             </h3>
             <span className="transaction-count">
               {count} {count === 1 ? "row" : "rows"}
             </span>
           </div>
-          {!archived && (
-            <div className="transaction-pane-actions">
-              {buy && selectedBuy && (
-                <button
-                  type="button"
-                  className="transaction-sell-selected"
-                  onClick={() => onSellSelected(selectedBuy)}
-                >
-                  Sell Selected Buy
-                </button>
-              )}
+          <div className="transaction-pane-actions">
+            {buy && selectedBuy && (
               <button
                 type="button"
-                onClick={() => onOpenAddModal(side, contextAccount)}
+                className="transaction-sell-selected"
+                onClick={() => onSellSelected(selectedBuy)}
               >
-                <Plus size={15} /> Add {label}
+                Sell Selected Buy
               </button>
-            </div>
-          )}
+            )}
+            <button
+              type="button"
+              onClick={() => onOpenAddModal(side, contextAccount)}
+            >
+              <Plus size={15} /> Add {label}
+            </button>
+          </div>
         </div>
         <div
           className="transaction-table-scroll freeze-header-scroll"
@@ -765,20 +724,18 @@ export default function DailyTransactionsSheet({
                                   ? "transaction"
                                   : "transactions"}
                               </span>
+                             </button>
+                            <button
+                              type="button"
+                              className="transaction-group-add"
+                              onClick={() =>
+                                onOpenAddModal(side, accountNumber)
+                              }
+                              aria-label={`Add ${label.toLowerCase()} for ${accountNumber}`}
+                            >
+                              <Plus size={14} />
+                              <span>Add {label}</span>
                             </button>
-                            {!archived && (
-                              <button
-                                type="button"
-                                className="transaction-group-add"
-                                onClick={() =>
-                                  onOpenAddModal(side, accountNumber)
-                                }
-                                aria-label={`Add ${label.toLowerCase()} for ${accountNumber}`}
-                              >
-                                <Plus size={14} />
-                                <span>Add {label}</span>
-                              </button>
-                            )}
                           </div>
                         </th>
                       </tr>
@@ -1047,41 +1004,45 @@ export default function DailyTransactionsSheet({
           </div>
         </div>
       )}
-      <div className="transactions-side-by-side">
-        {renderTable("BUY")}
-        {renderTable("SELL")}
+      <div
+        className="transaction-subtabs"
+        role="tablist"
+        aria-label="Buy and Sell transaction pages"
+      >
+        <button
+          type="button"
+          role="tab"
+          id="subtab-buy"
+          aria-selected={activeSide === "BUY"}
+          aria-controls="subtab-panel-buy"
+          className={`transaction-subtab ${activeSide === "BUY" ? "is-active" : ""}`}
+          onClick={() => selectSide("BUY")}
+        >
+          Buy
+          <span className="transaction-subtab-count">{buyCount}</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          id="subtab-sell"
+          aria-selected={activeSide === "SELL"}
+          aria-controls="subtab-panel-sell"
+          className={`transaction-subtab ${activeSide === "SELL" ? "is-active" : ""}`}
+          onClick={() => selectSide("SELL")}
+        >
+          Sell
+          <span className="transaction-subtab-count">{sellCount}</span>
+        </button>
       </div>
 
-      {archivedCount > 0 && (
-        <div className="transactions-archive">
-          <button
-            type="button"
-            className="transactions-archive-toggle"
-            aria-expanded={showArchive}
-            aria-controls="transactions-archive-panel"
-            onClick={() => setShowArchive((prev) => !prev)}
-          >
-            {showArchive ? (
-              <ChevronDown size={15} />
-            ) : (
-              <ChevronRight size={15} />
-            )}
-            <span>Consolidated Transactions · older than 1 week</span>
-            <span className="transactions-archive-count">
-              {archivedBuyCount} Buy · {archivedSellCount} Sell
-            </span>
-          </button>
-          {showArchive && (
-            <div
-              id="transactions-archive-panel"
-              className="transactions-side-by-side transactions-archive-tables"
-            >
-              {renderTable("BUY", "archived")}
-              {renderTable("SELL", "archived")}
-            </div>
-          )}
-        </div>
-      )}
+      <div
+        className="transaction-subtab-panel"
+        role="tabpanel"
+        id={activeSide === "BUY" ? "subtab-panel-buy" : "subtab-panel-sell"}
+        aria-labelledby={activeSide === "BUY" ? "subtab-buy" : "subtab-sell"}
+      >
+        {renderTable(activeSide)}
+      </div>
     </section>
   );
 }

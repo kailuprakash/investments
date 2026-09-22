@@ -8373,15 +8373,15 @@ This replaces the current accounts, inventory, and transactions.`)
                                     ? "BUY"
                                     : "sell" === g
                                       ? "SELL"
-                                      : x,
+                                      : "SELL" === x
+                                        ? "SELL"
+                                        : "BUY",
                                 onSelectOrderTypeTab: (e) => {
+                                  // Remember the chosen sub-tab and normalise the
+                                  // active sheet back to the unified transactions view.
                                   v(e),
                                     ("buy" === g || "sell" === g) &&
-                                      b(
-                                        "ALL" === e
-                                          ? "future"
-                                          : e.toLowerCase(),
-                                      );
+                                      b("future");
                                 },
                               }),
                             })
