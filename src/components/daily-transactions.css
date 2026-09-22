@@ -458,7 +458,7 @@
   position: sticky;
   top: 0;
   z-index: 25;
-  padding: 9px 8px !important;
+  padding: var(--header-pad-y) var(--header-pad-x) !important;
   white-space: normal;
   line-height: 1.25 !important;
   vertical-align: middle;
@@ -483,7 +483,9 @@
   gap: 4px;
 }
 .workbook-shell .daily-transactions-table .transaction-cell {
-  padding: 8px 9px;
+  padding: var(--cell-pad-y) var(--cell-pad-x);
+  min-height: var(--cell-min-h);
+  line-height: var(--cell-line-h);
   white-space: nowrap;
   vertical-align: middle;
 }

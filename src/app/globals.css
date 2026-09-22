@@ -20,6 +20,36 @@
   --field-readonly: #e5edf6;
   --field-calculated: #dcefe5;
 
+  /* Unified table density tokens. One source of truth for every workbook grid
+     (global tables + Daily Transactions) so row heights match across screens.
+     The default here is "comfortable"; [data-density] overrides tighten it. */
+  --cell-pad-y: 4px;
+  --cell-pad-x: 8px;
+  --cell-min-h: 28px;
+  --cell-line-h: 1.28;
+  --header-pad-y: 6px;
+  --header-pad-x: 8px;
+}
+
+/* Comfortable: a touch more breathing room. */
+.workbook-shell[data-density="comfortable"] {
+  --cell-pad-y: 6px;
+  --cell-pad-x: 9px;
+  --cell-min-h: 32px;
+  --cell-line-h: 1.35;
+  --header-pad-y: 9px;
+  --header-pad-x: 8px;
+}
+
+/* Compact: dense financial-grid feel, more rows per screen. */
+.workbook-shell[data-density="compact"] {
+  --cell-pad-y: 3px;
+  --cell-pad-x: 7px;
+  --cell-min-h: 24px;
+  --cell-line-h: 1.2;
+  --header-pad-y: 5px;
+  --header-pad-x: 7px;
+
   /* Per-section variables are kept as aliases so existing rules stay valid. */
   --font-header: var(--font-calibri);
   --font-daily: var(--font-calibri);
@@ -224,15 +254,28 @@ select:focus-visible {
 .workbook-shell table tbody td,
 .workbook-shell table tbody th {
   vertical-align: middle;
-  min-height: 32px;
-  padding-top: 6px;
-  padding-bottom: 6px;
+  min-height: var(--cell-min-h);
+  padding-top: var(--cell-pad-y);
+  padding-bottom: var(--cell-pad-y);
+  padding-left: var(--cell-pad-x);
+  padding-right: var(--cell-pad-x);
   font-size: var(--workbook-font-size);
-  line-height: 1.35;
+  line-height: var(--cell-line-h);
 }
 
 .workbook-shell table tbody td {
   background-clip: padding-box;
+}
+
+/* Account Details & Deposit Details grids set inline Tailwind px-3 py-1.5 on
+   every cell. Force those onto the shared density tokens so the density toggle
+   affects them too and their row height matches the other workbook tables. */
+.workbook-shell .account-details-table tbody :is(td, th),
+.workbook-shell .deposit-details-table tbody :is(td, th) {
+  padding-top: var(--cell-pad-y) !important;
+  padding-bottom: var(--cell-pad-y) !important;
+  min-height: var(--cell-min-h);
+  line-height: var(--cell-line-h);
 }
 
 .workbook-shell table tbody tr:hover td:not(.frozen-symbol-column) {

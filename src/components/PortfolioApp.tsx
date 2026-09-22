@@ -6,6 +6,7 @@ import * as XLSX from "xlsx-js-style";
 import AccountDetailsSheet from "@/components/AccountDetailsSheet";
 import DailyTransactionsSheet from "@/components/DailyTransactionsSheet";
 import HoldingsPerformanceTable from "@/components/HoldingsPerformanceTable";
+import DensityToggle from "@/components/DensityToggle";
 import LiveClock from "@/components/LiveClock";
 import LogoutButton from "@/components/LogoutButton";
 import ScreenFreezeBoundary from "@/components/ScreenFreezeBoundary";
@@ -615,6 +616,7 @@ const e = {
                         : "No market refresh recorded",
                       children: A ? `Refreshed ${N}` : "Not synced",
                     }),
+                    (0, t.jsx)(DensityToggle, {}),
                     (0, t.jsx)(LiveClock, {}),
                     (0, t.jsx)(LogoutButton, {}),
                   ],
@@ -8214,6 +8216,7 @@ This replaces the current accounts, inventory, and transactions.`)
         return (0, t.jsxs)("div", {
           className:
             "workbook-shell min-h-screen text-slate-800 flex flex-col font-sans selection:bg-emerald-200",
+          "data-density": "comfortable",
           children: [
             (0, t.jsx)(S, {
               onRefreshMarket: ec,
