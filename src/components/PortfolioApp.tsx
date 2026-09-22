@@ -8373,12 +8373,14 @@ This replaces the current accounts, inventory, and transactions.`)
                                     ? "BUY"
                                     : "sell" === g
                                       ? "SELL"
-                                      : "SELL" === x
-                                        ? "SELL"
-                                        : "BUY",
+                                      : "BUY" === x
+                                        ? "BUY"
+                                        : "SELL" === x
+                                          ? "SELL"
+                                          : "ALL",
                                 onSelectOrderTypeTab: (e) => {
-                                  // Remember the chosen sub-tab and normalise the
-                                  // active sheet back to the unified transactions view.
+                                  // Remember the chosen sub-tab (All / Buy / Sell)
+                                  // and keep the unified transactions view active.
                                   v(e),
                                     ("buy" === g || "sell" === g) &&
                                       b("future");

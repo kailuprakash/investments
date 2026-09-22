@@ -61,9 +61,9 @@ interface Props {
   onSaveInlineField: (id: number, patch: TradeEdit) => Promise<void>;
   jumpHit?: WorkbookHit | null;
   onJumpHandled?: () => void;
-  /** Active sub-tab. "ALL" is treated as the default "BUY" page. */
-  activeOrderTypeTab?: "BUY" | "SELL" | "ALL";
-  onSelectOrderTypeTab?: (tab: "BUY" | "SELL") => void;
+  /** Active sub-tab: All (consolidated), Buy, or Sell. */
+  activeOrderTypeTab?: "ALL" | "BUY" | "SELL";
+  onSelectOrderTypeTab?: (tab: "ALL" | "BUY" | "SELL") => void;
 }
 
 const money = (value: number) =>
@@ -281,13 +281,19 @@ export default function DailyTransactionsSheet({
   onSaveInlineField,
   jumpHit,
   onJumpHandled,
-  activeOrderTypeTab = "BUY",
+  activeOrderTypeTab = "ALL",
   onSelectOrderTypeTab,
 }: Props) {
-  // Two sub-tabs within Daily Transactions: Buy and Sell. "ALL" (the legacy
-  // side-by-side default) is treated as the Buy page.
-  const activeSide: TradeSide = activeOrderTypeTab === "SELL" ? "SELL" : "BUY";
-  const selectSide = (side: TradeSide) => onSelectOrderTypeTab?.(side);
+  // Three sub-tabs within Daily Transactions: All (consolidated Buy + Sell),
+  // Buy, and Sell. "All" shows both tables side by side.
+  const activeTab: "ALL" | "BUY" | "SELL" =
+    activeOrderTypeTab === "BUY"
+      ? "BUY"
+      : activeOrderTypeTab === "SELL"
+        ? "SELL"
+        : "ALL";
+  const selectTab = (tab: "ALL" | "BUY" | "SELL") =>
+    onSelectOrderTypeTab?.(tab);
   const [columns, setColumns] = useState<Record<TradeSide, TradeColumn[]>>({
     BUY: DEFAULT_TRADE_COLUMNS.BUY,
     SELL: DEFAULT_TRADE_COLUMNS.SELL,
@@ -1007,16 +1013,28 @@ export default function DailyTransactionsSheet({
       <div
         className="transaction-subtabs"
         role="tablist"
-        aria-label="Buy and Sell transaction pages"
+        aria-label="All, Buy and Sell transaction pages"
       >
         <button
           type="button"
           role="tab"
+          id="subtab-all"
+          aria-selected={activeTab === "ALL"}
+          aria-controls="subtab-panel-all"
+          className={`transaction-subtab ${activeTab === "ALL" ? "is-active" : ""}`}
+          onClick={() => selectTab("ALL")}
+        >
+          All
+          <span className="transaction-subtab-count">{buyCount + sellCount}</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
           id="subtab-buy"
-          aria-selected={activeSide === "BUY"}
+          aria-selected={activeTab === "BUY"}
           aria-controls="subtab-panel-buy"
-          className={`transaction-subtab ${activeSide === "BUY" ? "is-active" : ""}`}
-          onClick={() => selectSide("BUY")}
+          className={`transaction-subtab ${activeTab === "BUY" ? "is-active" : ""}`}
+          onClick={() => selectTab("BUY")}
         >
           Buy
           <span className="transaction-subtab-count">{buyCount}</span>
@@ -1025,24 +1043,36 @@ export default function DailyTransactionsSheet({
           type="button"
           role="tab"
           id="subtab-sell"
-          aria-selected={activeSide === "SELL"}
+          aria-selected={activeTab === "SELL"}
           aria-controls="subtab-panel-sell"
-          className={`transaction-subtab ${activeSide === "SELL" ? "is-active" : ""}`}
-          onClick={() => selectSide("SELL")}
+          className={`transaction-subtab ${activeTab === "SELL" ? "is-active" : ""}`}
+          onClick={() => selectTab("SELL")}
         >
           Sell
           <span className="transaction-subtab-count">{sellCount}</span>
         </button>
       </div>
 
-      <div
-        className="transaction-subtab-panel"
-        role="tabpanel"
-        id={activeSide === "BUY" ? "subtab-panel-buy" : "subtab-panel-sell"}
-        aria-labelledby={activeSide === "BUY" ? "subtab-buy" : "subtab-sell"}
-      >
-        {renderTable(activeSide)}
-      </div>
+      {activeTab === "ALL" ? (
+        <div
+          className="transaction-subtab-panel transactions-side-by-side"
+          role="tabpanel"
+          id="subtab-panel-all"
+          aria-labelledby="subtab-all"
+        >
+          {renderTable("BUY")}
+          {renderTable("SELL")}
+        </div>
+      ) : (
+        <div
+          className="transaction-subtab-panel"
+          role="tabpanel"
+          id={activeTab === "BUY" ? "subtab-panel-buy" : "subtab-panel-sell"}
+          aria-labelledby={activeTab === "BUY" ? "subtab-buy" : "subtab-sell"}
+        >
+          {renderTable(activeTab)}
+        </div>
+      )}
     </section>
   );
 }
