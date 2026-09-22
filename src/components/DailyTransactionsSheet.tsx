@@ -105,6 +105,209 @@ function TransactionDate({ value }: { value: string }) {
   );
 }
 
+/**
+ * Analytics-style multi-select combobox filter with type-ahead, chips, and
+ * All/Clear controls. `null` selection means "all". Mirrors the Visual
+ * Analytics MultiFilter so the two screens feel consistent.
+ */
+function TransactionMultiFilter({
+  label,
+  options,
+  selected,
+  onChange,
+}: {
+  label: string;
+  options: string[];
+  selected: string[] | null;
+  onChange: (next: string[] | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [activeIndex, setActiveIndex] = useState(0);
+  const root = useRef<HTMLDivElement>(null);
+  const input = useRef<HTMLInputElement>(null);
+  const listId = `tx-${label.toLowerCase()}-filter-suggestions`;
+  const chosen = selected ?? [];
+  const matches = useMemo(
+    () =>
+      options.filter((option) =>
+        option.toLowerCase().includes(query.trim().toLowerCase()),
+      ),
+    [options, query],
+  );
+
+  useEffect(() => {
+    setActiveIndex(0);
+  }, [query, open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const closeOutside = (event: PointerEvent) => {
+      if (!root.current?.contains(event.target as Node)) {
+        setOpen(false);
+        setQuery("");
+      }
+    };
+    document.addEventListener("pointerdown", closeOutside);
+    return () => document.removeEventListener("pointerdown", closeOutside);
+  }, [open]);
+
+  function selectOption(option: string) {
+    if (!options.includes(option)) return;
+    const next = chosen.includes(option) ? chosen : [...chosen, option];
+    onChange(next.length === options.length ? null : next);
+    setQuery("");
+    setOpen(true);
+    input.current?.focus();
+  }
+  function removeOption(option: string) {
+    const next = chosen.filter((item) => item !== option);
+    onChange(next.length === 0 ? null : next);
+  }
+  function commitTypedValue() {
+    const typed = query.trim();
+    if (!typed) return false;
+    const exact = options.find(
+      (option) => option.toLowerCase() === typed.toLowerCase(),
+    );
+    const highlighted = matches[activeIndex];
+    const unique = matches.length === 1 ? matches[0] : null;
+    const next = exact ?? highlighted ?? unique;
+    if (!next) return false;
+    selectOption(next);
+    return true;
+  }
+
+  return (
+    <div className="analytics-filter" ref={root}>
+      <div className="analytics-combobox">
+        {chosen.map((option) => (
+          <button
+            key={option}
+            type="button"
+            className="analytics-filter-chip"
+            aria-label={`Remove ${label} filter ${option}`}
+            onClick={() => removeOption(option)}
+          >
+            <span>{option}</span>
+            <X size={12} aria-hidden="true" />
+          </button>
+        ))}
+        <input
+          ref={input}
+          type="text"
+          role="combobox"
+          aria-expanded={open}
+          aria-controls={listId}
+          aria-autocomplete="list"
+          aria-label={`Filter by ${label}`}
+          placeholder={
+            chosen.length
+              ? `Add ${label.toLowerCase()}…`
+              : `Type to filter ${label.toLowerCase()}s`
+          }
+          value={query}
+          autoComplete="off"
+          spellCheck={false}
+          onFocus={() => setOpen(true)}
+          onChange={(event) => {
+            setQuery(event.target.value);
+            setOpen(true);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "ArrowDown") {
+              event.preventDefault();
+              setOpen(true);
+              setActiveIndex((index) =>
+                matches.length === 0 ? 0 : (index + 1) % matches.length,
+              );
+            } else if (event.key === "ArrowUp") {
+              event.preventDefault();
+              setOpen(true);
+              setActiveIndex((index) =>
+                matches.length === 0
+                  ? 0
+                  : (index - 1 + matches.length) % matches.length,
+              );
+            } else if (event.key === "Enter") {
+              event.preventDefault();
+              if (!commitTypedValue()) setOpen(true);
+            } else if (event.key === "Escape") {
+              event.preventDefault();
+              setOpen(false);
+              setQuery("");
+            } else if (event.key === "Backspace" && !query && chosen.length) {
+              removeOption(chosen[chosen.length - 1]);
+            }
+          }}
+        />
+      </div>
+      {open && (
+        <div
+          className="analytics-filter-menu"
+          id={listId}
+          role="listbox"
+          aria-label={`${label} suggestions`}
+        >
+          <div className="analytics-filter-controls">
+            <button
+              type="button"
+              onClick={() => {
+                onChange(null);
+                setQuery("");
+              }}
+            >
+              All
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                onChange([]);
+                setQuery("");
+              }}
+            >
+              Clear
+            </button>
+          </div>
+          {options.length === 0 ? (
+            <p className="analytics-filter-empty">
+              No {label.toLowerCase()}s available.
+            </p>
+          ) : matches.length === 0 ? (
+            <p className="analytics-filter-empty" role="status">
+              No matching {label.toLowerCase()}s for “{query.trim()}”.
+            </p>
+          ) : (
+            matches.map((option, index) => {
+              const active = index === activeIndex;
+              const checked = chosen.includes(option);
+              return (
+                <button
+                  key={option}
+                  type="button"
+                  id={`${listId}-${index}`}
+                  role="option"
+                  aria-selected={active}
+                  className={`analytics-filter-option ${active ? "is-active" : ""} ${checked ? "is-checked" : ""}`}
+                  onMouseEnter={() => setActiveIndex(index)}
+                  onClick={() => selectOption(option)}
+                >
+                  {option}
+                  {checked ? (
+                    <span className="analytics-filter-selected-mark">
+                      Selected
+                    </span>
+                  ) : null}
+                </button>
+              );
+            })
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function EditableTransactionCell({
   row,
   column,
@@ -285,16 +488,16 @@ export default function DailyTransactionsSheet({
   activeOrderTypeTab = "ALL",
   onSelectOrderTypeTab,
 }: Props) {
-  // Three sub-tabs within Daily Transactions: All (consolidated Buy + Sell),
-  // Buy, and Sell. "All" shows both tables side by side.
-  const activeTab: "ALL" | "BUY" | "SELL" =
-    activeOrderTypeTab === "BUY"
-      ? "BUY"
-      : activeOrderTypeTab === "SELL"
-        ? "SELL"
-        : "ALL";
-  const selectTab = (tab: "ALL" | "BUY" | "SELL") =>
-    onSelectOrderTypeTab?.(tab);
+  // Two sub-tabs within Daily Transactions:
+  //   ALL    – a single consolidated, filterable/sortable table.
+  //   TRADES – the classic Buy & Sell tables shown side by side.
+  // BUY/SELL from the parent both resolve to the combined TRADES view.
+  const activeTab: "ALL" | "TRADES" =
+    activeOrderTypeTab === "BUY" || activeOrderTypeTab === "SELL"
+      ? "TRADES"
+      : "ALL";
+  const selectTab = (tab: "ALL" | "TRADES") =>
+    onSelectOrderTypeTab?.(tab === "ALL" ? "ALL" : "BUY");
   const [columns, setColumns] = useState<Record<TradeSide, TradeColumn[]>>({
     BUY: DEFAULT_TRADE_COLUMNS.BUY,
     SELL: DEFAULT_TRADE_COLUMNS.SELL,
@@ -316,11 +519,14 @@ export default function DailyTransactionsSheet({
   const [selectedBuyId, setSelectedBuyId] = useState<number | null>(null);
   const filterRef = useRef<HTMLDivElement>(null);
 
-  // "All" tab consolidated view: independent account / symbol / type filters
-  // and a sortable single table.
-  const [allAccount, setAllAccount] = useState<string>("ALL");
-  const [allSymbol, setAllSymbol] = useState<string>("ALL");
-  const [allType, setAllType] = useState<"ALL" | "BUY" | "SELL">("ALL");
+  // "All" tab consolidated view: multi-select account / symbol / type filters
+  // (analytics-style comboboxes), a date range, and a sortable single table.
+  // `null` means "all" for a given filter.
+  const [allAccountFilter, setAllAccountFilter] = useState<string[] | null>(null);
+  const [allSymbolFilter, setAllSymbolFilter] = useState<string[] | null>(null);
+  const [allTypeFilter, setAllTypeFilter] = useState<string[] | null>(null);
+  const [allFromDate, setAllFromDate] = useState<string>("");
+  const [allToDate, setAllToDate] = useState<string>("");
   const [allSort, setAllSort] = useState<{
     key: "dateTime" | "accountNumber" | "symbol" | "action" | "quantity" | "pricePerShare" | "totalAmount" | "gainLoss";
     dir: "asc" | "desc";
@@ -452,14 +658,24 @@ export default function DailyTransactionsSheet({
   );
 
   // Combined "All" view: a single flat table of every transaction (Buy + Sell),
-  // filtered by account / symbol / type and sorted by the chosen column.
+  // filtered by account / symbol / type / date range and sorted by column.
   const allRows = useMemo(() => {
+    const accountSet = allAccountFilter ? new Set(allAccountFilter) : null;
+    const symbolSet = allSymbolFilter ? new Set(allSymbolFilter) : null;
+    const typeSet = allTypeFilter ? new Set(allTypeFilter) : null;
+    const fromMs = allFromDate ? Date.parse(`${allFromDate}T00:00:00`) : null;
+    const toMs = allToDate ? Date.parse(`${allToDate}T23:59:59.999`) : null;
     const filtered = entries.filter((e) => {
-      if (allAccount !== "ALL" && e.accountNumber.trim() !== allAccount)
+      if (accountSet && !accountSet.has(e.accountNumber.trim())) return false;
+      if (symbolSet && !symbolSet.has(e.symbol.trim().toUpperCase()))
         return false;
-      if (allSymbol !== "ALL" && e.symbol.trim().toUpperCase() !== allSymbol)
-        return false;
-      if (allType !== "ALL" && e.action.toUpperCase() !== allType) return false;
+      if (typeSet && !typeSet.has(e.action.toUpperCase())) return false;
+      if (fromMs !== null || toMs !== null) {
+        const ts = Date.parse(e.dateTime);
+        if (!Number.isFinite(ts)) return false;
+        if (fromMs !== null && ts < fromMs) return false;
+        if (toMs !== null && ts > toMs) return false;
+      }
       return true;
     });
     const dir = allSort.dir === "asc" ? 1 : -1;
@@ -492,8 +708,22 @@ export default function DailyTransactionsSheet({
           : Number(av) - Number(bv);
       return (cmp || a.id - b.id) * dir;
     });
-  }, [entries, allAccount, allSymbol, allType, allSort]);
+  }, [
+    entries,
+    allAccountFilter,
+    allSymbolFilter,
+    allTypeFilter,
+    allFromDate,
+    allToDate,
+    allSort,
+  ]);
   const allCount = allRows.length;
+  const allFiltersActive =
+    allAccountFilter !== null ||
+    allSymbolFilter !== null ||
+    allTypeFilter !== null ||
+    allFromDate !== "" ||
+    allToDate !== "";
 
   function toggleAllSort(key: typeof allSort.key) {
     setAllSort((cur) =>
@@ -684,7 +914,8 @@ export default function DailyTransactionsSheet({
     { id: "dateTime", label: "Date/time", kind: "readonly", align: "center", width: 130, sortKey: "dateTime" },
     { id: "quantity", label: "Quantity", kind: "editable", align: "center", width: 100, sortKey: "quantity" },
     { id: "pricePerShare", label: "Price/Share", kind: "editable", align: "right", width: 128, sortKey: "pricePerShare" },
-    { id: "averageCost", label: "Avg. Cost/Share", kind: "editable", align: "right", width: 138 },
+    { id: "averageCost", label: "Avg. Cost/Share", kind: "readonly", align: "right", width: 138 },
+    { id: "currentPrice", label: "Market Price/Share", kind: "readonly", align: "right", width: 138 },
     { id: "totalAmount", label: "Total Amount", kind: "calculated", align: "right", width: 138, sortKey: "totalAmount" },
     { id: "gainLoss", label: "Gain/Loss", kind: "calculated", align: "right", width: 148, sortKey: "gainLoss" },
     { id: "comments", label: "Comments", kind: "editable", align: "left", width: 180 },
@@ -716,60 +947,66 @@ export default function DailyTransactionsSheet({
         </div>
 
         <div className="transaction-all-filters">
-          <label className="transaction-all-filter">
-            <span>Account</span>
-            <select
-              value={allAccount}
-              onChange={(e) => setAllAccount(e.target.value)}
-            >
-              <option value="ALL">All accounts</option>
-              {allAccountOptions.map((acc) => (
-                <option key={acc} value={acc}>
-                  {acc}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="transaction-all-filter">
-            <span>Symbol</span>
-            <select
-              value={allSymbol}
-              onChange={(e) => setAllSymbol(e.target.value)}
-            >
-              <option value="ALL">All symbols</option>
-              {allSymbolOptions.map((sym) => (
-                <option key={sym} value={sym}>
-                  {sym}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="transaction-all-filter">
-            <span>Type</span>
-            <select
-              value={allType}
-              onChange={(e) =>
-                setAllType(e.target.value as "ALL" | "BUY" | "SELL")
-              }
-            >
-              <option value="ALL">Buy &amp; Sell</option>
-              <option value="BUY">Buy only</option>
-              <option value="SELL">Sell only</option>
-            </select>
-          </label>
-          {(allAccount !== "ALL" ||
-            allSymbol !== "ALL" ||
-            allType !== "ALL") && (
+          <div className="transaction-all-filter">
+            <span className="transaction-all-filter-label">Account</span>
+            <TransactionMultiFilter
+              label="Account"
+              options={allAccountOptions}
+              selected={allAccountFilter}
+              onChange={setAllAccountFilter}
+            />
+          </div>
+          <div className="transaction-all-filter">
+            <span className="transaction-all-filter-label">Symbol</span>
+            <TransactionMultiFilter
+              label="Symbol"
+              options={allSymbolOptions}
+              selected={allSymbolFilter}
+              onChange={setAllSymbolFilter}
+            />
+          </div>
+          <div className="transaction-all-filter">
+            <span className="transaction-all-filter-label">Type</span>
+            <TransactionMultiFilter
+              label="Type"
+              options={["BUY", "SELL"]}
+              selected={allTypeFilter}
+              onChange={setAllTypeFilter}
+            />
+          </div>
+          <div className="transaction-all-filter">
+            <span className="transaction-all-filter-label">From date</span>
+            <input
+              type="date"
+              className="transaction-all-date"
+              value={allFromDate}
+              max={allToDate || undefined}
+              onChange={(e) => setAllFromDate(e.target.value)}
+            />
+          </div>
+          <div className="transaction-all-filter">
+            <span className="transaction-all-filter-label">To date</span>
+            <input
+              type="date"
+              className="transaction-all-date"
+              value={allToDate}
+              min={allFromDate || undefined}
+              onChange={(e) => setAllToDate(e.target.value)}
+            />
+          </div>
+          {allFiltersActive && (
             <button
               type="button"
               className="transaction-all-filter-reset"
               onClick={() => {
-                setAllAccount("ALL");
-                setAllSymbol("ALL");
-                setAllType("ALL");
+                setAllAccountFilter(null);
+                setAllSymbolFilter(null);
+                setAllTypeFilter(null);
+                setAllFromDate("");
+                setAllToDate("");
               }}
             >
-              <X size={13} /> Reset
+              <X size={13} /> Reset filters
             </button>
           )}
         </div>
@@ -877,6 +1114,30 @@ export default function DailyTransactionsSheet({
                           className="transaction-cell transaction-account-cell"
                         >
                           {row.accountNumber}
+                        </td>
+                      ) : col.id === "averageCost" &&
+                        row.action.toUpperCase() !== "SELL" ? (
+                        // Avg. Cost/Share is meaningful for Sell rows only.
+                        <td
+                          key="averageCost"
+                          data-field="averageCost"
+                          data-field-kind="readonly"
+                          data-align="right"
+                          className="transaction-cell transaction-blank-cell"
+                        >
+                          —
+                        </td>
+                      ) : col.id === "currentPrice" &&
+                        row.action.toUpperCase() === "SELL" ? (
+                        // Market Price/Share is meaningful for Buy rows only.
+                        <td
+                          key="currentPrice"
+                          data-field="currentPrice"
+                          data-field-kind="readonly"
+                          data-align="right"
+                          className="transaction-cell transaction-blank-cell"
+                        >
+                          —
                         </td>
                       ) : (
                         renderCell(row, col as TradeColumn)
@@ -1316,7 +1577,7 @@ export default function DailyTransactionsSheet({
       <div
         className="transaction-subtabs"
         role="tablist"
-        aria-label="All, Buy and Sell transaction pages"
+        aria-label="All and Buy & Sell transaction pages"
       >
         <button
           type="button"
@@ -1333,26 +1594,14 @@ export default function DailyTransactionsSheet({
         <button
           type="button"
           role="tab"
-          id="subtab-buy"
-          aria-selected={activeTab === "BUY"}
-          aria-controls="subtab-panel-buy"
-          className={`transaction-subtab ${activeTab === "BUY" ? "is-active" : ""}`}
-          onClick={() => selectTab("BUY")}
+          id="subtab-trades"
+          aria-selected={activeTab === "TRADES"}
+          aria-controls="subtab-panel-trades"
+          className={`transaction-subtab ${activeTab === "TRADES" ? "is-active" : ""}`}
+          onClick={() => selectTab("TRADES")}
         >
-          Buy
-          <span className="transaction-subtab-count">{buyCount}</span>
-        </button>
-        <button
-          type="button"
-          role="tab"
-          id="subtab-sell"
-          aria-selected={activeTab === "SELL"}
-          aria-controls="subtab-panel-sell"
-          className={`transaction-subtab ${activeTab === "SELL" ? "is-active" : ""}`}
-          onClick={() => selectTab("SELL")}
-        >
-          Sell
-          <span className="transaction-subtab-count">{sellCount}</span>
+          Buy &amp; Sell
+          <span className="transaction-subtab-count">{buyCount + sellCount}</span>
         </button>
       </div>
 
@@ -1367,12 +1616,13 @@ export default function DailyTransactionsSheet({
         </div>
       ) : (
         <div
-          className="transaction-subtab-panel"
+          className="transaction-subtab-panel transactions-side-by-side"
           role="tabpanel"
-          id={activeTab === "BUY" ? "subtab-panel-buy" : "subtab-panel-sell"}
-          aria-labelledby={activeTab === "BUY" ? "subtab-buy" : "subtab-sell"}
+          id="subtab-panel-trades"
+          aria-labelledby="subtab-trades"
         >
-          {renderTable(activeTab)}
+          {renderTable("BUY")}
+          {renderTable("SELL")}
         </div>
       )}
     </section>

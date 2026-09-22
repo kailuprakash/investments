@@ -307,6 +307,32 @@
   color: #1e3a5f;
   white-space: nowrap;
 }
+.workbook-shell .transaction-blank-cell {
+  color: #cbd5e1;
+  text-align: right;
+}
+.workbook-shell .transaction-all-filter-label {
+  display: block;
+  margin-bottom: 3px;
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.workbook-shell .transaction-all-date {
+  padding: 6px 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  color: #1e293b;
+  cursor: pointer;
+}
+.workbook-shell .transaction-all-filters .analytics-filter {
+  min-width: 190px;
+}
 .workbook-shell .transaction-pane {
   min-width: 0;
   border: 1px solid #bfcfc8;
