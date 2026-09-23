@@ -963,10 +963,17 @@ const e = {
         ...safeAccounts.map((x) => D(x.investmentCurrent).text),
         D(safeTotal.investmentCurrent).text,
       ]),
-      calcMaxColW("Gain / Loss", [
-        ...safeAccounts.map((x) => M(x.gainLoss).text),
-        M(safeTotal.gainLoss).text,
-      ]),
+      calcMaxColW(
+        "Gain / Loss",
+        [
+          // Include the percentage in the width estimate — the cell renders
+          // "amount (percent)", so measuring only the amount left the column
+          // too narrow and its content overflowed into Comments.
+          ...safeAccounts.map((x) => z(x.gainLoss, x.gainLossPercent)),
+          z(safeTotal.gainLoss, safeTotal.gainLossPercent),
+        ],
+        32,
+      ),
       calcMaxColW("Comments (Editable)", [
         ...safeAccounts.map((x) => x.comments || "—"),
         "Consolidated Portfolio",

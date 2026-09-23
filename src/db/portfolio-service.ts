@@ -1806,6 +1806,7 @@ export async function saveAccount(data: {
       comments,
     });
   }
+  const isNewAccount = !existing;
 
   // Also sync comments to accountDetailsTable if comments were provided
   if (data.comments !== undefined) {
@@ -1819,6 +1820,15 @@ export async function saveAccount(data: {
         .set({ comments })
         .where(eq(accountDetailsTable.id, matchAd.id));
     }
+  }
+
+  // A brand-new account should immediately show up in both history tables.
+  if (isNewAccount) {
+    await captureDueSnapshots({ force: true, bypassThrottle: true }).catch(
+      (error) => {
+        console.error("[saveAccount] snapshot capture failed:", error);
+      },
+    );
   }
 
   return getPortfolioState();
@@ -2479,6 +2489,14 @@ export async function addAccountDetail(data: {
       .where(eq(accountsTable.id, exists.id));
   }
 
+  // Record a current-period snapshot so the new account immediately appears in
+  // the Account Value History and Daily Transactions History tables.
+  await captureDueSnapshots({ force: true, bypassThrottle: true }).catch(
+    (error) => {
+      console.error("[addAccountDetail] snapshot capture failed:", error);
+    },
+  );
+
   return getAccountDetailsData();
 }
 export async function deleteAccountDetail(id: number) {
@@ -2517,6 +2535,26 @@ export async function deleteAccountDetail(id: number) {
         .delete(accountsTable)
         .where(eq(accountsTable.id, targetSummary.id));
     }
+
+    // 4. Delete the account's holdings and daily transactions so nothing
+    //    dangling remains anywhere in the workbook.
+    await db
+      .delete(holdingsTable)
+      .where(eq(holdingsTable.accountNumber, existing.accountNumber));
+    await db
+      .delete(futureInvestmentsTable)
+      .where(eq(futureInvestmentsTable.accountNumber, existing.accountNumber));
+
+    // 5. Remove the account from both history tables (Account Value History and
+    //    Daily Transactions History) so a deleted account no longer appears.
+    await db
+      .delete(weeklyHistoryTable)
+      .where(eq(weeklyHistoryTable.accountNumber, existing.accountNumber));
+    await db
+      .delete(transactionHistoryTable)
+      .where(
+        eq(transactionHistoryTable.accountNumber, existing.accountNumber),
+      );
   }
   return getAccountDetailsData();
 }
