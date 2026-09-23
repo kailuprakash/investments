@@ -5218,10 +5218,15 @@ const e = {
     }, [u]);
     let p = r.default.useMemo(
         () =>
-          Array.from(new Set(e.map((e) => e.accountNumber))).sort((e, t) =>
-            e.localeCompare(t),
-          ),
-        [e],
+          // Include accounts from BOTH persisted history and the live snapshot
+          // so a newly added account (no history yet) still gets a row.
+          Array.from(
+            new Set([
+              ...e.map((e) => e.accountNumber),
+              ...((lv?.weekly || []).map((x) => x.accountNumber)),
+            ]),
+          ).sort((e, t) => e.localeCompare(t)),
+        [e, lv],
       ),
       m = r.default.useMemo(() => {
         // Live current-period timestamp label (Eastern), e.g. "as of 09/20 3:14 PM".
@@ -5711,10 +5716,16 @@ const e = {
     }, [d]);
     let u = r.default.useMemo(
         () =>
-          Array.from(new Set(e.map((e) => e.accountNumber))).sort((e, t) =>
-            e.localeCompare(t),
-          ),
-        [e],
+          // Include accounts from persisted history AND the live snapshot so a
+          // newly added account (no history yet) still shows a row.
+          Array.from(
+            new Set([
+              ...e.map((e) => e.accountNumber),
+              ...((lv?.transactions || []).map((x) => x.accountNumber)),
+              ...((lv?.monthTransactions || []).map((x) => x.accountNumber)),
+            ]),
+          ).sort((e, t) => e.localeCompare(t)),
+        [e, lv],
       ),
       p = r.default.useMemo(() => {
         let liveStamp = lv?.capturedAt
