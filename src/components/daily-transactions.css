@@ -359,6 +359,36 @@
   color: #1e293b;
   cursor: pointer;
 }
+.workbook-shell .transaction-date-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.workbook-shell .transaction-date-step,
+.workbook-shell .transaction-date-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 30px;
+  width: 28px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #fff;
+  color: #1e293b;
+  cursor: pointer;
+}
+.workbook-shell .transaction-date-step:hover:not(:disabled),
+.workbook-shell .transaction-date-clear:hover {
+  background: #eef3f8;
+  border-color: #94a3b8;
+}
+.workbook-shell .transaction-date-step:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.workbook-shell .transaction-date-clear {
+  color: #b91c1c;
+}
 .workbook-shell .transaction-all-filters .analytics-filter {
   min-width: 190px;
 }

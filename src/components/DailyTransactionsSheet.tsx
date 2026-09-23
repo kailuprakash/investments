@@ -520,13 +520,12 @@ export default function DailyTransactionsSheet({
   const filterRef = useRef<HTMLDivElement>(null);
 
   // "All" tab consolidated view: multi-select account / symbol / type filters
-  // (analytics-style comboboxes), a date range, and a sortable single table.
-  // `null` means "all" for a given filter.
+  // (analytics-style comboboxes), a single pickable date with prev/next
+  // navigation, and a sortable single table. `null`/"" means "all".
   const [allAccountFilter, setAllAccountFilter] = useState<string[] | null>(null);
   const [allSymbolFilter, setAllSymbolFilter] = useState<string[] | null>(null);
   const [allTypeFilter, setAllTypeFilter] = useState<string[] | null>(null);
-  const [allFromDate, setAllFromDate] = useState<string>("");
-  const [allToDate, setAllToDate] = useState<string>("");
+  const [allDate, setAllDate] = useState<string>("");
   const [allSort, setAllSort] = useState<{
     key: "dateTime" | "accountNumber" | "symbol" | "action" | "quantity" | "pricePerShare" | "totalAmount" | "gainLoss";
     dir: "asc" | "desc";
@@ -657,23 +656,24 @@ export default function DailyTransactionsSheet({
   );
 
   // Combined "All" view: a single flat table of every transaction (Buy + Sell),
-  // filtered by account / symbol / type / date range and sorted by column.
+  // filtered by account / symbol / type / single date and sorted by column.
   const allRows = useMemo(() => {
     const accountSet = allAccountFilter ? new Set(allAccountFilter) : null;
     const symbolSet = allSymbolFilter ? new Set(allSymbolFilter) : null;
     const typeSet = allTypeFilter ? new Set(allTypeFilter) : null;
-    const fromMs = allFromDate ? Date.parse(`${allFromDate}T00:00:00`) : null;
-    const toMs = allToDate ? Date.parse(`${allToDate}T23:59:59.999`) : null;
     const filtered = entries.filter((e) => {
       if (accountSet && !accountSet.has(e.accountNumber.trim())) return false;
       if (symbolSet && !symbolSet.has(e.symbol.trim().toUpperCase()))
         return false;
       if (typeSet && !typeSet.has(e.action.toUpperCase())) return false;
-      if (fromMs !== null || toMs !== null) {
+      if (allDate) {
+        // Compare on the transaction's local (Eastern) calendar day.
         const ts = Date.parse(e.dateTime);
         if (!Number.isFinite(ts)) return false;
-        if (fromMs !== null && ts < fromMs) return false;
-        if (toMs !== null && ts > toMs) return false;
+        const day = new Date(ts).toLocaleDateString("en-CA", {
+          timeZone: "America/New_York",
+        });
+        if (day !== allDate) return false;
       }
       return true;
     });
@@ -712,8 +712,7 @@ export default function DailyTransactionsSheet({
     allAccountFilter,
     allSymbolFilter,
     allTypeFilter,
-    allFromDate,
-    allToDate,
+    allDate,
     allSort,
   ]);
   const allCount = allRows.length;
@@ -721,8 +720,60 @@ export default function DailyTransactionsSheet({
     allAccountFilter !== null ||
     allSymbolFilter !== null ||
     allTypeFilter !== null ||
-    allFromDate !== "" ||
-    allToDate !== "";
+    allDate !== "";
+
+  // Distinct transaction dates (YYYY-MM-DD, Eastern), oldest→newest, so the
+  // prev/next buttons can step through only dates that actually have activity.
+  const allAvailableDates = useMemo(() => {
+    const days = new Set<string>();
+    for (const e of entries) {
+      const ts = Date.parse(e.dateTime);
+      if (!Number.isFinite(ts)) continue;
+      days.add(
+        new Date(ts).toLocaleDateString("en-CA", {
+          timeZone: "America/New_York",
+        }),
+      );
+    }
+    return Array.from(days).sort();
+  }, [entries]);
+
+  // Step to the previous / next date that has transactions. When no date is
+  // picked yet, "prev" starts from the latest date, "next" from the earliest.
+  function stepAllDate(direction: -1 | 1) {
+    if (allAvailableDates.length === 0) return;
+    if (!allDate) {
+      setAllDate(
+        direction === -1
+          ? allAvailableDates[allAvailableDates.length - 1]
+          : allAvailableDates[0],
+      );
+      return;
+    }
+    const idx = allAvailableDates.indexOf(allDate);
+    if (idx === -1) {
+      // Current pick has no activity; jump to the nearest in the chosen direction.
+      const fallback =
+        direction === 1
+          ? allAvailableDates.find((d) => d > allDate)
+          : [...allAvailableDates].reverse().find((d) => d < allDate);
+      if (fallback) setAllDate(fallback);
+      return;
+    }
+    const nextIdx = idx + direction;
+    if (nextIdx >= 0 && nextIdx < allAvailableDates.length) {
+      setAllDate(allAvailableDates[nextIdx]);
+    }
+  }
+  const allDateIdx = allDate ? allAvailableDates.indexOf(allDate) : -1;
+  const canStepPrev =
+    allAvailableDates.length > 0 &&
+    (!allDate || allDateIdx > 0 || allDateIdx === -1);
+  const canStepNext =
+    allAvailableDates.length > 0 &&
+    (!allDate ||
+      (allDateIdx !== -1 && allDateIdx < allAvailableDates.length - 1) ||
+      allDateIdx === -1);
 
   function toggleAllSort(key: typeof allSort.key) {
     setAllSort((cur) =>
@@ -983,24 +1034,46 @@ export default function DailyTransactionsSheet({
             />
           </div>
           <div className="transaction-all-filter">
-            <span className="transaction-all-filter-label">From date</span>
-            <input
-              type="date"
-              className="transaction-all-date"
-              value={allFromDate}
-              max={allToDate || undefined}
-              onChange={(e) => setAllFromDate(e.target.value)}
-            />
-          </div>
-          <div className="transaction-all-filter">
-            <span className="transaction-all-filter-label">To date</span>
-            <input
-              type="date"
-              className="transaction-all-date"
-              value={allToDate}
-              min={allFromDate || undefined}
-              onChange={(e) => setAllToDate(e.target.value)}
-            />
+            <span className="transaction-all-filter-label">Date</span>
+            <div className="transaction-date-stepper">
+              <button
+                type="button"
+                className="transaction-date-step"
+                onClick={() => stepAllDate(-1)}
+                disabled={!canStepPrev}
+                aria-label="Previous date with transactions"
+                title="Previous date"
+              >
+                <ArrowLeft size={14} />
+              </button>
+              <input
+                type="date"
+                className="transaction-all-date"
+                value={allDate}
+                onChange={(e) => setAllDate(e.target.value)}
+              />
+              <button
+                type="button"
+                className="transaction-date-step"
+                onClick={() => stepAllDate(1)}
+                disabled={!canStepNext}
+                aria-label="Next date with transactions"
+                title="Next date"
+              >
+                <ArrowRight size={14} />
+              </button>
+              {allDate && (
+                <button
+                  type="button"
+                  className="transaction-date-clear"
+                  onClick={() => setAllDate("")}
+                  aria-label="Clear date filter"
+                  title="Clear date"
+                >
+                  <X size={13} />
+                </button>
+              )}
+            </div>
           </div>
           {allFiltersActive && (
             <button
@@ -1010,8 +1083,7 @@ export default function DailyTransactionsSheet({
                 setAllAccountFilter(null);
                 setAllSymbolFilter(null);
                 setAllTypeFilter(null);
-                setAllFromDate("");
-                setAllToDate("");
+                setAllDate("");
               }}
             >
               <X size={13} /> Reset filters
