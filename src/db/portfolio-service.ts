@@ -1265,7 +1265,9 @@ export async function executeFutureTrade(data: {
       });
     }
   } else {
-    // SELL: reduce the Consolidated View holding using the average-cost method.
+    // SELL: reduce the Consolidated View holding. The remaining average purchase
+    // cost is recomputed with FIFO — the oldest BUY lots are consumed first, so
+    // after a sale the surviving lots (and therefore the average) change.
     if (existingHolding) {
       const newQty = Math.max(0, round2(existingHolding.quantity - quantity));
       if (newQty <= 0) {
@@ -1274,20 +1276,66 @@ export async function executeFutureTrade(data: {
           .delete(holdingsTable)
           .where(eq(holdingsTable.id, existingHolding.id));
       } else {
-        // Partial sell: recalculate the Consolidated View average from the
-        // remaining quantity. Remove the sold shares' cost (soldQty × the sell's
-        // average cost) from the prior invested amount, then re-derive the
-        // per-share average as remaining invested ÷ remaining quantity.
-        //   - Selling at the same average leaves the average unchanged.
-        //   - Selling at a different average (overridden in the sell modal)
-        //     shifts the remaining average, weighted by quantity.
-        const priorInvest =
-          existingHolding.investAmount > 0
-            ? existingHolding.investAmount
-            : round2(existingHolding.quantity * existingHolding.purchasePrice);
-        const soldCost = round2(quantity * basePrice);
-        const newInvest = Math.max(0, round2(priorInvest - soldCost));
-        const remainingAvg = newQty > 0 ? round2(newInvest / newQty) : 0;
+        // Consume sold shares FIFO across this account+symbol's BUY lots.
+        const buyLots = (await db.select().from(futureInvestmentsTable))
+          .filter(
+            (r) =>
+              String(r.action || "").toUpperCase() === "BUY" &&
+              norm(r.accountNumber) === norm(accountNumber) &&
+              r.symbol.trim().toUpperCase() === symbol,
+          )
+          .sort((a, b) => {
+            const ta = parseDateForSort(a.dateTime);
+            const tb = parseDateForSort(b.dateTime);
+            return ta !== tb ? ta - tb : a.id - b.id;
+          });
+
+        // The current sell has already reduced a specific source lot above (if
+        // provided). For a plain sell, walk oldest→newest and reduce remaining
+        // quantities in the database so future sells stay consistent.
+        if (!data.sourceTransactionId) {
+          let toConsume = quantity;
+          for (const lot of buyLots) {
+            if (toConsume <= 0) break;
+            const avail = Math.max(0, Number(lot.remainingQuantity) || 0);
+            if (avail <= 0) continue;
+            const take = Math.min(avail, toConsume);
+            const newRem = round2(avail - take);
+            await db
+              .update(futureInvestmentsTable)
+              .set({ remainingQuantity: newRem })
+              .where(eq(futureInvestmentsTable.id, lot.id));
+            lot.remainingQuantity = newRem; // reflect for the average calc below
+            toConsume = round2(toConsume - take);
+          }
+        }
+
+        // Remaining average = weighted average of the surviving BUY lots.
+        let survivingQty = 0;
+        let survivingCost = 0;
+        for (const lot of buyLots) {
+          const rem = Math.max(0, Number(lot.remainingQuantity) || 0);
+          if (rem <= 0) continue;
+          survivingQty = round2(survivingQty + rem);
+          survivingCost = round2(survivingCost + rem * lot.pricePerShare);
+        }
+
+        // Fall back to the prior average-cost method if lot data is unavailable
+        // (e.g. imported holdings with no matching BUY rows).
+        let remainingAvg: number;
+        let newInvest: number;
+        if (survivingQty > 0) {
+          remainingAvg = round2(survivingCost / survivingQty);
+          newInvest = round2(newQty * remainingAvg);
+        } else {
+          const priorInvest =
+            existingHolding.investAmount > 0
+              ? existingHolding.investAmount
+              : round2(existingHolding.quantity * existingHolding.purchasePrice);
+          newInvest = Math.max(0, round2(priorInvest - quantity * basePrice));
+          remainingAvg = newQty > 0 ? round2(newInvest / newQty) : 0;
+        }
+
         const newOverall = round2(newQty * currentPrice);
         const newPL = round2(newOverall - newInvest);
         const newPLPct = newInvest > 0 ? round2((newPL / newInvest) * 100) : 0;
