@@ -8,8 +8,8 @@ import DailyTransactionsSheet from "@/components/DailyTransactionsSheet";
 import HoldingsPerformanceTable from "@/components/HoldingsPerformanceTable";
 import DensityToggle from "@/components/DensityToggle";
 import LiveClock from "@/components/LiveClock";
-import ScreenFreezeBoundary from "@/components/ScreenFreezeBoundary";
 import LogoutButton from "@/components/LogoutButton";
+import ScreenFreezeBoundary from "@/components/ScreenFreezeBoundary";
 import TabFreezeToggle from "@/components/TabFreezeToggle";
 import WorkbookSearch from "@/components/WorkbookSearch";
 import {
@@ -2943,15 +2943,13 @@ const e = {
           Number(item.quantity) * (Number(item.purchasePrice) || effOldAvg);
         return sum + inv;
       }, 0),
-      isCustomAvg = Math.abs((ec || 0) - effOldAvg) > 0.005,
-      deductAmt = isCustomAvg ? q * (ec || 0) : q * J,
-      rawRemInvest = Number((priorHoldInvest - deductAmt).toFixed(2)),
+      deductAmt = Q,
+      rawRemInvest = Math.max(
+        0,
+        Number((priorHoldInvest - deductAmt).toFixed(2)),
+      ),
       sellNewHoldAvg =
-        eo > 0
-          ? rawRemInvest > 0
-            ? Number((rawRemInvest / eo).toFixed(2))
-            : Number((isCustomAvg ? ec : J).toFixed(2))
-          : 0,
+        eo > 0 ? Number((rawRemInvest / eo).toFixed(2)) : 0,
       remHoldInvest = Number((eo * sellNewHoldAvg).toFixed(2)),
       el = E ?? J,
       ef = "SELL" === m ? J - ec : el - ec,

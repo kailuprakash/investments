@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { searchMarketSymbols } from "@/db/portfolio-service";
-
 import { requirePortfolioAuth } from "@/lib/auth";
+import { searchMarketSymbols } from "@/db/portfolio-service";
 
 export async function GET(req: NextRequest) {
   const unauthorised = await requirePortfolioAuth(req);

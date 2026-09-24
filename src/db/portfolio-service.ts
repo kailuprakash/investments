@@ -1265,93 +1265,59 @@ export async function executeFutureTrade(data: {
       });
     }
   } else {
-    // SELL: reduce the Consolidated View holding. The remaining average purchase
-    // cost is recomputed with FIFO — the oldest BUY lots are consumed first, so
-    // after a sale the surviving lots (and therefore the average) change.
+    // SELL: always reconcile Consolidated View from the holding itself. A holding
+    // may include old/imported shares that have no Daily Transactions BUY row,
+    // so BUY lots cannot be the source of truth for its average cost.
     if (existingHolding) {
       const newQty = Math.max(0, round2(existingHolding.quantity - quantity));
       if (newQty <= 0) {
-        // Fully sold: nothing left to hold, so remove the row entirely.
+        // Fully sold: nothing remains in Consolidated View.
         await db
           .delete(holdingsTable)
           .where(eq(holdingsTable.id, existingHolding.id));
       } else {
-        // Consume sold shares FIFO across this account+symbol's BUY lots.
-        const buyLots = (await db.select().from(futureInvestmentsTable))
-          .filter(
-            (r) =>
-              String(r.action || "").toUpperCase() === "BUY" &&
-              norm(r.accountNumber) === norm(accountNumber) &&
-              r.symbol.trim().toUpperCase() === symbol,
-          )
-          .sort((a, b) => {
-            const ta = parseDateForSort(a.dateTime);
-            const tb = parseDateForSort(b.dateTime);
-            return ta !== tb ? ta - tb : a.id - b.id;
-          });
-
-        // Weighted average of this account+symbol's BUY lots (pre-sell). Used
-        // only as a fallback when the holding row carries no invested amount of
-        // its own — e.g. legacy rows whose cost lives only in the transactions.
-        let lotQty = 0;
-        let lotCost = 0;
-        for (const lot of buyLots) {
-          const rem = Math.max(0, Number(lot.remainingQuantity) || 0);
-          if (rem <= 0) continue;
-          lotQty = round2(lotQty + rem);
-          lotCost = round2(lotCost + rem * (Number(lot.pricePerShare) || 0));
-        }
-        const lotAverage = lotQty > 0 ? round2(lotCost / lotQty) : 0;
-
-        // The current sell has already reduced a specific source lot above (if
-        // provided). For a plain sell, walk oldest→newest and reduce remaining
-        // quantities in the database so future sells stay consistent.
+        // Keep recorded BUY-lot availability accurate for future "Sell selected
+        // Buy" actions, but never use those lots to discard unregistered shares.
         if (!data.sourceTransactionId) {
+          const buyLots = (await db.select().from(futureInvestmentsTable))
+            .filter(
+              (r) =>
+                String(r.action || "").toUpperCase() === "BUY" &&
+                norm(r.accountNumber) === norm(accountNumber) &&
+                r.symbol.trim().toUpperCase() === symbol,
+            )
+            .sort((a, b) => {
+              const ta = parseDateForSort(a.dateTime);
+              const tb = parseDateForSort(b.dateTime);
+              return ta !== tb ? ta - tb : a.id - b.id;
+            });
           let toConsume = quantity;
           for (const lot of buyLots) {
             if (toConsume <= 0) break;
-            const avail = Math.max(0, Number(lot.remainingQuantity) || 0);
-            if (avail <= 0) continue;
-            const take = Math.min(avail, toConsume);
-            const newRem = round2(avail - take);
+            const available = Math.max(
+              0,
+              Number(lot.remainingQuantity) || 0,
+            );
+            if (available <= 0) continue;
+            const consumed = Math.min(available, toConsume);
             await db
               .update(futureInvestmentsTable)
-              .set({ remainingQuantity: newRem })
+              .set({ remainingQuantity: round2(available - consumed) })
               .where(eq(futureInvestmentsTable.id, lot.id));
-            lot.remainingQuantity = newRem; // reflect for the average calc below
-            toConsume = round2(toConsume - take);
+            toConsume = round2(toConsume - consumed);
           }
         }
 
-        // Remaining average cost is recomputed from the holding's own quantity
-        // and invested amount (the average-cost method), so it stays correct even
-        // when the shares were added directly without matching BUY transactions
-        // in the Daily Transactions sheet. The BUY lots above only drive the
-        // per-lot remaining-quantity bookkeeping, not this average.
-        let priorInvest =
+        // Net the actual sell amount out of the holding, then recalculate its
+        // average from remaining amount / remaining quantity. This works for
+        // direct legacy holdings, mixed legacy+registered shares, and normal
+        // Daily Transactions alike.
+        const priorInvest =
           existingHolding.investAmount > 0
             ? existingHolding.investAmount
             : round2(existingHolding.quantity * existingHolding.purchasePrice);
-
-        let priorAvg: number;
-        if (existingHolding.quantity > 0 && priorInvest > 0) {
-          priorAvg = round2(priorInvest / existingHolding.quantity);
-        } else if (existingHolding.purchasePrice > 0) {
-          priorAvg = existingHolding.purchasePrice;
-        } else if (lotAverage > 0) {
-          priorAvg = lotAverage;
-        } else {
-          priorAvg = pricePerShare;
-        }
-        if (priorInvest <= 0) {
-          priorInvest = round2(existingHolding.quantity * priorAvg);
-        }
-
-        // Remaining invested amount = prior amount minus the sold shares valued
-        // at the current average, spread over the shares that are left.
-        const newInvest = Math.max(0, round2(priorInvest - quantity * priorAvg));
-        const remainingAvg = newQty > 0 ? round2(newInvest / newQty) : 0;
-
+        const newInvest = Math.max(0, round2(priorInvest - totalAmount));
+        const remainingAvg = round2(newInvest / newQty);
         const newOverall = round2(newQty * currentPrice);
         const newPL = round2(newOverall - newInvest);
         const newPLPct = newInvest > 0 ? round2((newPL / newInvest) * 100) : 0;
@@ -1578,14 +1544,6 @@ export async function editFutureTransaction(data: {
     const oldQty = Number(tx.quantity) || 0;
     const oldPps = Number(tx.pricePerShare) || 0;
     const oldTotalAmount = round2(oldQty * oldPps);
-    const oldBasePrice = oldIsSell
-      ? round2(
-          tx.averageCost ||
-            tx.costBasisPerShare ||
-            (existingHolding ? existingHolding.purchasePrice : oldPps),
-        )
-      : oldPps;
-
     // Editing an old buy must not make already-sold shares available again.
     const alreadySold = oldIsSell
       ? 0
@@ -1669,15 +1627,13 @@ export async function editFutureTransaction(data: {
         let newInvest = priorInvest;
 
         if (isSell) {
-          // Delta sold quantity: positive if sold MORE, negative if sold FEWER
+          // Undo the old sell and apply the edited sell. Consolidated View uses
+          // net transaction amount, not BUY-lot availability, because some of
+          // the holding may have been entered directly without a BUY record.
           const deltaSoldQty = round2(quantity - oldQty);
           newQty = Math.max(0, round2(existingHolding.quantity - deltaSoldQty));
-
-          // Delta sold cost basis: positive if more cost deducted from holding, negative if less
-          const oldSoldCost = round2(oldQty * oldBasePrice);
-          const newSoldCost = round2(quantity * basePrice);
-          const deltaSoldCost = round2(newSoldCost - oldSoldCost);
-          newInvest = Math.max(0, round2(priorInvest - deltaSoldCost));
+          const deltaSoldAmount = round2(totalAmount - oldTotalAmount);
+          newInvest = Math.max(0, round2(priorInvest - deltaSoldAmount));
         } else {
           // BUY: delta quantity and delta invest
           const deltaQty = round2(quantity - oldQty);

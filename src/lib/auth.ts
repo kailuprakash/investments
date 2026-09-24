@@ -1,180 +1,215 @@
-import { createHmac, pbkdf2Sync, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHmac, randomBytes, scrypt as scryptCallback, timingSafeEqual } from "node:crypto";
+import { promisify } from "node:util";
 import { cookies } from "next/headers";
-import { NextRequest, NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
-import { db } from "@/db";
-import { settingsTable } from "@/db/schema";
-import { ensureDbSeeded } from "@/db/portfolio-service";
-
-const CREDENTIALS_KEY = "portfolio_auth_credentials";
-const SESSION_COOKIE = "portfolio_ledger_session";
-const PASSWORD_ITERATIONS = 210_000;
-const SESSION_SECONDS = 60 * 60 * 24 * 7;
+import type { NextRequest, NextResponse } from "next/server";
+import { pool } from "@/db";
 
 export const MIN_PASSWORD_LENGTH = 8;
-export const MAX_PASSWORD_LENGTH = 256;
+export const MAX_PASSWORD_LENGTH = 128;
 
-type Credentials = {
+const PASSWORD_KEY = "portfolio_auth_password_v1";
+const SESSION_SECRET_KEY = "portfolio_auth_session_secret_v1";
+const SESSION_COOKIE = "portfolio_session";
+const SESSION_SECONDS = 60 * 60 * 24 * 30;
+const scrypt = promisify(scryptCallback);
+
+type PasswordRecord = {
   version: 1;
   salt: string;
   hash: string;
-  iterations: number;
 };
 
-function validCredentials(value: unknown): value is Credentials {
-  if (!value || typeof value !== "object") return false;
-  const item = value as Record<string, unknown>;
-  return (
-    item.version === 1 &&
-    typeof item.salt === "string" && /^[a-f0-9]{32}$/i.test(item.salt) &&
-    typeof item.hash === "string" && /^[a-f0-9]{64}$/i.test(item.hash) &&
-    typeof item.iterations === "number" && Number.isInteger(item.iterations) && item.iterations >= 100_000
+export type PortfolioCredentials = {
+  sessionSecret: string;
+};
+
+async function ensureAuthStore() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS portfolio_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at TEXT NOT NULL DEFAULT ''
+    )
+  `);
+}
+
+async function readSetting(key: string): Promise<string | null> {
+  await ensureAuthStore();
+  const result = await pool.query<{ value: string }>(
+    "SELECT value FROM portfolio_settings WHERE key = $1 LIMIT 1",
+    [key],
   );
+  return result.rows[0]?.value ?? null;
 }
 
-function deriveHash(password: string, salt: string, iterations: number): string {
-  return pbkdf2Sync(password, Buffer.from(salt, "hex"), iterations, 32, "sha256").toString("hex");
+async function insertSettingIfMissing(key: string, value: string): Promise<boolean> {
+  await ensureAuthStore();
+  const result = await pool.query(
+    `INSERT INTO portfolio_settings (key, value, updated_at)
+     VALUES ($1, $2, $3)
+     ON CONFLICT (key) DO NOTHING`,
+    [key, value, new Date().toISOString()],
+  );
+  return (result.rowCount ?? 0) > 0;
 }
 
-function safelyEqual(left: string, right: string): boolean {
-  const leftValue = Buffer.from(left, "hex");
-  const rightValue = Buffer.from(right, "hex");
-  return leftValue.length === rightValue.length && timingSafeEqual(leftValue, rightValue);
+async function sessionSecret(): Promise<string> {
+  const existing = await readSetting(SESSION_SECRET_KEY);
+  if (existing) return existing;
+  const generated = randomBytes(48).toString("base64url");
+  await insertSettingIfMissing(SESSION_SECRET_KEY, generated);
+  return (await readSetting(SESSION_SECRET_KEY)) ?? generated;
 }
 
-async function storedCredentials(): Promise<Credentials | null> {
-  await ensureDbSeeded();
-  const [row] = await db
-    .select({ value: settingsTable.value })
-    .from(settingsTable)
-    .where(eq(settingsTable.key, CREDENTIALS_KEY));
-  if (!row) return null;
+async function derivePassword(password: string, salt: string): Promise<Buffer> {
+  return (await scrypt(password, salt, 64)) as Buffer;
+}
 
+function readPasswordRecord(value: string | null): PasswordRecord | null {
+  if (!value) return null;
   try {
-    const parsed: unknown = JSON.parse(row.value);
-    return validCredentials(parsed) ? parsed : null;
+    const parsed = JSON.parse(value) as Partial<PasswordRecord>;
+    if (
+      parsed.version !== 1 ||
+      typeof parsed.salt !== "string" ||
+      typeof parsed.hash !== "string"
+    ) {
+      return null;
+    }
+    return parsed as PasswordRecord;
   } catch {
     return null;
   }
 }
 
-function sessionSignature(issuedAt: number, expiresAt: number, credentials: Credentials): string {
-  return createHmac("sha256", Buffer.from(credentials.hash, "hex"))
-    .update(`${issuedAt}:${expiresAt}`)
+function signSession(expiry: number, secret: string): string {
+  const payload = String(expiry);
+  const signature = createHmac("sha256", secret)
+    .update(payload)
     .digest("base64url");
+  return `${payload}.${signature}`;
 }
 
-function createSession(credentials: Credentials): string {
-  const issuedAt = Date.now();
-  const expiresAt = issuedAt + SESSION_SECONDS * 1000;
-  return `${issuedAt}.${expiresAt}.${sessionSignature(issuedAt, expiresAt, credentials)}`;
-}
-
-async function validSession(value: string | undefined): Promise<boolean> {
-  if (!value) return false;
-  const [issuedAtValue, expiresAtValue, signature, ...extra] = value.split(".");
-  if (extra.length || !issuedAtValue || !expiresAtValue || !signature) return false;
-
-  const issuedAt = Number(issuedAtValue);
-  const expiresAt = Number(expiresAtValue);
-  if (
-    !Number.isSafeInteger(issuedAt) ||
-    !Number.isSafeInteger(expiresAt) ||
-    expiresAt <= Date.now() ||
-    expiresAt <= issuedAt ||
-    expiresAt - issuedAt > SESSION_SECONDS * 1000
-  ) {
+function verifySession(token: string | undefined, secret: string): boolean {
+  if (!token) return false;
+  const [expiryText, signature, ...rest] = token.split(".");
+  if (rest.length || !expiryText || !signature) return false;
+  const expiry = Number(expiryText);
+  if (!Number.isSafeInteger(expiry) || expiry <= Math.floor(Date.now() / 1000))
     return false;
-  }
-
-  const credentials = await storedCredentials();
-  if (!credentials) return false;
-  const expected = sessionSignature(issuedAt, expiresAt, credentials);
-  const actual = Buffer.from(signature);
+  const expected = signSession(expiry, secret).split(".")[1];
+  const suppliedBuffer = Buffer.from(signature);
   const expectedBuffer = Buffer.from(expected);
-  return actual.length === expectedBuffer.length && timingSafeEqual(actual, expectedBuffer);
+  return (
+    suppliedBuffer.length === expectedBuffer.length &&
+    timingSafeEqual(suppliedBuffer, expectedBuffer)
+  );
 }
 
-export async function authStatus(request?: NextRequest): Promise<{ configured: boolean; authenticated: boolean }> {
-  const credentials = await storedCredentials();
-  if (!credentials) return { configured: false, authenticated: false };
-  const cookie = request
+export async function createPassword(
+  password: string,
+): Promise<PortfolioCredentials | null> {
+  if (
+    password.length < MIN_PASSWORD_LENGTH ||
+    password.length > MAX_PASSWORD_LENGTH
+  ) {
+    return null;
+  }
+  const salt = randomBytes(20).toString("base64url");
+  const hash = (await derivePassword(password, salt)).toString("base64url");
+  const record: PasswordRecord = { version: 1, salt, hash };
+  const inserted = await insertSettingIfMissing(
+    PASSWORD_KEY,
+    JSON.stringify(record),
+  );
+  if (!inserted) return null;
+  return { sessionSecret: await sessionSecret() };
+}
+
+export async function verifyPassword(
+  password: string,
+): Promise<PortfolioCredentials | null> {
+  if (!password || password.length > MAX_PASSWORD_LENGTH) return null;
+  const record = readPasswordRecord(await readSetting(PASSWORD_KEY));
+  if (!record) return null;
+  const actual = await derivePassword(password, record.salt);
+  const expected = Buffer.from(record.hash, "base64url");
+  if (actual.length !== expected.length || !timingSafeEqual(actual, expected))
+    return null;
+  return { sessionSecret: await sessionSecret() };
+}
+
+export async function authStatus(request?: NextRequest): Promise<{
+  configured: boolean;
+  authenticated: boolean;
+}> {
+  const configured = readPasswordRecord(await readSetting(PASSWORD_KEY)) !== null;
+  if (!configured) return { configured: false, authenticated: false };
+  const cookieValue = request
     ? request.cookies.get(SESSION_COOKIE)?.value
     : (await cookies()).get(SESSION_COOKIE)?.value;
-  return { configured: true, authenticated: await validSession(cookie) };
+  const authenticated = verifySession(cookieValue, await sessionSecret());
+  return { configured: true, authenticated };
 }
 
-export async function requirePortfolioAuth(request: NextRequest): Promise<NextResponse | null> {
+export function setSession(
+  response: NextResponse,
+  credentials: PortfolioCredentials,
+) {
+  const expiry = Math.floor(Date.now() / 1000) + SESSION_SECONDS;
+  response.cookies.set(
+    SESSION_COOKIE,
+    signSession(expiry, credentials.sessionSecret),
+    {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: SESSION_SECONDS,
+    },
+  );
+}
+
+export function clearSession(response: NextResponse) {
+  response.cookies.set(SESSION_COOKIE, "", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: 0,
+  });
+}
+
+export async function requirePortfolioAuth(request: NextRequest) {
   try {
     const status = await authStatus(request);
     if (!status.configured) {
-      return NextResponse.json({ error: "Set up a portfolio password first.", code: "AUTH_SETUP_REQUIRED" }, { status: 401 });
+      const { NextResponse } = await import("next/server");
+      return NextResponse.json(
+        {
+          error: "Set up a portfolio password first.",
+          code: "AUTH_SETUP_REQUIRED",
+        },
+        { status: 401 },
+      );
     }
     if (!status.authenticated) {
-      return NextResponse.json({ error: "Sign in to access the portfolio.", code: "AUTH_REQUIRED" }, { status: 401 });
+      const { NextResponse } = await import("next/server");
+      return NextResponse.json(
+        { error: "Sign in to access the portfolio.", code: "AUTH_REQUIRED" },
+        { status: 401 },
+      );
     }
     return null;
   } catch (error) {
-    console.error("[auth] unable to verify session:", error);
-    return NextResponse.json({ error: "Authentication is temporarily unavailable.", code: "AUTH_UNAVAILABLE" }, { status: 503 });
+    console.error("Portfolio authentication unavailable:", error);
+    const { NextResponse } = await import("next/server");
+    return NextResponse.json(
+      {
+        error: "Authentication is temporarily unavailable.",
+        code: "AUTH_UNAVAILABLE",
+      },
+      { status: 503 },
+    );
   }
-}
-
-export async function createPassword(password: string): Promise<Credentials | null> {
-  if (password.length < MIN_PASSWORD_LENGTH || password.length > MAX_PASSWORD_LENGTH) {
-    throw new Error(`Password must be ${MIN_PASSWORD_LENGTH}-${MAX_PASSWORD_LENGTH} characters.`);
-  }
-
-  await ensureDbSeeded();
-  const salt = randomBytes(16).toString("hex");
-  const credentials: Credentials = {
-    version: 1,
-    salt,
-    hash: deriveHash(password, salt, PASSWORD_ITERATIONS),
-    iterations: PASSWORD_ITERATIONS,
-  };
-  const inserted = await db
-    .insert(settingsTable)
-    .values({ key: CREDENTIALS_KEY, value: JSON.stringify(credentials), updatedAt: new Date().toISOString() })
-    .onConflictDoNothing()
-    .returning({ key: settingsTable.key });
-  return inserted.length ? credentials : null;
-}
-
-export async function verifyPassword(password: string): Promise<Credentials | null> {
-  if (!password || password.length > MAX_PASSWORD_LENGTH) return null;
-  const credentials = await storedCredentials();
-  if (!credentials) return null;
-  return safelyEqual(deriveHash(password, credentials.salt, credentials.iterations), credentials.hash)
-    ? credentials
-    : null;
-}
-
-const cookieSecurity = {
-  // The managed preview is embedded on a different site. SameSite=Lax cookies
-  // are not sent from that frame back to the ledger, even after a valid login.
-  // HTTPS production previews therefore need SameSite=None; local HTTP stays Lax.
-  sameSite: process.env.NODE_ENV === "production" ? ("none" as const) : ("lax" as const),
-  secure: process.env.NODE_ENV === "production",
-  path: "/",
-};
-
-export function setSession(response: NextResponse, credentials: Credentials): void {
-  response.cookies.set({
-    name: SESSION_COOKIE,
-    value: createSession(credentials),
-    httpOnly: true,
-    ...cookieSecurity,
-    maxAge: SESSION_SECONDS,
-  });
-}
-
-export function clearSession(response: NextResponse): void {
-  response.cookies.set({
-    name: SESSION_COOKIE,
-    value: "",
-    httpOnly: true,
-    ...cookieSecurity,
-    maxAge: 0,
-  });
 }

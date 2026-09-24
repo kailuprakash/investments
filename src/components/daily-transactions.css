@@ -233,38 +233,39 @@
   color: #991b1b;
   border: 1px solid #fca5a5;
 }
-/* The All Transactions header holds its filter components directly, with no
-   wrapper row and no per-filter label, so the title, the Add buttons, and the
-   filters all share one compact strip. */
-.workbook-shell .transaction-pane-all .transaction-pane-toolbar {
+.workbook-shell .transaction-pane-all {
+  overflow: visible;
+}
+.workbook-shell .transaction-all-header {
+  position: relative;
+  z-index: 50;
+  align-items: center;
   justify-content: flex-start;
+  overflow: visible;
+  border-radius: 7px 7px 0 0;
 }
-.workbook-shell .transaction-pane-all .transaction-pane-actions {
+.workbook-shell .transaction-all-header-title {
+  flex: 0 0 auto;
+}
+.workbook-shell .transaction-all-header > .analytics-filter {
+  flex: 1 1 145px;
+  min-width: 120px;
+  max-width: 210px;
+}
+.workbook-shell .transaction-all-header > .transaction-date-stepper {
+  flex: 0 0 auto;
+}
+.workbook-shell .transaction-all-header-actions {
+  align-self: center;
   margin-left: auto;
-}
-.workbook-shell .transaction-pane-toolbar > .analytics-filter {
-  min-width: 132px;
-  max-width: 190px;
-  flex: 0 1 158px;
-}
-/* The placeholder is now the filter's only name, so keep it readable instead of
-   letting the browser fade it to near-invisible. */
-.workbook-shell
-  .transaction-pane-toolbar
-  > .analytics-filter
-  .analytics-combobox
-  input::placeholder {
-  color: #475569;
-  font-weight: 600;
-  opacity: 1;
 }
 .workbook-shell .transaction-all-filter-reset {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 5px 9px;
+  padding: 6px 10px;
   border: 1px solid #cbd5e1;
-  border-radius: 4px;
+  border-radius: 6px;
   background: #fff;
   color: #b91c1c;
   font-size: 10.5px;
@@ -332,6 +333,27 @@
 .workbook-shell .transaction-pane-all .daily-transactions-table thead th:is([data-field="action"], [data-field="accountNumber"], [data-field="symbol"]) {
   z-index: 36;
   background: #eef3f8;
+}
+.workbook-shell .transaction-all-header .analytics-combobox {
+  min-height: 30px;
+  border-color: #ffffff66;
+  box-shadow: 0 1px 2px #052e2340;
+}
+.workbook-shell .transaction-all-header .analytics-combobox input {
+  min-width: 92px;
+  min-height: 22px !important;
+  font-size: 10px;
+}
+.workbook-shell .transaction-all-header .analytics-filter-menu {
+  z-index: 80;
+  color: #1e293b;
+  text-transform: none;
+  letter-spacing: normal;
+}
+.workbook-shell .transaction-all-header .transaction-all-filter-reset {
+  min-height: 30px;
+  border-color: #fecaca;
+  box-shadow: 0 1px 2px #052e2340;
 }
 .workbook-shell .transaction-all-date {
   padding: 6px 8px;

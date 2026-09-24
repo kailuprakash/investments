@@ -201,10 +201,9 @@ function TransactionMultiFilter({
           aria-controls={listId}
           aria-autocomplete="list"
           aria-label={`Filter by ${label}`}
-          // With no chips selected the box is empty, so the placeholder carries
-          // the filter name (Account / Symbol / Type) — there is no separate
-          // label above it any more.
-          placeholder={chosen.length ? `Add ${label.toLowerCase()}…` : label}
+          placeholder={
+            chosen.length ? `Add ${label.toLowerCase()}…` : `Filter ${label}`
+          }
           value={query}
           autoComplete="off"
           spellCheck={false}
@@ -978,29 +977,12 @@ export default function DailyTransactionsSheet({
         aria-labelledby="ALL-transactions-title"
         data-side="ALL"
       >
-        <div className="transaction-pane-toolbar">
-          <div className="transaction-pane-title">
+        <div className="transaction-pane-toolbar transaction-all-header">
+          <div className="transaction-pane-title transaction-all-header-title">
             <h3 id="ALL-transactions-title">All Transactions</h3>
             <span className="transaction-count">
               {allCount} {allCount === 1 ? "row" : "rows"}
             </span>
-          </div>
-          <div className="transaction-pane-actions">
-            {selectedBuy && (
-              <button
-                type="button"
-                className="transaction-sell-selected"
-                onClick={() => onSellSelected(selectedBuy)}
-              >
-                Sell Selected Buy
-              </button>
-            )}
-            <button type="button" onClick={() => onOpenAddModal("BUY")}>
-              <Plus size={15} /> Add Buy
-            </button>
-            <button type="button" onClick={() => onOpenAddModal("SELL")}>
-              <Plus size={15} /> Add Sell
-            </button>
           </div>
 
           <TransactionMultiFilter
@@ -1021,7 +1003,11 @@ export default function DailyTransactionsSheet({
             selected={allTypeFilter}
             onChange={setAllTypeFilter}
           />
-          <div className="transaction-date-stepper">
+          <div
+            className="transaction-date-stepper"
+            role="group"
+            aria-label="Filter transactions by date"
+          >
             <button
               type="button"
               className="transaction-date-step"
@@ -1037,6 +1023,7 @@ export default function DailyTransactionsSheet({
               className="transaction-all-date"
               value={allDate}
               onChange={(e) => setAllDate(e.target.value)}
+              aria-label="Transaction date"
             />
             <button
               type="button"
@@ -1074,6 +1061,24 @@ export default function DailyTransactionsSheet({
               <X size={13} /> Reset filters
             </button>
           )}
+
+          <div className="transaction-pane-actions transaction-all-header-actions">
+            {selectedBuy && (
+              <button
+                type="button"
+                className="transaction-sell-selected"
+                onClick={() => onSellSelected(selectedBuy)}
+              >
+                Sell Selected Buy
+              </button>
+            )}
+            <button type="button" onClick={() => onOpenAddModal("BUY")}>
+              <Plus size={15} /> Add Buy
+            </button>
+            <button type="button" onClick={() => onOpenAddModal("SELL")}>
+              <Plus size={15} /> Add Sell
+            </button>
+          </div>
         </div>
 
         <div
@@ -1646,7 +1651,7 @@ export default function DailyTransactionsSheet({
       <div
         className="transaction-subtabs"
         role="tablist"
-        aria-label="All and Buy & Sell transaction pages"
+        aria-label="Buy & Sell and All transaction pages"
       >
         <button
           type="button"
