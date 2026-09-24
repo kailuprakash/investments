@@ -233,45 +233,27 @@
   color: #991b1b;
   border: 1px solid #fca5a5;
 }
-.workbook-shell .transaction-all-filters {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 12px;
-  padding: 10px 12px;
-  background: #eef2f7;
-  border-bottom: 1px solid #d5dee7;
+/* The All Transactions header holds its filter components directly, with no
+   wrapper row and no per-filter label, so the title, the Add buttons, and the
+   filters all share one compact strip. */
+.workbook-shell .transaction-pane-all .transaction-pane-toolbar {
+  justify-content: flex-start;
 }
-.workbook-shell .transaction-all-filter {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  font-size: 9.5px;
-  font-weight: 700;
-  color: #475569;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
+.workbook-shell .transaction-pane-all .transaction-pane-actions {
+  margin-left: auto;
 }
-.workbook-shell .transaction-all-filter select {
-  min-width: 150px;
-  padding: 5px 8px;
-  border: 1px solid #cbd5e1;
-  border-radius: 6px;
-  background: #fff;
-  font-size: 11px;
-  font-weight: 600;
-  color: #1e293b;
-  text-transform: none;
-  letter-spacing: normal;
-  cursor: pointer;
+.workbook-shell .transaction-pane-toolbar > .analytics-filter {
+  min-width: 132px;
+  max-width: 190px;
+  flex: 0 1 158px;
 }
 .workbook-shell .transaction-all-filter-reset {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 6px 10px;
+  padding: 5px 9px;
   border: 1px solid #cbd5e1;
-  border-radius: 6px;
+  border-radius: 4px;
   background: #fff;
   color: #b91c1c;
   font-size: 10.5px;
@@ -340,15 +322,6 @@
   z-index: 36;
   background: #eef3f8;
 }
-.workbook-shell .transaction-all-filter-label {
-  display: block;
-  margin-bottom: 3px;
-  font-size: 9.5px;
-  font-weight: 700;
-  color: #475569;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
 .workbook-shell .transaction-all-date {
   padding: 6px 8px;
   border: 1px solid #cbd5e1;
@@ -388,9 +361,6 @@
 }
 .workbook-shell .transaction-date-clear {
   color: #b91c1c;
-}
-.workbook-shell .transaction-all-filters .analytics-filter {
-  min-width: 190px;
 }
 
 .workbook-shell .transaction-pane {

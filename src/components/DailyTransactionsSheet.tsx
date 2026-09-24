@@ -1004,75 +1004,62 @@ export default function DailyTransactionsSheet({
             </button>
           </div>
 
-          <div className="transaction-all-filters">
-          <div className="transaction-all-filter">
-            <span className="transaction-all-filter-label">Account</span>
-            <TransactionMultiFilter
-              label="Account"
-              options={allAccountOptions}
-              selected={allAccountFilter}
-              onChange={setAllAccountFilter}
+          <TransactionMultiFilter
+            label="Account"
+            options={allAccountOptions}
+            selected={allAccountFilter}
+            onChange={setAllAccountFilter}
+          />
+          <TransactionMultiFilter
+            label="Symbol"
+            options={allSymbolOptions}
+            selected={allSymbolFilter}
+            onChange={setAllSymbolFilter}
+          />
+          <TransactionMultiFilter
+            label="Type"
+            options={["BUY", "SELL"]}
+            selected={allTypeFilter}
+            onChange={setAllTypeFilter}
+          />
+          <div className="transaction-date-stepper">
+            <button
+              type="button"
+              className="transaction-date-step"
+              onClick={() => stepAllDate(-1)}
+              disabled={!canStepPrev}
+              aria-label="Previous date with transactions"
+              title="Previous date"
+            >
+              <ArrowLeft size={14} />
+            </button>
+            <input
+              type="date"
+              className="transaction-all-date"
+              value={allDate}
+              onChange={(e) => setAllDate(e.target.value)}
             />
-          </div>
-          <div className="transaction-all-filter">
-            <span className="transaction-all-filter-label">Symbol</span>
-            <TransactionMultiFilter
-              label="Symbol"
-              options={allSymbolOptions}
-              selected={allSymbolFilter}
-              onChange={setAllSymbolFilter}
-            />
-          </div>
-          <div className="transaction-all-filter">
-            <span className="transaction-all-filter-label">Type</span>
-            <TransactionMultiFilter
-              label="Type"
-              options={["BUY", "SELL"]}
-              selected={allTypeFilter}
-              onChange={setAllTypeFilter}
-            />
-          </div>
-          <div className="transaction-all-filter">
-            <span className="transaction-all-filter-label">Date</span>
-            <div className="transaction-date-stepper">
+            <button
+              type="button"
+              className="transaction-date-step"
+              onClick={() => stepAllDate(1)}
+              disabled={!canStepNext}
+              aria-label="Next date with transactions"
+              title="Next date"
+            >
+              <ArrowRight size={14} />
+            </button>
+            {allDate && (
               <button
                 type="button"
-                className="transaction-date-step"
-                onClick={() => stepAllDate(-1)}
-                disabled={!canStepPrev}
-                aria-label="Previous date with transactions"
-                title="Previous date"
+                className="transaction-date-clear"
+                onClick={() => setAllDate("")}
+                aria-label="Clear date filter"
+                title="Clear date"
               >
-                <ArrowLeft size={14} />
+                <X size={13} />
               </button>
-              <input
-                type="date"
-                className="transaction-all-date"
-                value={allDate}
-                onChange={(e) => setAllDate(e.target.value)}
-              />
-              <button
-                type="button"
-                className="transaction-date-step"
-                onClick={() => stepAllDate(1)}
-                disabled={!canStepNext}
-                aria-label="Next date with transactions"
-                title="Next date"
-              >
-                <ArrowRight size={14} />
-              </button>
-              {allDate && (
-                <button
-                  type="button"
-                  className="transaction-date-clear"
-                  onClick={() => setAllDate("")}
-                  aria-label="Clear date filter"
-                  title="Clear date"
-                >
-                  <X size={13} />
-                </button>
-              )}
-            </div>
+            )}
           </div>
           {allFiltersActive && (
             <button
@@ -1088,7 +1075,6 @@ export default function DailyTransactionsSheet({
               <X size={13} /> Reset filters
             </button>
           )}
-        </div>
         </div>
 
         <div
