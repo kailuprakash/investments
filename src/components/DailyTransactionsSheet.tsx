@@ -201,11 +201,10 @@ function TransactionMultiFilter({
           aria-controls={listId}
           aria-autocomplete="list"
           aria-label={`Filter by ${label}`}
-          placeholder={
-            chosen.length
-              ? `Add ${label.toLowerCase()}…`
-              : `Type to filter ${label.toLowerCase()}s`
-          }
+          // With no chips selected the box is empty, so the placeholder carries
+          // the filter name (Account / Symbol / Type) — there is no separate
+          // label above it any more.
+          placeholder={chosen.length ? `Add ${label.toLowerCase()}…` : label}
           value={query}
           autoComplete="off"
           spellCheck={false}

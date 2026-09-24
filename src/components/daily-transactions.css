@@ -247,6 +247,17 @@
   max-width: 190px;
   flex: 0 1 158px;
 }
+/* The placeholder is now the filter's only name, so keep it readable instead of
+   letting the browser fade it to near-invisible. */
+.workbook-shell
+  .transaction-pane-toolbar
+  > .analytics-filter
+  .analytics-combobox
+  input::placeholder {
+  color: #475569;
+  font-weight: 600;
+  opacity: 1;
+}
 .workbook-shell .transaction-all-filter-reset {
   display: inline-flex;
   align-items: center;
