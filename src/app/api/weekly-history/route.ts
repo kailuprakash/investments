@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requirePortfolioAuth } from "@/lib/auth";
 import { db } from "@/db";
 import { weeklyHistoryTable } from "@/db/schema";
 import {
@@ -15,6 +14,8 @@ import { desc, asc } from "drizzle-orm";
  * history. Reading it first gives the Saturday 9 PM Eastern snapshot a chance
  * to land, so history catches up even when the app was closed at snapshot time.
  */
+import { requirePortfolioAuth } from "@/lib/auth";
+
 export async function GET(req: NextRequest) {
   const unauthorised = await requirePortfolioAuth(req);
   if (unauthorised) return unauthorised;

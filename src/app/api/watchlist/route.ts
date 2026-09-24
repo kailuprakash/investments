@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requirePortfolioAuth } from "@/lib/auth";
 import { db } from "@/db";
 import { watchlistTable } from "@/db/schema";
 import { ensureDbSeeded, searchMarketSymbols } from "@/db/portfolio-service";
 import { eq, asc } from "drizzle-orm";
+
+import { requirePortfolioAuth } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
   const unauthorised = await requirePortfolioAuth(req);

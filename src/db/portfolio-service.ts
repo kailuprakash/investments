@@ -1290,6 +1290,19 @@ export async function executeFutureTrade(data: {
             return ta !== tb ? ta - tb : a.id - b.id;
           });
 
+        // Weighted average of this account+symbol's BUY lots (pre-sell). Used
+        // only as a fallback when the holding row carries no invested amount of
+        // its own — e.g. legacy rows whose cost lives only in the transactions.
+        let lotQty = 0;
+        let lotCost = 0;
+        for (const lot of buyLots) {
+          const rem = Math.max(0, Number(lot.remainingQuantity) || 0);
+          if (rem <= 0) continue;
+          lotQty = round2(lotQty + rem);
+          lotCost = round2(lotCost + rem * (Number(lot.pricePerShare) || 0));
+        }
+        const lotAverage = lotQty > 0 ? round2(lotCost / lotQty) : 0;
+
         // The current sell has already reduced a specific source lot above (if
         // provided). For a plain sell, walk oldest→newest and reduce remaining
         // quantities in the database so future sells stay consistent.
@@ -1310,31 +1323,34 @@ export async function executeFutureTrade(data: {
           }
         }
 
-        // Remaining average = weighted average of the surviving BUY lots.
-        let survivingQty = 0;
-        let survivingCost = 0;
-        for (const lot of buyLots) {
-          const rem = Math.max(0, Number(lot.remainingQuantity) || 0);
-          if (rem <= 0) continue;
-          survivingQty = round2(survivingQty + rem);
-          survivingCost = round2(survivingCost + rem * lot.pricePerShare);
+        // Remaining average cost is recomputed from the holding's own quantity
+        // and invested amount (the average-cost method), so it stays correct even
+        // when the shares were added directly without matching BUY transactions
+        // in the Daily Transactions sheet. The BUY lots above only drive the
+        // per-lot remaining-quantity bookkeeping, not this average.
+        let priorInvest =
+          existingHolding.investAmount > 0
+            ? existingHolding.investAmount
+            : round2(existingHolding.quantity * existingHolding.purchasePrice);
+
+        let priorAvg: number;
+        if (existingHolding.quantity > 0 && priorInvest > 0) {
+          priorAvg = round2(priorInvest / existingHolding.quantity);
+        } else if (existingHolding.purchasePrice > 0) {
+          priorAvg = existingHolding.purchasePrice;
+        } else if (lotAverage > 0) {
+          priorAvg = lotAverage;
+        } else {
+          priorAvg = pricePerShare;
+        }
+        if (priorInvest <= 0) {
+          priorInvest = round2(existingHolding.quantity * priorAvg);
         }
 
-        // Fall back to the prior average-cost method if lot data is unavailable
-        // (e.g. imported holdings with no matching BUY rows).
-        let remainingAvg: number;
-        let newInvest: number;
-        if (survivingQty > 0) {
-          remainingAvg = round2(survivingCost / survivingQty);
-          newInvest = round2(newQty * remainingAvg);
-        } else {
-          const priorInvest =
-            existingHolding.investAmount > 0
-              ? existingHolding.investAmount
-              : round2(existingHolding.quantity * existingHolding.purchasePrice);
-          newInvest = Math.max(0, round2(priorInvest - quantity * basePrice));
-          remainingAvg = newQty > 0 ? round2(newInvest / newQty) : 0;
-        }
+        // Remaining invested amount = prior amount minus the sold shares valued
+        // at the current average, spread over the shares that are left.
+        const newInvest = Math.max(0, round2(priorInvest - quantity * priorAvg));
+        const remainingAvg = newQty > 0 ? round2(newInvest / newQty) : 0;
 
         const newOverall = round2(newQty * currentPrice);
         const newPL = round2(newOverall - newInvest);

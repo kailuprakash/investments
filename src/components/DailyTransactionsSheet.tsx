@@ -1003,9 +1003,8 @@ export default function DailyTransactionsSheet({
               <Plus size={15} /> Add Sell
             </button>
           </div>
-        </div>
 
-        <div className="transaction-all-filters">
+          <div className="transaction-all-filters">
           <div className="transaction-all-filter">
             <span className="transaction-all-filter-label">Account</span>
             <TransactionMultiFilter
@@ -1089,6 +1088,7 @@ export default function DailyTransactionsSheet({
               <X size={13} /> Reset filters
             </button>
           )}
+        </div>
         </div>
 
         <div
@@ -1666,18 +1666,6 @@ export default function DailyTransactionsSheet({
         <button
           type="button"
           role="tab"
-          id="subtab-all"
-          aria-selected={activeTab === "ALL"}
-          aria-controls="subtab-panel-all"
-          className={`transaction-subtab ${activeTab === "ALL" ? "is-active" : ""}`}
-          onClick={() => selectTab("ALL")}
-        >
-          All
-          <span className="transaction-subtab-count">{buyCount + sellCount}</span>
-        </button>
-        <button
-          type="button"
-          role="tab"
           id="subtab-trades"
           aria-selected={activeTab === "TRADES"}
           aria-controls="subtab-panel-trades"
@@ -1685,6 +1673,18 @@ export default function DailyTransactionsSheet({
           onClick={() => selectTab("TRADES")}
         >
           Buy &amp; Sell
+          <span className="transaction-subtab-count">{buyCount + sellCount}</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          id="subtab-all"
+          aria-selected={activeTab === "ALL"}
+          aria-controls="subtab-panel-all"
+          className={`transaction-subtab ${activeTab === "ALL" ? "is-active" : ""}`}
+          onClick={() => selectTab("ALL")}
+        >
+          All
           <span className="transaction-subtab-count">{buyCount + sellCount}</span>
         </button>
       </div>

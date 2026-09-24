@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requirePortfolioAuth } from "@/lib/auth";
 import {
   parseAutoRefreshInterval,
 } from "@/lib/auto-refresh";
@@ -19,6 +18,8 @@ import {
   deleteHolding,
   TransactionEditError,
 } from "@/db/portfolio-service";
+
+import { requirePortfolioAuth } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
   const unauthorised = await requirePortfolioAuth(req);

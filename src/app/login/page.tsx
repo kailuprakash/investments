@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import PortfolioLogin from "@/components/PortfolioLogin";
 
-export const metadata: Metadata = {
+export const metadata = {
   title: "Sign in | Portfolio Tracker",
   description: "Secure access to the private portfolio ledger.",
 };

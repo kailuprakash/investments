@@ -8,8 +8,8 @@ import DailyTransactionsSheet from "@/components/DailyTransactionsSheet";
 import HoldingsPerformanceTable from "@/components/HoldingsPerformanceTable";
 import DensityToggle from "@/components/DensityToggle";
 import LiveClock from "@/components/LiveClock";
-import LogoutButton from "@/components/LogoutButton";
 import ScreenFreezeBoundary from "@/components/ScreenFreezeBoundary";
+import LogoutButton from "@/components/LogoutButton";
 import TabFreezeToggle from "@/components/TabFreezeToggle";
 import WorkbookSearch from "@/components/WorkbookSearch";
 import {

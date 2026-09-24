@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requirePortfolioAuth } from "@/lib/auth";
 import { db } from "@/db";
 import { transactionHistoryTable } from "@/db/schema";
 import {
@@ -17,6 +16,8 @@ import { desc, asc } from "drizzle-orm";
  * catch-up run can back-fill several weeks at once — unlike the account-value
  * snapshot, which can only be measured while it happens.
  */
+import { requirePortfolioAuth } from "@/lib/auth";
+
 export async function GET(req: NextRequest) {
   const unauthorised = await requirePortfolioAuth(req);
   if (unauthorised) return unauthorised;
