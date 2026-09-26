@@ -6714,7 +6714,9 @@ const e = {
                 grandTotal: n,
                 futureInvestments: o,
                 weeklyHistory: c.history || [],
+                weeklyLive: c.live || null,
                 transactionHistory: f.history || [],
+                transactionLive: f.live || null,
                 accountDetailsData: adData,
               }),
                 ((r = tt.utils.book_new()).Props = {
@@ -7437,238 +7439,330 @@ const e = {
                 tt.utils.book_append_sheet(
                   r,
                   (function (e) {
+                    // Keep Excel in lockstep with the default on-screen Weekly
+                    // table: current live week first, then the latest 8 stored
+                    // weeks. The previous export used only three stored rows.
                     let t = [...(e.weeklyHistory || [])].sort(
                         (e, t) =>
                           t.snapshotWeek.localeCompare(e.snapshotWeek) ||
                           e.accountNumber.localeCompare(t.accountNumber),
                       ),
-                      r = Array.from(
-                        new Set(t.map((e) => e.snapshotWeek)),
-                      ).slice(0, 3),
-                      a = Array.from(
-                        new Set([
-                          ...e.accounts.map((e) => e.accountNumber),
-                          ...t.map((e) => e.accountNumber),
-                        ]),
-                      ).sort((e, t) => e.localeCompare(t)),
-                      n = [
+                      live = e.weeklyLive || null,
+                      liveRows = Array.isArray(live?.weekly) ? live.weekly : [],
+                      grouped = new Map();
+                    for (let row of t) {
+                      let rows = grouped.get(row.snapshotWeek) || [];
+                      rows.push(row), grouped.set(row.snapshotWeek, rows);
+                    }
+                    let liveWeek = live?.weekEnding || "",
+                      liveStamp = live?.capturedAt
+                        ? new Intl.DateTimeFormat("en-US", {
+                            month: "2-digit",
+                            day: "2-digit",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            timeZone: "America/New_York",
+                          }).format(new Date(live.capturedAt))
+                        : "",
+                      periods = [];
+                    if (liveWeek && liveRows.length) {
+                      periods.push({
+                        key: `W-LIVE-${liveWeek}`,
+                        label: `Current week · as of ${liveStamp} ET`,
+                        rows: liveRows,
+                      });
+                      grouped.delete(liveWeek);
+                    }
+                    periods.push(
+                      ...Array.from(grouped.entries())
+                        .sort(([a], [b]) => b.localeCompare(a))
+                        .slice(0, 8)
+                        .map(([week, rows]) => ({
+                          key: `W-${week}`,
+                          label: `Week ending ${tR(week)}`,
+                          rows,
+                        })),
+                    );
+                    let accounts = Array.from(
+                      new Set([
+                        ...t.map((row) => row.accountNumber),
+                        ...liveRows.map((row) => row.accountNumber),
+                      ]),
+                    ).sort((a, b) => a.localeCompare(b)),
+                      rows = [
                         ["ACCOUNT VALUE HISTORY — EVERY SATURDAY 9 PM EST"],
                         ["Account"],
                         [""],
                       ],
-                      s = [],
-                      o = 1;
-                    for (let e of r)
-                      (n[1][o] = `Week ending ${tR(e)}`),
-                        (n[1][o + 1] = ""),
-                        (n[2][o] = "Market Value"),
-                        (n[2][o + 1] = "Gain/Loss"),
-                        s.push({ s: { r: 1, c: o }, e: { r: 1, c: o + 1 } }),
-                        (o += 2);
-                    for (let e of a) {
-                      let a = [e];
-                      for (let n of r) {
-                        let r = t.find(
-                          (t) => t.snapshotWeek === n && t.accountNumber === e,
+                      merges = [],
+                      column = 1;
+                    for (let period of periods) {
+                      rows[1][column] = period.label;
+                      rows[1][column + 1] = "";
+                      rows[2][column] = "Market Value";
+                      rows[2][column + 1] = "Gain/Loss";
+                      merges.push({
+                        s: { r: 1, c: column },
+                        e: { r: 1, c: column + 1 },
+                      });
+                      column += 2;
+                    }
+                    for (let account of accounts) {
+                      let row = [account];
+                      for (let period of periods) {
+                        let value = period.rows.find(
+                          (entry) => entry.accountNumber === account,
                         );
-                        a.push(
-                          r?.investmentCurrentValue ?? "",
-                          r ? tj(r.gainLossAmount, r.gainLossPercent) : "",
+                        row.push(
+                          value?.investmentCurrentValue ?? "",
+                          value
+                            ? tj(value.gainLossAmount, value.gainLossPercent)
+                            : "",
                         );
                       }
-                      n.push(a);
+                      rows.push(row);
                     }
-                    let i = Math.max(1, o - 1);
-                    s.push(
-                      { s: { r: 0, c: 0 }, e: { r: 0, c: i } },
+                    let lastColumn = Math.max(1, column - 1);
+                    merges.push(
+                      { s: { r: 0, c: 0 }, e: { r: 0, c: lastColumn } },
                       { s: { r: 1, c: 0 }, e: { r: 2, c: 0 } },
-                    ),
-                      n.push(
-                        [],
-                        ["BACKUP AUDIT"],
-                        [
-                          "Week Ending",
-                          "Account",
-                          "Market Value",
-                          "Gain/Loss Amount",
-                          "Gain/Loss %",
-                          "Captured At",
-                          "Source",
-                        ],
-                      ),
-                      t.forEach((e) => {
-                        n.push([
-                          tR(e.snapshotWeek),
-                          e.accountNumber,
-                          e.investmentCurrentValue,
-                          e.gainLossAmount,
-                          e.gainLossPercent / 100,
-                          tF(e.capturedAt),
-                          e.source,
-                        ]);
+                    );
+                    let auditRows = [...liveRows, ...t].sort(
+                      (a, b) =>
+                        String(b.capturedAt || "").localeCompare(
+                          String(a.capturedAt || ""),
+                        ) || b.snapshotWeek.localeCompare(a.snapshotWeek),
+                    );
+                    rows.push([]);
+                    let auditTitleRow = rows.length;
+                    rows.push(["BACKUP AUDIT"]);
+                    let auditHeaderRow = rows.length;
+                    rows.push([
+                      "Week Ending",
+                      "Account",
+                      "Market Value",
+                      "Gain/Loss Amount",
+                      "Gain/Loss %",
+                      "Captured At",
+                      "Source",
+                    ]);
+                    auditRows.forEach((entry) => {
+                      rows.push([
+                        tR(entry.snapshotWeek || liveWeek),
+                        entry.accountNumber,
+                        entry.investmentCurrentValue,
+                        entry.gainLossAmount,
+                        entry.gainLossPercent / 100,
+                        entry.capturedAt ? tF(entry.capturedAt) : "",
+                        entry.source || "LIVE_CURRENT",
+                      ]);
+                    });
+                    let sheet = tt.utils.aoa_to_sheet(rows);
+                    sheet["!merges"] = merges;
+                    sheet["!cols"] = tO(rows, 12, 34);
+                    if (sheet["!cols"]) sheet["!cols"][0] = { wch: 18 };
+                    sheet["!rows"] = [{ hpt: 25 }, { hpt: 23 }, { hpt: 24 }];
+                    tI(sheet, 1, 3);
+                    t_(sheet, 0, 0, 0, lastColumn, tA(tn));
+                    t_(sheet, 1, 1, 0, lastColumn, tT(ti));
+                    t_(sheet, 2, 2, 0, lastColumn, tT(to));
+                    accounts.forEach((account, accountIndex) => {
+                      let sheetRow = accountIndex + 3;
+                      tN(sheet, sheetRow, 0, tT(tg));
+                      periods.forEach((period, periodIndex) => {
+                        let value = period.rows.find(
+                          (entry) => entry.accountNumber === account,
+                        );
+                        let valueColumn = 1 + periodIndex * 2;
+                        tN(sheet, sheetRow, valueColumn, tC("right"), tx);
+                        let loss = (value?.gainLossAmount || 0) < 0;
+                        tN(sheet, sheetRow, valueColumn + 1, {
+                          ...tC("right"),
+                          font: {
+                            name: tb,
+                            sz: 10,
+                            bold: true,
+                            color: { rgb: loss ? td : tp },
+                          },
+                          fill: {
+                            patternType: "solid",
+                            fgColor: { rgb: loss ? tu : tm },
+                          },
+                        });
                       });
-                    let l = tt.utils.aoa_to_sheet(n);
-                    (l["!merges"] = s),
-                      (l["!cols"] = tO(n, 12, 34)),
-                      l["!cols"] && (l["!cols"][0] = { wch: 18 }),
-                      (l["!rows"] = [{ hpt: 25 }, { hpt: 23 }, { hpt: 24 }]),
-                      tI(l, 1, 3),
-                      t_(l, 0, 0, 0, i, tA(tn)),
-                      t_(l, 1, 1, 0, i, tT(ti)),
-                      t_(l, 2, 2, 0, i, tT(to)),
-                      a.forEach((e, a) => {
-                        let n = a + 3;
-                        tN(l, n, 0, tT(tg));
-                        for (let a = 0; a < r.length; a += 1) {
-                          let s = 1 + 2 * a,
-                            o = s + 1,
-                            i = t.find(
-                              (t) =>
-                                t.snapshotWeek === r[a] &&
-                                t.accountNumber === e,
-                            );
-                          tN(l, n, s, tC("right"), tx);
-                          let c = 0 > (i?.gainLossAmount || 0);
-                          tN(l, n, o, {
-                            ...tC("right"),
-                            font: {
-                              name: tb,
-                              sz: 10,
-                              bold: !0,
-                              color: { rgb: c ? td : tp },
-                            },
-                            fill: {
-                              patternType: "solid",
-                              fgColor: { rgb: c ? tu : tm },
-                            },
-                          });
-                        }
-                      });
-                    let c = a.length + 4,
-                      f = c + 1;
-                    t_(l, c, c, 0, 6, tA(ta)), t_(l, f, f, 0, 6, tT(ts));
-                    for (let e = f + 1; e < n.length; e += 1) {
-                      for (let t = 0; t < 7; t += 1) {
-                        let r = [2, 3, 4].includes(t) ? "right" : "left";
-                        tN(l, e, t, tC(r));
+                    });
+                    t_(sheet, auditTitleRow, auditTitleRow, 0, 6, tA(ta));
+                    t_(sheet, auditHeaderRow, auditHeaderRow, 0, 6, tT(ts));
+                    for (let row = auditHeaderRow + 1; row < rows.length; row++) {
+                      for (let col = 0; col < 7; col++) {
+                        tN(sheet, row, col, tC([2, 3, 4].includes(col) ? "right" : "left"));
                       }
-                      tN(l, e, 2, tC("right"), tx),
-                        tN(l, e, 3, tC("right"), "$#,##0.00;[Red]-$#,##0.00;-"),
-                        tN(l, e, 4, tC("right"), tv);
+                      tN(sheet, row, 2, tC("right"), tx);
+                      tN(sheet, row, 3, tC("right"), "$#,##0.00;[Red]-$#,##0.00;-");
+                      tN(sheet, row, 4, tC("right"), tv);
                     }
-                    return l;
+                    return sheet;
                   })(t),
                   "Weekly History",
                 ),
                 tt.utils.book_append_sheet(
                   r,
                   (function (e) {
+                    // Match the default Daily Transactions History table: live
+                    // current-week Buy/Sell totals followed by 8 stored weeks.
                     let t = [...(e.transactionHistory || [])].sort(
                         (e, t) =>
                           t.snapshotWeek.localeCompare(e.snapshotWeek) ||
                           e.accountNumber.localeCompare(t.accountNumber),
                       ),
-                      r = Array.from(
-                        new Set(t.map((e) => e.snapshotWeek)),
-                      ).slice(0, 3),
-                      a = Array.from(
-                        new Set([
-                          ...e.accounts.map((e) => e.accountNumber),
-                          ...t.map((e) => e.accountNumber),
-                        ]),
-                      ).sort((e, t) => e.localeCompare(t)),
-                      n = ["Buy Value", "Sell Value"],
-                      s = [
+                      live = e.transactionLive || null,
+                      liveRows = Array.isArray(live?.transactions)
+                        ? live.transactions
+                        : [],
+                      liveMonthRows = Array.isArray(live?.monthTransactions)
+                        ? live.monthTransactions
+                        : [],
+                      grouped = new Map();
+                    for (let row of t) {
+                      let rows = grouped.get(row.snapshotWeek) || [];
+                      rows.push(row), grouped.set(row.snapshotWeek, rows);
+                    }
+                    let liveWeek = live?.weekEnding || "",
+                      liveStamp = live?.capturedAt
+                        ? new Intl.DateTimeFormat("en-US", {
+                            month: "2-digit",
+                            day: "2-digit",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            timeZone: "America/New_York",
+                          }).format(new Date(live.capturedAt))
+                        : "",
+                      periods = [];
+                    if (liveWeek && liveRows.length) {
+                      periods.push({
+                        key: `W-LIVE-${liveWeek}`,
+                        label: `Current week · as of ${liveStamp} ET`,
+                        rows: liveRows,
+                      });
+                      grouped.delete(liveWeek);
+                    }
+                    periods.push(
+                      ...Array.from(grouped.entries())
+                        .sort(([a], [b]) => b.localeCompare(a))
+                        .slice(0, 8)
+                        .map(([week, rows]) => ({
+                          key: `W-${week}`,
+                          label: `Week ending ${tR(week)}`,
+                          rows,
+                        })),
+                    );
+                    let accounts = Array.from(
+                      new Set([
+                        ...t.map((row) => row.accountNumber),
+                        ...liveRows.map((row) => row.accountNumber),
+                        ...liveMonthRows.map((row) => row.accountNumber),
+                      ]),
+                    ).sort((a, b) => a.localeCompare(b)),
+                      metricLabels = ["Buy Value", "Sell Value"],
+                      rows = [
                         [
                           "DAILY TRANSACTIONS HISTORY — EVERY SATURDAY 9 PM EST",
                         ],
                         ["Account"],
                         [""],
                       ],
-                      o = [],
-                      i = 1;
-                    for (let e of r) {
-                      s[1][i] = `Week ending ${tR(e)}`;
-                      for (let e = 1; e < n.length; e += 1) s[1][i + e] = "";
-                      n.forEach((e, t) => {
-                        s[2][i + t] = e;
-                      }),
-                        o.push({
-                          s: { r: 1, c: i },
-                          e: { r: 1, c: i + n.length - 1 },
-                        }),
-                        (i += n.length);
+                      merges = [],
+                      column = 1;
+                    for (let period of periods) {
+                      rows[1][column] = period.label;
+                      rows[1][column + 1] = "";
+                      metricLabels.forEach((label, index) => {
+                        rows[2][column + index] = label;
+                      });
+                      merges.push({
+                        s: { r: 1, c: column },
+                        e: { r: 1, c: column + 1 },
+                      });
+                      column += metricLabels.length;
                     }
-                    for (let e of a) {
-                      let a = [e];
-                      for (let n of r) {
-                        let r = t.find(
-                          (t) => t.snapshotWeek === n && t.accountNumber === e,
+                    for (let account of accounts) {
+                      let row = [account];
+                      for (let period of periods) {
+                        let value = period.rows.find(
+                          (entry) => entry.accountNumber === account,
                         );
-                        a.push(r?.buyValue ?? "", r?.sellValue ?? "");
+                        row.push(value?.buyValue ?? "", value?.sellValue ?? "");
                       }
-                      s.push(a);
+                      rows.push(row);
                     }
-                    let l = Math.max(1, i - 1);
-                    o.push(
-                      { s: { r: 0, c: 0 }, e: { r: 0, c: l } },
+                    let lastColumn = Math.max(1, column - 1);
+                    merges.push(
+                      { s: { r: 0, c: 0 }, e: { r: 0, c: lastColumn } },
                       { s: { r: 1, c: 0 }, e: { r: 2, c: 0 } },
-                    ),
-                      s.push(
-                        [],
-                        ["BACKUP AUDIT"],
-                        [
-                          "Week Ending",
-                          "Account",
-                          "Buy Value",
-                          "Sell Value",
-                          "Buy Count",
-                          "Sell Count",
-                          "Captured At",
-                          "Source",
-                        ],
-                      ),
-                      t.forEach((e) => {
-                        s.push([
-                          tR(e.snapshotWeek),
-                          e.accountNumber,
-                          e.buyValue,
-                          e.sellValue,
-                          e.buyCount,
-                          e.sellCount,
-                          tF(e.capturedAt),
-                          e.source,
-                        ]);
-                      });
-                    let c = tt.utils.aoa_to_sheet(s);
-                    (c["!merges"] = o),
-                      (c["!cols"] = tO(s, 11, 28)),
-                      c["!cols"] && (c["!cols"][0] = { wch: 18 }),
-                      tI(c, 1, 3),
-                      t_(c, 0, 0, 0, l, tA(tr)),
-                      t_(c, 1, 1, 0, l, tT(ts)),
-                      t_(c, 2, 2, 0, l, tT(to)),
-                      a.forEach((e, t) => {
-                        let r = t + 3;
-                        tN(c, r, 0, tT(tg));
-                        for (let e = 1; e <= l; e += 1)
-                          tN(c, r, e, tC("right"), tx);
-                      });
-                    let f = a.length + 4,
-                      h = f + 1;
-                    t_(c, f, f, 0, 7, tA(ta)), t_(c, h, h, 0, 7, tT(ts));
-                    for (let e = h + 1; e < s.length; e += 1) {
-                      for (let t = 0; t < 8; t += 1)
-                        tN(
-                          c,
-                          e,
-                          t,
-                          tC([2, 3, 4, 5].includes(t) ? "right" : "left"),
-                        );
-                      tN(c, e, 2, tC("right"), tx),
-                        tN(c, e, 3, tC("right"), tx);
+                    );
+                    let auditRows = [...liveRows, ...t].sort(
+                      (a, b) =>
+                        String(b.capturedAt || "").localeCompare(
+                          String(a.capturedAt || ""),
+                        ) || b.snapshotWeek.localeCompare(a.snapshotWeek),
+                    );
+                    rows.push([]);
+                    let auditTitleRow = rows.length;
+                    rows.push(["BACKUP AUDIT"]);
+                    let auditHeaderRow = rows.length;
+                    rows.push([
+                      "Week Ending",
+                      "Account",
+                      "Buy Value",
+                      "Sell Value",
+                      "Net Cash Flow",
+                      "Realized Gain/Loss",
+                      "Buy Count",
+                      "Sell Count",
+                      "Captured At",
+                      "Source",
+                    ]);
+                    auditRows.forEach((entry) => {
+                      rows.push([
+                        tR(entry.snapshotWeek || liveWeek),
+                        entry.accountNumber,
+                        entry.buyValue,
+                        entry.sellValue,
+                        entry.netCashFlow,
+                        entry.realizedGainLoss,
+                        entry.buyCount,
+                        entry.sellCount,
+                        entry.capturedAt ? tF(entry.capturedAt) : "",
+                        entry.source || "LIVE_CURRENT",
+                      ]);
+                    });
+                    let sheet = tt.utils.aoa_to_sheet(rows);
+                    sheet["!merges"] = merges;
+                    sheet["!cols"] = tO(rows, 11, 28);
+                    if (sheet["!cols"]) sheet["!cols"][0] = { wch: 18 };
+                    tI(sheet, 1, 3);
+                    t_(sheet, 0, 0, 0, lastColumn, tA(tr));
+                    t_(sheet, 1, 1, 0, lastColumn, tT(ts));
+                    t_(sheet, 2, 2, 0, lastColumn, tT(to));
+                    accounts.forEach((account, accountIndex) => {
+                      let sheetRow = accountIndex + 3;
+                      tN(sheet, sheetRow, 0, tT(tg));
+                      for (let valueColumn = 1; valueColumn <= lastColumn; valueColumn += 1) {
+                        tN(sheet, sheetRow, valueColumn, tC("right"), tx);
+                      }
+                    });
+                    t_(sheet, auditTitleRow, auditTitleRow, 0, 9, tA(ta));
+                    t_(sheet, auditHeaderRow, auditHeaderRow, 0, 9, tT(ts));
+                    for (let row = auditHeaderRow + 1; row < rows.length; row++) {
+                      for (let col = 0; col < 10; col++) {
+                        tN(sheet, row, col, tC([2, 3, 4, 5, 6, 7].includes(col) ? "right" : "left"));
+                      }
+                      tN(sheet, row, 2, tC("right"), tx);
+                      tN(sheet, row, 3, tC("right"), tx);
+                      tN(sheet, row, 4, tC("right"), tx);
+                      tN(sheet, row, 5, tC("right"), "$#,##0.00;[Red]-$#,##0.00;-");
                     }
-                    return c;
+                    return sheet;
                   })(t),
                   "Transaction History",
                 ),
