@@ -764,53 +764,68 @@ export async function fetchSymbolQuote(symbolRaw: string): Promise<SymbolQuote> 
   const symbol = symbolRaw.trim().toUpperCase();
   const stored = await loadStoredQuote(symbol);
   let error = "using last stored price";
-  try {
+
+  // Yahoo applies separate rate limits to its chart hosts. query1 is regularly
+  // throttled in hosted previews, while query2 remains available, so try query2
+  // first and only fall back to query1 when it is needed.
+  const quoteUrls = [
+    `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=2d`,
+    `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=2d`,
+  ];
+
+  for (const url of quoteUrls) {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 3000);
-    const res = await fetch(
-      `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=2d`,
-      {
+    const timer = setTimeout(() => controller.abort(), 5000);
+    try {
+      const response = await fetch(url, {
         signal: controller.signal,
-        headers: { "User-Agent": "Mozilla/5.0" },
+        headers: {
+          "User-Agent": "Mozilla/5.0 (compatible; PortfolioTracker/1.0)",
+          Accept: "application/json",
+        },
         cache: "no-store",
-      },
-    );
-    clearTimeout(timer);
-    if (!res.ok) {
-      error = `HTTP ${res.status}`;
-    } else {
-      const json = await res.json();
-      const meta = json?.chart?.result?.[0]?.meta;
-      if (meta && typeof meta.regularMarketPrice === "number") {
-        const price = round2(meta.regularMarketPrice);
-        const previousClose = round2(
-          meta.chartPreviousClose || meta.previousClose || price,
-        );
-        const change = round2(price - previousClose);
-        const changePercent =
-          previousClose > 0 ? round2((change / previousClose) * 100) : 0;
-        const nowIso = new Date().toISOString();
-        const quote: SymbolQuote = {
-          symbol,
-          price,
-          previousClose,
-          change,
-          changePercent,
-          source: "live",
-          quoteAt: nowIso,
-          lastLiveAt: nowIso,
-          error: null,
-        };
-        await persistQuote(quote);
-        return quote;
+      });
+      if (!response.ok) {
+        error = `Yahoo HTTP ${response.status}`;
+        continue;
       }
-      error = "no quote";
+
+      const json = await response.json().catch(() => null);
+      const meta = json?.chart?.result?.[0]?.meta;
+      if (!meta || !Number.isFinite(Number(meta.regularMarketPrice))) {
+        error = "Yahoo returned no quote";
+        continue;
+      }
+
+      const price = round2(Number(meta.regularMarketPrice));
+      const previousClose = round2(
+        Number(meta.chartPreviousClose || meta.previousClose || price),
+      );
+      const change = round2(price - previousClose);
+      const changePercent =
+        previousClose > 0 ? round2((change / previousClose) * 100) : 0;
+      const nowIso = new Date().toISOString();
+      const quote: SymbolQuote = {
+        symbol,
+        price,
+        previousClose,
+        change,
+        changePercent,
+        source: "live",
+        quoteAt: nowIso,
+        lastLiveAt: nowIso,
+        error: null,
+      };
+      await persistQuote(quote);
+      return quote;
+    } catch (err) {
+      error =
+        err instanceof Error && err.name === "AbortError"
+          ? "Yahoo timed out"
+          : "Yahoo network error";
+    } finally {
+      clearTimeout(timer);
     }
-  } catch (err) {
-    error =
-      err instanceof Error && err.name === "AbortError"
-        ? "timed out"
-        : "network error";
   }
 
   const quote = fallbackQuote(symbol, stored, error);
@@ -1344,7 +1359,6 @@ export async function updateCurrentHoldingField(data: {
   id: number;
   quantity?: number;
   purchasePrice?: number;
-  currentPrice?: number;
   comments?: string;
 }) {
   await ensureDbSeeded();
@@ -1360,10 +1374,10 @@ export async function updateCurrentHoldingField(data: {
     data.purchasePrice !== undefined
       ? Number(data.purchasePrice)
       : h.purchasePrice;
-  const currentPrice =
-    data.currentPrice !== undefined
-      ? Number(data.currentPrice)
-      : h.currentPrice;
+  // Market Price/Share is server-owned: pull a live quote when possible and
+  // retain the most recently cached value if the provider is unavailable.
+  const quote = await fetchSymbolQuote(h.symbol);
+  const currentPrice = quote.price || h.currentPrice;
   const comments =
     data.comments !== undefined ? String(data.comments) : h.comments;
 
@@ -1726,10 +1740,10 @@ export async function saveHolding(data: {
   const quantity = Number(data.quantity) || 0;
   const purchasePrice = Number(data.purchasePrice) || 0;
   const quote = await fetchSymbolQuote(symbol);
-  const currentPrice =
-    data.currentPrice !== undefined && Number(data.currentPrice) > 0
-      ? Number(data.currentPrice)
-      : quote.price;
+  // Holdings display the market service's quote, never a manually supplied
+  // browser value. `fetchSymbolQuote` falls back to a stored quote when live
+  // market data is temporarily unavailable.
+  const currentPrice = quote.price || purchasePrice;
   const investAmount = round2(quantity * purchasePrice);
   const overallCurrentPrice = round2(quantity * currentPrice);
   const profitLossAmt = round2(overallCurrentPrice - investAmount);
@@ -2349,87 +2363,162 @@ export async function editAccountDetail(data: {
   taxPeriod?: string;
 }) {
   await ensureDbSeeded();
-  const existing = (
-    await db
-      .select()
-      .from(accountDetailsTable)
-      .where(eq(accountDetailsTable.id, Number(data.id)))
-  )[0];
-  if (!existing) throw new Error("Account Detail record not found");
+  if (!Number.isSafeInteger(Number(data.id)) || Number(data.id) <= 0) {
+    throw new Error("A valid Account Detail record is required");
+  }
 
-  const updateData: Partial<{
-    financialInstitute: string;
-    activeStatus: string;
-    accountType: string;
-    accountNumber: string;
-    startDate: string;
-    comments: string;
-    taxPeriod: string;
-  }> = {};
-  if (data.financialInstitute !== undefined)
-    updateData.financialInstitute = data.financialInstitute.trim();
-  if (data.activeStatus !== undefined)
-    updateData.activeStatus = data.activeStatus.trim();
-  if (data.accountType !== undefined)
-    updateData.accountType = data.accountType.trim();
-  if (data.accountNumber !== undefined)
-    updateData.accountNumber = data.accountNumber.trim();
-  if (data.startDate !== undefined)
-    updateData.startDate = data.startDate.trim();
-  if (data.comments !== undefined) updateData.comments = data.comments.trim();
-  if (data.taxPeriod !== undefined)
-    updateData.taxPeriod = data.taxPeriod.trim();
-
-  await db
-    .update(accountDetailsTable)
-    .set(updateData)
-    .where(eq(accountDetailsTable.id, Number(data.id)));
-
-  // If accountNumber or comments changed, update portfolio_accounts and depositDetailsTable
-  const norm = (s: string) =>
-    String(s || "")
+  const norm = (value: string) =>
+    String(value || "")
       .trim()
       .toUpperCase()
       .replace(/^[0-9]+\.\s*/, "")
       .replace(/[\s_-]+/g, "");
 
-  const newAccNum = data.accountNumber
-    ? data.accountNumber.trim()
-    : existing.accountNumber;
-  const oldAccNum = existing.accountNumber;
+  await db.transaction(async (txDb) => {
+    const [existing] = await txDb
+      .select()
+      .from(accountDetailsTable)
+      .where(eq(accountDetailsTable.id, Number(data.id)))
+      .for("update");
+    if (!existing) throw new Error("Account Detail record not found");
 
-  if (newAccNum !== oldAccNum) {
-    await db
-      .update(depositDetailsTable)
-      .set({ accountNumber: newAccNum })
-      .where(eq(depositDetailsTable.accountNumber, oldAccNum));
-  }
+    const oldAccNum = existing.accountNumber;
+    const newAccNum =
+      data.accountNumber !== undefined
+        ? data.accountNumber.trim()
+        : oldAccNum;
+    if (!newAccNum) throw new Error("Account # is required");
 
-  const allSummaryAccs = await db.select().from(accountsTable);
-  const targetSummary = allSummaryAccs.find(
-    (a) => norm(a.accountNumber) === norm(oldAccNum),
-  );
-  if (targetSummary) {
-    await db
-      .update(accountsTable)
-      .set({
+    const oldKey = norm(oldAccNum);
+    const newKey = norm(newAccNum);
+    const renamed = newAccNum !== oldAccNum;
+
+    const updateData: Partial<{
+      financialInstitute: string;
+      activeStatus: string;
+      accountType: string;
+      accountNumber: string;
+      startDate: string;
+      comments: string;
+      taxPeriod: string;
+    }> = {};
+    if (data.financialInstitute !== undefined)
+      updateData.financialInstitute = data.financialInstitute.trim();
+    if (data.activeStatus !== undefined)
+      updateData.activeStatus = data.activeStatus.trim();
+    if (data.accountType !== undefined)
+      updateData.accountType = data.accountType.trim();
+    if (data.accountNumber !== undefined) updateData.accountNumber = newAccNum;
+    if (data.startDate !== undefined)
+      updateData.startDate = data.startDate.trim();
+    if (data.comments !== undefined) updateData.comments = data.comments.trim();
+    if (data.taxPeriod !== undefined)
+      updateData.taxPeriod = data.taxPeriod.trim();
+
+    const [allDetails, allSummaryAccs] = await Promise.all([
+      txDb.select().from(accountDetailsTable),
+      txDb.select().from(accountsTable),
+    ]);
+
+    // A rename must not silently merge two independently tracked accounts.
+    if (
+      newKey !== oldKey &&
+      allDetails.some(
+        (account) => account.id !== existing.id && norm(account.accountNumber) === newKey,
+      )
+    ) {
+      throw new Error(`Account # ${newAccNum} already exists`);
+    }
+    if (
+      newKey !== oldKey &&
+      allSummaryAccs.some((account) => norm(account.accountNumber) === newKey)
+    ) {
+      throw new Error(
+        `Account # ${newAccNum} is already used in Account's Summary`,
+      );
+    }
+
+    await txDb
+      .update(accountDetailsTable)
+      .set(updateData)
+      .where(eq(accountDetailsTable.id, existing.id));
+
+    const matchingSummaryAccounts = allSummaryAccs.filter(
+      (account) => norm(account.accountNumber) === oldKey,
+    );
+    if (matchingSummaryAccounts.length > 0) {
+      for (const account of matchingSummaryAccounts) {
+        await txDb
+          .update(accountsTable)
+          .set({
+            accountNumber: newAccNum,
+            accountName: newAccNum,
+            comments:
+              data.comments !== undefined
+                ? data.comments.trim()
+                : account.comments,
+          })
+          .where(eq(accountsTable.id, account.id));
+      }
+    } else {
+      await txDb.insert(accountsTable).values({
+        sNo: allSummaryAccs.length + 1,
         accountNumber: newAccNum,
         accountName: newAccNum,
-        comments:
-          data.comments !== undefined
-            ? data.comments.trim()
-            : targetSummary.comments,
-      })
-      .where(eq(accountsTable.id, targetSummary.id));
-  } else {
-    await db.insert(accountsTable).values({
-      sNo: allSummaryAccs.length + 1,
-      accountNumber: newAccNum,
-      accountName: newAccNum,
-      cashAvailable: 0,
-      comments: data.comments !== undefined ? data.comments.trim() : "",
-    });
-  }
+        cashAvailable: 0,
+        comments: data.comments !== undefined ? data.comments.trim() : "",
+      });
+    }
+
+    if (!renamed) return;
+
+    // Account numbers are the workbook's cross-sheet key. Propagate the rename
+    // to every linked row so direct/manual holdings never become orphaned.
+    const [deposits, holdings, transactions, weeklyHistory, transactionHistory] =
+      await Promise.all([
+        txDb.select().from(depositDetailsTable),
+        txDb.select().from(holdingsTable),
+        txDb.select().from(futureInvestmentsTable),
+        txDb.select().from(weeklyHistoryTable),
+        txDb.select().from(transactionHistoryTable),
+      ]);
+
+    for (const deposit of deposits) {
+      if (norm(deposit.accountNumber) !== oldKey) continue;
+      await txDb
+        .update(depositDetailsTable)
+        .set({ accountNumber: newAccNum })
+        .where(eq(depositDetailsTable.id, deposit.id));
+    }
+    for (const holding of holdings) {
+      if (norm(holding.accountNumber) !== oldKey) continue;
+      await txDb
+        .update(holdingsTable)
+        .set({ accountNumber: newAccNum })
+        .where(eq(holdingsTable.id, holding.id));
+    }
+    for (const transaction of transactions) {
+      if (norm(transaction.accountNumber) !== oldKey) continue;
+      await txDb
+        .update(futureInvestmentsTable)
+        .set({ accountNumber: newAccNum })
+        .where(eq(futureInvestmentsTable.id, transaction.id));
+    }
+    for (const snapshot of weeklyHistory) {
+      if (norm(snapshot.accountNumber) !== oldKey) continue;
+      await txDb
+        .update(weeklyHistoryTable)
+        .set({ accountNumber: newAccNum })
+        .where(eq(weeklyHistoryTable.id, snapshot.id));
+    }
+    for (const snapshot of transactionHistory) {
+      if (norm(snapshot.accountNumber) !== oldKey) continue;
+      await txDb
+        .update(transactionHistoryTable)
+        .set({ accountNumber: newAccNum })
+        .where(eq(transactionHistoryTable.id, snapshot.id));
+    }
+  });
 
   return getAccountDetailsData();
 }

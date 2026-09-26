@@ -13,6 +13,10 @@ const SESSION_COOKIE = "portfolio_session";
 const SESSION_SECONDS = 60 * 60 * 24 * 30;
 const scrypt = promisify(scryptCallback);
 
+// Keep this disabled only for local preview troubleshooting. Production access
+// requires password setup, a valid signed session, and protected API requests.
+const AUTH_DISABLED_FOR_PREVIEW = false;
+
 type PasswordRecord = {
   version: 1;
   salt: string;
@@ -143,6 +147,10 @@ export async function authStatus(request?: NextRequest): Promise<{
   configured: boolean;
   authenticated: boolean;
 }> {
+  if (AUTH_DISABLED_FOR_PREVIEW) {
+    return { configured: true, authenticated: true };
+  }
+
   const configured = readPasswordRecord(await readSetting(PASSWORD_KEY)) !== null;
   if (!configured) return { configured: false, authenticated: false };
   const cookieValue = request
@@ -181,6 +189,8 @@ export function clearSession(response: NextResponse) {
 }
 
 export async function requirePortfolioAuth(request: NextRequest) {
+  if (AUTH_DISABLED_FOR_PREVIEW) return null;
+
   try {
     const status = await authStatus(request);
     if (!status.configured) {

@@ -426,6 +426,35 @@
   gap: 8px;
   flex-wrap: wrap;
 }
+.workbook-shell .transaction-pane-date-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+.workbook-shell .transaction-side-date {
+  min-height: 30px;
+  padding: 5px 7px;
+  border: 1px solid #ffffff66;
+  border-radius: 6px;
+  background: #fff;
+  color: #1e293b;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.workbook-shell .transaction-pane-sell .transaction-side-date {
+  border-color: #fed7aa;
+}
+.workbook-shell .transaction-pane-date-filter .transaction-date-step,
+.workbook-shell .transaction-pane-date-filter .transaction-date-clear {
+  border-color: #ffffff66;
+  box-shadow: 0 1px 2px #052e2340;
+}
+.workbook-shell .transaction-pane-sell .transaction-pane-date-filter .transaction-date-step,
+.workbook-shell .transaction-pane-sell .transaction-pane-date-filter .transaction-date-clear {
+  border-color: #fed7aa;
+}
 .workbook-shell .transaction-pane-title h3 {
   margin: 0;
   font-weight: 700;

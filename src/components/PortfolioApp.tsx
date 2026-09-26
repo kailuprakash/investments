@@ -1513,7 +1513,7 @@ const e = {
   const Z = LucideEyeOff;
   const ea = LucidePencil;
 
-  const el = "portfolio-consolidated-view-columns-v5";
+  const el = "portfolio-consolidated-view-columns-v6";
   const ec = [
     {
       id: "symbol",
@@ -1535,8 +1535,8 @@ const e = {
       id: "purchasePrice",
       label: "Avg Price",
       visible: true,
-      editable: false,
-      kind: "calculated",
+      editable: true,
+      kind: "editable",
       align: "right",
     },
     {
@@ -1551,8 +1551,8 @@ const e = {
       id: "currentPrice",
       label: "Market Price/Share",
       visible: true,
-      editable: true,
-      kind: "editable",
+      editable: false,
+      kind: "readonly",
       align: "right",
     },
     {
@@ -1622,6 +1622,7 @@ const e = {
     (0, r.useEffect)(() => {
       let e = [
         el,
+        "portfolio-consolidated-view-columns-v5",
         "portfolio-consolidated-view-columns-v4",
         "portfolio-consolidation-inventory-columns-v3",
         "portfolio-current-investment-columns-v2",
@@ -2823,8 +2824,7 @@ const e = {
               0,
             ) / totQ
           : null;
-      // SELL prefills the Consolidated View weighted average (holdAvg). BUY /
-      // "Sell Selected Buy" fall back to the passed lot cost when present.
+      // SELL prefills the Consolidated View weighted average (holdAvg).
       let initAvg =
         "SELL" === (i || "BUY")
           ? holdAvg && holdAvg > 0
@@ -2842,8 +2842,8 @@ const e = {
       (0, r.useEffect)(() => {
         if (!e) return;
         // SELL always refreshes its average from the Consolidated View holding
-        // (account-level weighted average), including "Sell Selected Buy".
-        // BUY without a source lot keeps its existing prefill behaviour.
+        // (account-level weighted average). BUY without a source lot keeps its
+        // existing prefill behaviour.
         if ("SELL" !== m && f) return;
         let accObj = n.find((item) => item.accountNumber === u) || n[0];
         let matchH =
@@ -3917,7 +3917,7 @@ const e = {
       [f, h] = (0, r.useState)(""),
       [d, u] = (0, r.useState)(""),
       [p, m] = (0, r.useState)(""),
-      [g, b] = (0, r.useState)(""),
+      [g, b] = (0, r.useState)(null),
       [x, v] = (0, r.useState)(""),
       [y, w] = (0, r.useState)(""),
       [A, T] = (0, r.useState)(!1),
@@ -3932,20 +3932,52 @@ const e = {
               h(n.symbol),
               u(n.quantity.toString()),
               m(n.purchasePrice.toString()),
-              b(n.currentPrice.toString()),
+              b({ price: n.currentPrice, source: "cached" }),
               v(n.comments || ""),
               w(n.highlight || ""))
-            : (c(s || k), h(""), u(""), m(""), b(""), v(""), w("")),
+            : (c(s || k), h(""), u(""), m(""), b(null), v(""), w("")), 
           E(null));
-      }, [e, S, s, k]),
-      !e)
+       }, [e, S, s, k]),
+      (0, r.useEffect)(() => {
+        const symbol = f.trim().toUpperCase();
+        if (!e || !symbol) {
+          b(null);
+          return;
+        }
+        const controller = new AbortController();
+        const timer = window.setTimeout(async () => {
+          b({ loading: true });
+          try {
+            const response = await fetch(
+              `/api/portfolio?symbol=${encodeURIComponent(symbol)}`,
+              { signal: controller.signal, cache: "no-store" },
+            );
+            const quote = await response.json();
+            if (!response.ok || !Number.isFinite(Number(quote?.price))) {
+              throw new Error(quote?.error || "Quote unavailable");
+            }
+            b({
+              price: Number(quote.price),
+              source: quote.source || "cached",
+              error: quote.error || null,
+            });
+          } catch (error) {
+            if (error?.name !== "AbortError") {
+              b({ error: error instanceof Error ? error.message : "Quote unavailable" });
+            }
+          }
+        }, 350);
+        return () => {
+          window.clearTimeout(timer);
+          controller.abort();
+        };
+      }, [e, f]),
+       !e)
     )
       return null;
     let N = async (e) => {
-      e.preventDefault(), E(null);
-      let t = parseFloat(d),
-        r = parseFloat(p),
-        s = g ? parseFloat(g) : void 0;
+       e.preventDefault(), E(null);
+       let t = parseFloat(d), r = parseFloat(p);
       if (!l) return void E("Please select an account.");
       if (!f.trim()) return void E("Please enter a stock symbol.");
       if (isNaN(t) || t <= 0)
@@ -3960,7 +3992,6 @@ const e = {
             symbol: f.trim().toUpperCase(),
             quantity: t,
             purchasePrice: r,
-            currentPrice: s,
             comments: x.trim(),
             highlight: y,
           }),
@@ -4099,16 +4130,18 @@ const e = {
                     children: [
                       (0, t.jsx)("label", {
                         className: "block text-gray-700 font-bold mb-1",
-                        children: "Market Price/Share ($)",
+                        children: "Market Price/Share",
                       }),
-                      (0, t.jsx)("input", {
-                        type: "number",
-                        step: "any",
-                        value: g,
-                        onChange: (e) => b(e.target.value),
-                        placeholder: "Auto-fetched if blank",
+                      (0, t.jsx)("div", {
                         className:
-                          "w-full bg-gray-50 border border-gray-300 rounded p-2 font-mono text-xs focus:ring-2 focus:ring-[#1F4E79] outline-none",
+                          "w-full rounded border border-blue-200 bg-blue-50 px-2 py-2 font-mono text-xs font-semibold text-blue-900",
+                        children: g?.loading
+                          ? "Looking up market price…"
+                          : Number.isFinite(Number(g?.price)) && Number(g?.price) > 0
+                            ? `${D(Number(g.price)).text} · ${"live" === g.source ? "Live" : "Cached"}${g.error ? ` · ${g.error}` : ""}`
+                            : f.trim()
+                              ? `Quote unavailable${g?.error ? ` · ${g.error}` : ""}`
+                              : "Enter a symbol to load quote",
                       }),
                     ],
                   }),
@@ -6351,7 +6384,7 @@ const e = {
           [d, u] = (0, r.useState)(!1),
           [p, m] = (0, r.useState)(!1),
           [g, b] = (0, r.useState)("future"),
-          [x, v] = (0, r.useState)("ALL"),
+          [x, v] = (0, r.useState)("BUY"),
           [y, w] = (0, r.useState)({
             cellId: "C4",
             label: "CS - 9271 Account Value",
@@ -6462,8 +6495,14 @@ const e = {
             }
           }, []);
         (0, r.useEffect)(() => {
-          void el();
-        }, [el]);
+          // Load the workbook first, then immediately pull current market prices
+          // whenever auto-refresh is enabled. Previously the initial screen kept
+          // stored prices until the first five-minute timer elapsed.
+          void (async () => {
+            await el();
+            if (refreshIntervalRef.current > 0) await ec();
+          })();
+        }, [el, ec]);
         (0, r.useEffect)(() => {
           if (A <= 0) {
             k(0);
@@ -8212,7 +8251,7 @@ This replaces the current accounts, inventory, and transactions.`)
                 i(n.portfolio.futureInvestments || []),
                 c(new Date().toISOString()),
                 b("future"),
-                v("ALL"),
+                v("BUY"),
                 setAdRefreshKey((k) => k + 1),
                 ei(
                   `Imported ${n.result.accounts} accounts, ${n.result.holdings} holdings, ${n.result.transactions} transactions${n.result.accountDetails > 0 ? `, ${n.result.accountDetails} account details` : ""}${n.result.depositDetails > 0 ? `, ${n.result.depositDetails} deposits` : ""}, ${n.result.weeklyHistory} account history rows, and ${n.result.transactionHistory} transaction history rows.`,
@@ -8247,12 +8286,12 @@ This replaces the current accounts, inventory, and transactions.`)
               lastRefreshed: l,
               activeSheet: g,
               onSelectSheet: (e) => {
-                b(e), "future" === e && v("ALL");
+                b(e), "future" === e && v("BUY");
               },
               searchHits: buildWorkbookIndex(e, o),
               onSearchJump: (hit) => {
                 b(hit.sheet);
-                if (hit.sheet === "future") v("ALL");
+                if (hit.sheet === "future") v("BUY");
                 setJumpHit(hit);
               },
             }),
@@ -8369,20 +8408,6 @@ This replaces the current accounts, inventory, and transactions.`)
                                     ee(void 0),
                                     er(void 0),
                                     en(void 0),
-                                    _(!0);
-                                },
-                                onSellSelected: (e) => {
-                                  G(e.accountNumber),
-                                    Y(e.symbol),
-                                    q("SELL"),
-                                    ee(e.remainingQuantity),
-                                    Q(e.remainingQuantity),
-                                    er(e.id),
-                                    en(
-                                      e.pricePerShare ??
-                                        e.costBasisPerShare ??
-                                        e.averageCost,
-                                    ),
                                     _(!0);
                                 },
                                 jumpHit,

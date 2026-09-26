@@ -58,7 +58,6 @@ interface Props {
   selectedCell?: SelectedCell | null;
   onSelectCell: (cell: SelectedCell) => void;
   onOpenAddModal: (side: TradeSide, accountNumber?: string) => void;
-  onSellSelected: (row: DailyTransaction) => void;
   onSaveInlineField: (id: number, patch: TradeEdit) => Promise<void>;
   jumpHit?: WorkbookHit | null;
   onJumpHandled?: () => void;
@@ -77,6 +76,14 @@ const money = (value: number) =>
 const quantity = (value: number) =>
   new Intl.NumberFormat("en-US", { maximumFractionDigits: 6 }).format(value);
 const eastern = "America/New_York";
+
+function transactionDay(value: string): string | null {
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) return null;
+  return new Date(timestamp).toLocaleDateString("en-CA", {
+    timeZone: eastern,
+  });
+}
 
 function TransactionDate({ value }: { value: string }) {
   const date = new Date(value);
@@ -479,11 +486,10 @@ export default function DailyTransactionsSheet({
   selectedCell,
   onSelectCell,
   onOpenAddModal,
-  onSellSelected,
   onSaveInlineField,
   jumpHit,
   onJumpHandled,
-  activeOrderTypeTab = "ALL",
+  activeOrderTypeTab = "BUY",
   onSelectOrderTypeTab,
 }: Props) {
   // Two sub-tabs within Daily Transactions:
@@ -514,7 +520,6 @@ export default function DailyTransactionsSheet({
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(
     new Set(),
   );
-  const [selectedBuyId, setSelectedBuyId] = useState<number | null>(null);
   const filterRef = useRef<HTMLDivElement>(null);
 
   // "All" tab consolidated view: multi-select account / symbol / type filters
@@ -524,6 +529,8 @@ export default function DailyTransactionsSheet({
   const [allSymbolFilter, setAllSymbolFilter] = useState<string[] | null>(null);
   const [allTypeFilter, setAllTypeFilter] = useState<string[] | null>(null);
   const [allDate, setAllDate] = useState<string>("");
+  const [buyDate, setBuyDate] = useState<string>("");
+  const [sellDate, setSellDate] = useState<string>("");
   const [allSort, setAllSort] = useState<{
     key: "dateTime" | "accountNumber" | "symbol" | "action" | "quantity" | "pricePerShare" | "totalAmount" | "gainLoss";
     dir: "asc" | "desc";
@@ -619,19 +626,56 @@ export default function DailyTransactionsSheet({
         .sort((a, b) => a.localeCompare(b, undefined, { numeric: true })),
     [inventoryAccounts, entries],
   );
+  const accountMatches = (entry: DailyTransaction) =>
+    selectedAccounts === null ||
+    selectedAccounts.includes(entry.accountNumber.trim());
+  const sideAvailableDates = useMemo(() => {
+    const datesFor = (side: TradeSide) =>
+      Array.from(
+        new Set(
+          entries
+            .filter(
+              (entry) =>
+                entry.action.toUpperCase() === side && accountMatches(entry),
+            )
+            .map((entry) => transactionDay(entry.dateTime))
+            .filter((day): day is string => Boolean(day)),
+        ),
+      ).sort();
+    return { BUY: datesFor("BUY"), SELL: datesFor("SELL") };
+  }, [entries, selectedAccounts]);
   const buyGroups = useMemo(
-    () => groupTransactionsByAccount(entries, "BUY", selectedAccounts),
-    [entries, selectedAccounts],
+    () =>
+      groupTransactionsByAccount(
+        entries.filter(
+          (entry) =>
+            entry.action.toUpperCase() === "BUY" &&
+            accountMatches(entry) &&
+            (!buyDate || transactionDay(entry.dateTime) === buyDate),
+        ),
+        "BUY",
+        null,
+      ),
+    [entries, selectedAccounts, buyDate],
   );
   const sellGroups = useMemo(
-    () => groupTransactionsByAccount(entries, "SELL", selectedAccounts),
-    [entries, selectedAccounts],
+    () =>
+      groupTransactionsByAccount(
+        entries.filter(
+          (entry) =>
+            entry.action.toUpperCase() === "SELL" &&
+            accountMatches(entry) &&
+            (!sellDate || transactionDay(entry.dateTime) === sellDate),
+        ),
+        "SELL",
+        null,
+      ),
+    [entries, selectedAccounts, sellDate],
   );
-  const visibleBuys = buyGroups.flatMap((group) => group.rows);
-  const selectedBuy = visibleBuys.find(
-    (row) => row.id === selectedBuyId && row.remainingQuantity > 0,
+  const buyCount = buyGroups.reduce(
+    (sum, group) => sum + group.rows.length,
+    0,
   );
-  const buyCount = visibleBuys.length;
   const sellCount = sellGroups.reduce(
     (sum, group) => sum + group.rows.length,
     0,
@@ -773,6 +817,28 @@ export default function DailyTransactionsSheet({
       (allDateIdx !== -1 && allDateIdx < allAvailableDates.length - 1) ||
       allDateIdx === -1);
 
+  function stepSideDate(side: TradeSide, direction: -1 | 1) {
+    const dates = sideAvailableDates[side];
+    const selectedDate = side === "BUY" ? buyDate : sellDate;
+    const setDate = side === "BUY" ? setBuyDate : setSellDate;
+    if (dates.length === 0) return;
+    if (!selectedDate) {
+      setDate(direction === -1 ? dates[dates.length - 1] : dates[0]);
+      return;
+    }
+    const index = dates.indexOf(selectedDate);
+    if (index === -1) {
+      const fallback =
+        direction === 1
+          ? dates.find((date) => date > selectedDate)
+          : [...dates].reverse().find((date) => date < selectedDate);
+      if (fallback) setDate(fallback);
+      return;
+    }
+    const nextIndex = index + direction;
+    if (nextIndex >= 0 && nextIndex < dates.length) setDate(dates[nextIndex]);
+  }
+
   function toggleAllSort(key: typeof allSort.key) {
     setAllSort((cur) =>
       cur.key === key
@@ -791,7 +857,6 @@ export default function DailyTransactionsSheet({
   }
   function changeFilter(next: string[] | null) {
     setSelectedAccounts(next);
-    setSelectedBuyId(null);
   }
   function reorder(
     side: TradeSide,
@@ -871,17 +936,6 @@ export default function DailyTransactionsSheet({
       case "symbol":
         display = (
           <div className="transaction-symbol">
-            {!isSell && (
-              <input
-                type="checkbox"
-                aria-label={`Select ${row.symbol} buy ${row.id} for sale`}
-                checked={selectedBuy?.id === row.id}
-                disabled={row.remainingQuantity <= 0}
-                onChange={() =>
-                  setSelectedBuyId((prev) => (prev === row.id ? null : row.id))
-                }
-              />
-            )}
             <span>
               <strong>{row.symbol}</strong>
               {isSell && row.sourceTransactionId ? (
@@ -1063,15 +1117,6 @@ export default function DailyTransactionsSheet({
           )}
 
           <div className="transaction-pane-actions transaction-all-header-actions">
-            {selectedBuy && (
-              <button
-                type="button"
-                className="transaction-sell-selected"
-                onClick={() => onSellSelected(selectedBuy)}
-              >
-                Sell Selected Buy
-              </button>
-            )}
             <button type="button" onClick={() => onOpenAddModal("BUY")}>
               <Plus size={15} /> Add Buy
             </button>
@@ -1158,11 +1203,7 @@ export default function DailyTransactionsSheet({
                     data-transaction-id={row.id}
                     data-account={row.accountNumber}
                     data-symbol={row.symbol}
-                    className={
-                      selectedBuy?.id === row.id
-                        ? "transaction-data-row is-selected"
-                        : "transaction-data-row"
-                    }
+                    className="transaction-data-row"
                   >
                     {ALL_COLUMNS.map((col) =>
                       col.id === "action" ? (
@@ -1236,6 +1277,18 @@ export default function DailyTransactionsSheet({
     const keyPrefix = side;
     const contextAccount =
       selectedAccounts?.length === 1 ? selectedAccounts[0] : undefined;
+    const sideDate = side === "BUY" ? buyDate : sellDate;
+    const setSideDate = side === "BUY" ? setBuyDate : setSellDate;
+    const availableDates = sideAvailableDates[side];
+    const dateIndex = sideDate ? availableDates.indexOf(sideDate) : -1;
+    const canStepSidePrev =
+      availableDates.length > 0 &&
+      (!sideDate || dateIndex > 0 || dateIndex === -1);
+    const canStepSideNext =
+      availableDates.length > 0 &&
+      (!sideDate ||
+        (dateIndex !== -1 && dateIndex < availableDates.length - 1) ||
+        dateIndex === -1);
     return (
       <section
         className={`transaction-pane transaction-pane-${side.toLowerCase()}`}
@@ -1251,16 +1304,51 @@ export default function DailyTransactionsSheet({
               {count} {count === 1 ? "row" : "rows"}
             </span>
           </div>
-          <div className="transaction-pane-actions">
-            {buy && selectedBuy && (
+          <div
+            className="transaction-pane-date-filter"
+            role="group"
+            aria-label={`Filter ${label.toLowerCase()} transactions by date`}
+          >
+            <button
+              type="button"
+              className="transaction-date-step"
+              onClick={() => stepSideDate(side, -1)}
+              disabled={!canStepSidePrev}
+              aria-label={`Previous date with ${label.toLowerCase()} transactions`}
+              title="Previous transaction date"
+            >
+              <ArrowLeft size={14} />
+            </button>
+            <input
+              type="date"
+              className="transaction-side-date"
+              value={sideDate}
+              onChange={(event) => setSideDate(event.target.value)}
+              aria-label={`${label} transaction date`}
+            />
+            <button
+              type="button"
+              className="transaction-date-step"
+              onClick={() => stepSideDate(side, 1)}
+              disabled={!canStepSideNext}
+              aria-label={`Next date with ${label.toLowerCase()} transactions`}
+              title="Next transaction date"
+            >
+              <ArrowRight size={14} />
+            </button>
+            {sideDate && (
               <button
                 type="button"
-                className="transaction-sell-selected"
-                onClick={() => onSellSelected(selectedBuy)}
+                className="transaction-date-clear"
+                onClick={() => setSideDate("")}
+                aria-label={`Clear ${label.toLowerCase()} date filter`}
+                title="Clear date filter"
               >
-                Sell Selected Buy
+                <X size={13} />
               </button>
             )}
+          </div>
+          <div className="transaction-pane-actions">
             <button
               type="button"
               onClick={() => onOpenAddModal(side, contextAccount)}
@@ -1390,11 +1478,7 @@ export default function DailyTransactionsSheet({
                             data-transaction-id={row.id}
                             data-account={accountNumber}
                             data-symbol={row.symbol}
-                            className={
-                              selectedBuy?.id === row.id
-                                ? "transaction-data-row is-selected"
-                                : "transaction-data-row"
-                            }
+                            className="transaction-data-row"
                           >
                             {visible.map((col) => renderCell(row, col))}
                           </tr>
