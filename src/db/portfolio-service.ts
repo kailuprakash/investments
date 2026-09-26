@@ -1732,44 +1732,113 @@ export async function saveHolding(data: {
   symbol: string;
   quantity: number;
   purchasePrice: number;
-  currentPrice?: number;
   comments?: string;
 }) {
   await ensureDbSeeded();
+  const accountNumber = data.accountNumber.trim();
   const symbol = data.symbol.trim().toUpperCase();
   const quantity = Number(data.quantity) || 0;
   const purchasePrice = Number(data.purchasePrice) || 0;
-  const quote = await fetchSymbolQuote(symbol);
-  // Holdings display the market service's quote, never a manually supplied
-  // browser value. `fetchSymbolQuote` falls back to a stored quote when live
-  // market data is temporarily unavailable.
-  const currentPrice = quote.price || purchasePrice;
-  const investAmount = round2(quantity * purchasePrice);
-  const overallCurrentPrice = round2(quantity * currentPrice);
-  const profitLossAmt = round2(overallCurrentPrice - investAmount);
-  const gainLossPercent =
-    investAmount > 0 ? round2((profitLossAmt / investAmount) * 100) : 0;
+  if (!accountNumber) throw new Error("Account is required");
+  if (!symbol) throw new Error("Symbol is required");
+  if (!Number.isFinite(quantity) || quantity <= 0)
+    throw new Error("Quantity must be greater than zero");
+  if (!Number.isFinite(purchasePrice) || purchasePrice < 0)
+    throw new Error("Average price must be zero or greater");
 
-  if (data.id) {
-    await db
-      .update(holdingsTable)
-      .set({
-        accountNumber: data.accountNumber,
-        symbol,
-        quantity,
-        purchasePrice,
-        currentPrice,
-        investAmount,
-        overallCurrentPrice,
-        profitLossAmt,
-        gainLossPercent,
-        comments: data.comments || "",
-        updatedAt: new Date().toISOString(),
-      })
-      .where(eq(holdingsTable.id, Number(data.id)));
-  } else {
-    await db.insert(holdingsTable).values({
-      accountNumber: data.accountNumber,
+  const quote = await fetchSymbolQuote(symbol);
+  const normAccount = (value: string) =>
+    String(value || "")
+      .trim()
+      .toUpperCase()
+      .replace(/^[0-9]+\.\s*/, "")
+      .replace(/[\s_-]+/g, "");
+  const nowIso = new Date().toISOString();
+
+  await db.transaction(async (txDb) => {
+    if (data.id) {
+      const [existing] = await txDb
+        .select()
+        .from(holdingsTable)
+        .where(eq(holdingsTable.id, Number(data.id)))
+        .for("update");
+      if (!existing) throw new Error("Holding not found");
+
+      const currentPrice = quote.price || existing.currentPrice || purchasePrice;
+      const investAmount = round2(quantity * purchasePrice);
+      const overallCurrentPrice = round2(quantity * currentPrice);
+      const profitLossAmt = round2(overallCurrentPrice - investAmount);
+      const gainLossPercent =
+        investAmount > 0 ? round2((profitLossAmt / investAmount) * 100) : 0;
+      await txDb
+        .update(holdingsTable)
+        .set({
+          accountNumber,
+          symbol,
+          quantity,
+          purchasePrice,
+          currentPrice,
+          investAmount,
+          overallCurrentPrice,
+          profitLossAmt,
+          gainLossPercent,
+          comments: data.comments || "",
+          updatedAt: nowIso,
+        })
+        .where(eq(holdingsTable.id, existing.id));
+      return;
+    }
+
+    // The Consolidated View has one row per account + ticker. Adding a ticker
+    // already held in that account increases the position and recalculates its
+    // weighted average instead of creating a visually duplicate holding row.
+    const allHoldings = await txDb.select().from(holdingsTable);
+    const existing = allHoldings.find(
+      (holding) =>
+        normAccount(holding.accountNumber) === normAccount(accountNumber) &&
+        holding.symbol.trim().toUpperCase() === symbol,
+    );
+    if (existing) {
+      const priorInvest =
+        existing.investAmount > 0
+          ? existing.investAmount
+          : round2(existing.quantity * existing.purchasePrice);
+      const addedInvest = round2(quantity * purchasePrice);
+      const mergedQuantity = round2(existing.quantity + quantity);
+      const mergedInvest = round2(priorInvest + addedInvest);
+      const mergedAverage =
+        mergedQuantity > 0 ? round2(mergedInvest / mergedQuantity) : 0;
+      const currentPrice =
+        quote.price || existing.currentPrice || purchasePrice;
+      const overallCurrentPrice = round2(mergedQuantity * currentPrice);
+      const profitLossAmt = round2(overallCurrentPrice - mergedInvest);
+      const gainLossPercent =
+        mergedInvest > 0 ? round2((profitLossAmt / mergedInvest) * 100) : 0;
+      await txDb
+        .update(holdingsTable)
+        .set({
+          quantity: mergedQuantity,
+          purchasePrice: mergedAverage,
+          investAmount: mergedInvest,
+          currentPrice,
+          overallCurrentPrice,
+          profitLossAmt,
+          gainLossPercent,
+          comments: data.comments?.trim() || existing.comments,
+          updatedAt: nowIso,
+        })
+        .where(eq(holdingsTable.id, existing.id));
+      return;
+    }
+
+    const currentPrice = quote.price || purchasePrice;
+    const investAmount = round2(quantity * purchasePrice);
+    const overallCurrentPrice = round2(quantity * currentPrice);
+    const profitLossAmt = round2(overallCurrentPrice - investAmount);
+    const gainLossPercent =
+      investAmount > 0 ? round2((profitLossAmt / investAmount) * 100) : 0;
+    await txDb.insert(holdingsTable).values({
+      accountNumber,
       symbol,
       quantity,
       purchasePrice,
@@ -1780,9 +1849,9 @@ export async function saveHolding(data: {
       gainLossPercent,
       comments: data.comments || "",
       highlight: "",
-      updatedAt: new Date().toISOString(),
+      updatedAt: nowIso,
     });
-  }
+  });
 
   return getPortfolioState();
 }
