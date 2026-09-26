@@ -772,6 +772,52 @@ select:focus-visible {
   padding-right: 12px !important;
 }
 
+/* Freeze Account's Summary identity columns while financial values scroll. The
+   Account offset is supplied by the table from its calculated S. No. width. */
+.workbook-shell .summary-table .summary-sno-column,
+.workbook-shell .summary-table .summary-account-column {
+  position: sticky !important;
+  background-clip: padding-box;
+}
+.workbook-shell .summary-table .summary-sno-column {
+  left: 0;
+  z-index: 20;
+  background-color: #fff;
+}
+.workbook-shell .summary-table .summary-account-column {
+  left: var(--summary-sno-width, 64px);
+  z-index: 21;
+  background-color: #fff;
+  box-shadow: 3px 0 5px -4px #33415566;
+}
+.workbook-shell .summary-table thead .summary-sno-column,
+.workbook-shell .summary-table thead .summary-account-column {
+  z-index: 46;
+  background-color: #d9e1f2;
+}
+.workbook-shell .summary-table tbody tr:last-child .summary-sno-column,
+.workbook-shell .summary-table tbody tr:last-child .summary-account-column {
+  background-color: #e2efda;
+}
+
+/* Account Details starts with Account #, so it can freeze directly at the
+   left edge while the detail fields remain horizontally scrollable. */
+.workbook-shell .account-details-table .account-details-account-column {
+  position: sticky !important;
+  left: 0;
+  z-index: 20;
+  background-color: #fff;
+  background-clip: padding-box;
+  box-shadow: 3px 0 5px -4px #33415566;
+}
+.workbook-shell .account-details-table thead .account-details-account-column {
+  z-index: 46;
+  background-color: #eef3f8;
+}
+.workbook-shell .account-details-table tbody tr:hover .account-details-account-column {
+  background-color: #eff6ff;
+}
+
 /* Freeze the Deposit Details "Actions" column to the right edge so Edit/Delete
    stay reachable without horizontal scrolling to the far corner. */
 .workbook-shell .deposit-details-table .deposit-actions-col {

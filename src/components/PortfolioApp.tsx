@@ -1011,7 +1011,11 @@ const e = {
           children: (0, t.jsxs)("table", {
             className:
               "summary-table freeze-header-table table-fixed border-separate border-spacing-0 text-xs",
-            style: { width: summaryTotalW, minWidth: summaryTotalW },
+            style: {
+              width: summaryTotalW,
+              minWidth: summaryTotalW,
+              "--summary-sno-width": `${summaryColWidths[0]}px`,
+            },
             children: [
               (0, t.jsx)("colgroup", {
                 children: summaryColWidths.map((w, idx) =>
@@ -1030,20 +1034,20 @@ const e = {
                     (0, t.jsx)("th", {
                       "data-field-kind": "readonly",
 
-                      className:
-                        "border border-slate-300 text-center whitespace-nowrap",
-                      children: (0, t.jsx)(FieldHeader, {
-                        label: "S. No.",
+                       className:
+                         "summary-sno-column border border-slate-300 text-center whitespace-nowrap",
+                       children: (0, t.jsx)(FieldHeader, {
+                         label: "S. No.",
                         kind: "readonly",
                       }),
                     }),
                     (0, t.jsx)("th", {
                       "data-field-kind": "readonly",
 
-                      className:
-                        "border border-slate-300 text-left whitespace-nowrap",
-                      children: (0, t.jsx)(FieldHeader, {
-                        label: "Account",
+                       className:
+                         "summary-account-column border border-slate-300 text-left whitespace-nowrap",
+                       children: (0, t.jsx)(FieldHeader, {
+                         label: "Account",
                         kind: "readonly",
                       }),
                     }),
@@ -1150,8 +1154,8 @@ const e = {
                                 value: String(item.sNo),
                                 formula: String(item.sNo),
                               }),
-                            className: `border border-slate-300 px-2 py-1 text-center font-mono whitespace-nowrap ${isInactive ? "text-slate-400" : ""} ${i(`A${a}`) ? l : ""}`,
-                            children: item.sNo,
+                             className: `summary-sno-column border border-slate-300 px-2 py-1 text-center font-mono whitespace-nowrap ${isInactive ? "text-slate-400" : ""} ${i(`A${a}`) ? l : ""}`,
+                             children: item.sNo,
                           }),
                           (0, t.jsxs)("td", {
                             "data-field-kind": "readonly",
@@ -1163,8 +1167,8 @@ const e = {
                                 value: item.accountNumber,
                                 formula: `="${item.accountNumber}"`,
                               }),
-                            className: `border border-slate-300 px-2.5 py-1 font-bold whitespace-nowrap ${isInactive ? "text-slate-500" : "text-[#1F4E79]"} ${i(`B${a}`) ? l : ""}`,
-                            children: [
+                              className: `summary-account-column border border-slate-300 px-2.5 py-1 font-bold whitespace-nowrap ${isInactive ? "text-slate-500" : "text-[#1F4E79]"} ${i(`B${a}`) ? l : ""}`,
+                             children: [
                               item.accountNumber,
                               isInactive &&
                                 (0, t.jsx)("span", {
@@ -1428,16 +1432,16 @@ const e = {
                         "data-field": "sNo",
                         "data-align": "center",
 
-                        className:
-                          "border border-slate-400 px-2 py-1.5 text-center whitespace-nowrap",
-                        children: "Total",
+                         className:
+                           "summary-sno-column border border-slate-400 px-2 py-1.5 text-center whitespace-nowrap",
+                         children: "Total",
                       }),
                       (0, t.jsx)("td", {
                         "data-field-kind": "readonly",
                         "data-field": "account",
-                        className:
-                          "border border-slate-400 px-2.5 py-1.5 whitespace-nowrap",
-                        children: "All Accounts",
+                         className:
+                           "summary-account-column border border-slate-400 px-2.5 py-1.5 whitespace-nowrap",
+                         children: "All Accounts",
                       }),
                       (0, t.jsx)("td", {
                         "data-field-kind": "calculated",

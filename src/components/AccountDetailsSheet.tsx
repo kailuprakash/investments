@@ -802,7 +802,7 @@ export default function AccountDetailsSheet({
                 <th
                   scope="col"
                   data-field-kind="editable"
-                  className="border border-slate-300 whitespace-normal"
+                  className="account-details-account-column border border-slate-300 whitespace-normal"
                 >
                   <FieldHeader label="Account #" kind="editable" />
                 </th>
@@ -912,7 +912,7 @@ export default function AccountDetailsSheet({
                       <td
                         data-field-kind="editable"
                         data-field="accountNumber"
-                        className={`border border-slate-300 px-3 py-1.5 font-bold whitespace-nowrap font-mono ${isActive ? "text-[#1F4E79]" : "text-slate-600"}`}
+                        className={`account-details-account-column border border-slate-300 px-3 py-1.5 font-bold whitespace-nowrap font-mono ${isActive ? "text-[#1F4E79]" : "text-slate-600"}`}
                       >
                         {acc.accountNumber}
                       </td>
