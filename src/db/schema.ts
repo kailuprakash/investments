@@ -4,6 +4,8 @@ import {
   text,
   doublePrecision,
   integer,
+  boolean,
+  index,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 
@@ -138,6 +140,23 @@ export const settingsTable = pgTable("portfolio_settings", {
   value: text("value").notNull(),
   updatedAt: text("updated_at").notNull().default(""),
 });
+
+/** Security metadata only — password values are never stored in this table. */
+export const loginAttemptsTable = pgTable(
+  "portfolio_login_attempts",
+  {
+    id: serial("id").primaryKey(),
+    ipAddress: text("ip_address").notNull(),
+    attemptedAt: text("attempted_at").notNull(),
+    event: text("event").notNull().default("LOGIN_FAILURE"),
+    userAgent: text("user_agent").notNull().default(""),
+    clientDetails: text("client_details").notNull().default(""),
+    alerted: boolean("alerted").notNull().default(false),
+  },
+  (t) => [
+    index("idx_portfolio_login_attempts_ip_time").on(t.ipAddress, t.attemptedAt),
+  ],
+);
 
 // Named export aliases for compatibility across all modules & routes
 export const accounts = accountsTable;

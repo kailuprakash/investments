@@ -9,6 +9,11 @@ import {
   verifyPassword,
 } from "@/lib/auth";
 import { sendEmailLoginAlert } from "@/lib/email-alerts";
+import {
+  clearFailedLoginAttempts,
+  getLoginLockoutStatus,
+  recordFailedLoginAttempt,
+} from "@/lib/login-security";
 
 export const dynamic = "force-dynamic";
 
@@ -73,6 +78,29 @@ function authError(
   return NextResponse.json(
     { error, ...(configured === undefined ? {} : { configured }) },
     { status },
+  );
+}
+
+function lockoutError(
+  formSubmission: boolean,
+  retryAfterSeconds: number,
+): NextResponse {
+  const retryMinutes = Math.max(1, Math.ceil(retryAfterSeconds / 60));
+  const error = `Too many invalid login attempts. Please try again in ${retryMinutes} minute${retryMinutes === 1 ? "" : "s"}.`;
+  if (formSubmission) return loginRedirect(error);
+  return NextResponse.json(
+    {
+      error,
+      code: "LOGIN_LOCKED",
+      retryAfterSeconds,
+    },
+    {
+      status: 429,
+      headers: {
+        "Retry-After": String(retryAfterSeconds),
+        "Cache-Control": "no-store",
+      },
+    },
   );
 }
 
@@ -141,13 +169,29 @@ export async function POST(request: NextRequest) {
         ? browserRedirect("/")
         : NextResponse.json({ configured: true, authenticated: true });
       setSession(response, credentials);
+      await clearFailedLoginAttempts(request);
       await sendEmailLoginAlert(request, "PASSWORD_SETUP");
       return response;
     }
 
     if (action === "login") {
+      const lockout = await getLoginLockoutStatus(request);
+      if (lockout.locked) {
+        return lockoutError(formSubmission, lockout.retryAfterSeconds);
+      }
+
       const credentials = await verifyPassword(password);
       if (!credentials) {
+        const attempt = await recordFailedLoginAttempt(request);
+        if (attempt.shouldAlert) {
+          await sendEmailLoginAlert(request, "FAILED_LOGIN_THRESHOLD", {
+            failedAttemptCount: attempt.failedAttemptCount,
+            windowMinutes: attempt.windowMinutes,
+          });
+        }
+        if (attempt.shouldLock) {
+          return lockoutError(formSubmission, attempt.retryAfterSeconds);
+        }
         const { configured } = await authStatus(request);
         return authError(
           formSubmission,
@@ -162,6 +206,7 @@ export async function POST(request: NextRequest) {
         ? browserRedirect("/")
         : NextResponse.json({ configured: true, authenticated: true });
       setSession(response, credentials);
+      await clearFailedLoginAttempts(request);
       await sendEmailLoginAlert(request, "LOGIN");
       return response;
     }

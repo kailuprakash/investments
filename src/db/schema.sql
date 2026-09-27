@@ -14,6 +14,7 @@
 -- ============================================================================
 
 -- OPTIONAL DESTRUCTIVE RESET (uncomment only when you want a blank database)
+-- DROP TABLE IF EXISTS portfolio_login_attempts CASCADE;
 -- DROP TABLE IF EXISTS market_cache CASCADE;
 -- DROP TABLE IF EXISTS portfolio_settings CASCADE;
 -- DROP TABLE IF EXISTS portfolio_deposit_details CASCADE;
@@ -149,11 +150,25 @@ CREATE TABLE IF NOT EXISTS portfolio_settings (
   updated_at TEXT NOT NULL DEFAULT ''
 );
 
+-- Security metadata for invalid-login auditing and temporary IP lockouts.
+-- Password values are never written to this table.
+CREATE TABLE IF NOT EXISTS portfolio_login_attempts (
+  id SERIAL PRIMARY KEY,
+  ip_address TEXT NOT NULL,
+  attempted_at TEXT NOT NULL,
+  event TEXT NOT NULL DEFAULT 'LOGIN_FAILURE',
+  user_agent TEXT NOT NULL DEFAULT '',
+  client_details TEXT NOT NULL DEFAULT '',
+  alerted BOOLEAN NOT NULL DEFAULT FALSE
+);
+
 -- DDL: indexes/compatibility columns used by weekly snapshots and quote cache.
 CREATE UNIQUE INDEX IF NOT EXISTS uq_weekly_history_account_week
   ON portfolio_weekly_history (account_number, snapshot_week);
 CREATE UNIQUE INDEX IF NOT EXISTS uq_transaction_history_account_week
   ON portfolio_transaction_history (account_number, snapshot_week);
+CREATE INDEX IF NOT EXISTS idx_portfolio_login_attempts_ip_time
+  ON portfolio_login_attempts (ip_address, attempted_at);
 ALTER TABLE market_cache ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'cached';
 ALTER TABLE market_cache ADD COLUMN IF NOT EXISTS error TEXT NOT NULL DEFAULT '';
 ALTER TABLE market_cache ADD COLUMN IF NOT EXISTS last_live_at TEXT NOT NULL DEFAULT '';
@@ -166,9 +181,10 @@ INSERT INTO portfolio_settings (key, value, updated_at)
 VALUES ('auto_refresh_interval', '300', to_char(CURRENT_TIMESTAMP AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
 ON CONFLICT (key) DO NOTHING;
 
--- Password setup stores a salted PBKDF2 hash (never a plaintext password) in
--- portfolio_settings under the portfolio_auth_credentials key. The record is
--- created only through POST /api/auth during first-time setup.
+-- Password setup stores a salted scrypt hash (never a plaintext password) in
+-- portfolio_settings under portfolio_auth_password_v1. The server also stores a
+-- signing secret under portfolio_auth_session_secret_v1; both are created only
+-- through POST /api/auth during first-time setup.
 
 
 INSERT INTO portfolio_accounts (s_no, account_number, account_name, cash_available, comments)
@@ -385,3 +401,8 @@ COMMIT;
 -- WEEKLY SNAPSHOT UPSERTS
 -- INSERT INTO portfolio_weekly_history (account_number, snapshot_week, investment_current_value, gain_loss_amount, gain_loss_percent, captured_at, source) VALUES ('<account_number>', '<YYYY-MM-DD>', <current_value>, <gain_loss_amount>, <gain_loss_percent>, '<ISO-8601 timestamp>', 'SATURDAY_9PM_ET') ON CONFLICT (account_number, snapshot_week) DO UPDATE SET investment_current_value = EXCLUDED.investment_current_value, gain_loss_amount = EXCLUDED.gain_loss_amount, gain_loss_percent = EXCLUDED.gain_loss_percent, captured_at = EXCLUDED.captured_at, source = EXCLUDED.source;
 -- INSERT INTO portfolio_transaction_history (account_number, snapshot_week, buy_value, sell_value, net_cash_flow, realized_gain_loss, buy_count, sell_count, captured_at, source) VALUES ('<account_number>', '<YYYY-MM-DD>', <buy_value>, <sell_value>, <net_cash_flow>, <realized_gain_loss>, <buy_count>, <sell_count>, '<ISO-8601 timestamp>', 'SATURDAY_9PM_ET') ON CONFLICT (account_number, snapshot_week) DO UPDATE SET buy_value = EXCLUDED.buy_value, sell_value = EXCLUDED.sell_value, net_cash_flow = EXCLUDED.net_cash_flow, realized_gain_loss = EXCLUDED.realized_gain_loss, buy_count = EXCLUDED.buy_count, sell_count = EXCLUDED.sell_count, captured_at = EXCLUDED.captured_at, source = EXCLUDED.source;
+--
+-- LOGIN SECURITY AUDIT
+-- SELECT ip_address, attempted_at, event, alerted FROM portfolio_login_attempts ORDER BY attempted_at DESC;
+-- DELETE FROM portfolio_login_attempts WHERE ip_address = '<public_ip_address>';
+-- Passwords are never stored in portfolio_login_attempts.
