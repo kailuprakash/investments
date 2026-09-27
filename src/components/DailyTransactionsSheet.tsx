@@ -122,11 +122,13 @@ function TransactionMultiFilter({
   options,
   selected,
   onChange,
+  className = "",
 }: {
   label: string;
   options: string[];
   selected: string[] | null;
   onChange: (next: string[] | null) => void;
+  className?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -186,7 +188,7 @@ function TransactionMultiFilter({
   }
 
   return (
-    <div className="analytics-filter" ref={root}>
+    <div className={`analytics-filter ${className}`} ref={root}>
       <div className="analytics-combobox">
         {chosen.map((option) => (
           <button
@@ -507,10 +509,9 @@ export default function DailyTransactionsSheet({
     SELL: DEFAULT_TRADE_COLUMNS.SELL,
   });
   const [layoutReady, setLayoutReady] = useState(false);
-  const [selectedAccounts, setSelectedAccounts] = useState<string[] | null>(
-    null,
-  );
-  const [filterOpen, setFilterOpen] = useState(false);
+  const [sideAccountFilters, setSideAccountFilters] = useState<
+    Record<TradeSide, string[] | null>
+  >({ BUY: null, SELL: null });
   const [customizeOpen, setCustomizeOpen] = useState(false);
   const [customizeSide, setCustomizeSide] = useState<TradeSide>("BUY");
   const [dragColumn, setDragColumn] = useState<{
@@ -520,7 +521,6 @@ export default function DailyTransactionsSheet({
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(
     new Set(),
   );
-  const filterRef = useRef<HTMLDivElement>(null);
 
   // "All" tab consolidated view: multi-select account / symbol / type filters
   // (analytics-style comboboxes), a single pickable date with prev/next
@@ -572,23 +572,6 @@ export default function DailyTransactionsSheet({
   }, [columns, layoutReady]);
 
   useEffect(() => {
-    if (!filterOpen) return;
-    const closeOutside = (event: PointerEvent) => {
-      if (!filterRef.current?.contains(event.target as Node))
-        setFilterOpen(false);
-    };
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setFilterOpen(false);
-    };
-    document.addEventListener("pointerdown", closeOutside);
-    document.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.removeEventListener("pointerdown", closeOutside);
-      document.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [filterOpen]);
-
-  useEffect(() => {
     if (!jumpHit || jumpHit.sheet !== "future") return;
     const accountNumber = jumpHit.accountNumber;
     if (accountNumber) {
@@ -626,9 +609,12 @@ export default function DailyTransactionsSheet({
         .sort((a, b) => a.localeCompare(b, undefined, { numeric: true })),
     [inventoryAccounts, entries],
   );
-  const accountMatches = (entry: DailyTransaction) =>
-    selectedAccounts === null ||
-    selectedAccounts.includes(entry.accountNumber.trim());
+  const accountMatches = (entry: DailyTransaction, side: TradeSide) => {
+    const selected = sideAccountFilters[side];
+    return (
+      selected === null || selected.includes(entry.accountNumber.trim())
+    );
+  };
   const sideAvailableDates = useMemo(() => {
     const datesFor = (side: TradeSide) =>
       Array.from(
@@ -636,27 +622,27 @@ export default function DailyTransactionsSheet({
           entries
             .filter(
               (entry) =>
-                entry.action.toUpperCase() === side && accountMatches(entry),
+                entry.action.toUpperCase() === side &&
+                accountMatches(entry, side),
             )
             .map((entry) => transactionDay(entry.dateTime))
             .filter((day): day is string => Boolean(day)),
         ),
       ).sort();
     return { BUY: datesFor("BUY"), SELL: datesFor("SELL") };
-  }, [entries, selectedAccounts]);
+  }, [entries, sideAccountFilters]);
   const buyGroups = useMemo(
     () =>
       groupTransactionsByAccount(
         entries.filter(
           (entry) =>
             entry.action.toUpperCase() === "BUY" &&
-            accountMatches(entry) &&
             (!buyDate || transactionDay(entry.dateTime) === buyDate),
         ),
         "BUY",
-        null,
+        sideAccountFilters.BUY,
       ),
-    [entries, selectedAccounts, buyDate],
+    [entries, sideAccountFilters.BUY, buyDate],
   );
   const sellGroups = useMemo(
     () =>
@@ -664,13 +650,12 @@ export default function DailyTransactionsSheet({
         entries.filter(
           (entry) =>
             entry.action.toUpperCase() === "SELL" &&
-            accountMatches(entry) &&
             (!sellDate || transactionDay(entry.dateTime) === sellDate),
         ),
         "SELL",
-        null,
+        sideAccountFilters.SELL,
       ),
-    [entries, selectedAccounts, sellDate],
+    [entries, sideAccountFilters.SELL, sellDate],
   );
   const buyCount = buyGroups.reduce(
     (sum, group) => sum + group.rows.length,
@@ -855,8 +840,8 @@ export default function DailyTransactionsSheet({
       return next;
     });
   }
-  function changeFilter(next: string[] | null) {
-    setSelectedAccounts(next);
+  function changeSideAccountFilter(side: TradeSide, next: string[] | null) {
+    setSideAccountFilters((current) => ({ ...current, [side]: next }));
   }
   function reorder(
     side: TradeSide,
@@ -1275,8 +1260,9 @@ export default function DailyTransactionsSheet({
     const buy = side === "BUY";
     const label = buy ? "Buy" : "Sell";
     const keyPrefix = side;
+    const sideAccountFilter = sideAccountFilters[side];
     const contextAccount =
-      selectedAccounts?.length === 1 ? selectedAccounts[0] : undefined;
+      sideAccountFilter?.length === 1 ? sideAccountFilter[0] : undefined;
     const sideDate = side === "BUY" ? buyDate : sellDate;
     const setSideDate = side === "BUY" ? setBuyDate : setSellDate;
     const availableDates = sideAvailableDates[side];
@@ -1304,6 +1290,13 @@ export default function DailyTransactionsSheet({
               {count} {count === 1 ? "row" : "rows"}
             </span>
           </div>
+          <TransactionMultiFilter
+            label="Account"
+            options={accountOptions}
+            selected={sideAccountFilter}
+            onChange={(next) => changeSideAccountFilter(side, next)}
+            className="transaction-side-account-filter"
+          />
           <div
             className="transaction-pane-date-filter"
             role="group"
@@ -1419,7 +1412,7 @@ export default function DailyTransactionsSheet({
                 <tr>
                   <td className="transaction-empty" colSpan={visible.length}>
                     No {label.toLowerCase()} transactions
-                    {selectedAccounts !== null
+                    {sideAccountFilter !== null
                       ? " for the selected accounts"
                       : " yet"}
                     .
@@ -1508,81 +1501,6 @@ export default function DailyTransactionsSheet({
           <span className="transactions-count-badge">
             {buyCount} Buy · {sellCount} Sell
           </span>
-          <div className="transaction-account-filter" ref={filterRef}>
-            <button
-              type="button"
-              className="transactions-toolbar-button"
-              aria-label="Filter transactions by account"
-              aria-expanded={filterOpen}
-              aria-controls="transaction-account-options"
-              onClick={() => setFilterOpen((prev) => !prev)}
-            >
-              {selectedAccounts === null
-                ? "All Accounts"
-                : selectedAccounts.length === 1
-                  ? selectedAccounts[0]
-                  : `${selectedAccounts.length} Accounts`}
-              <ChevronDown size={14} />
-            </button>
-            {filterOpen && (
-              <div
-                id="transaction-account-options"
-                className="transaction-account-options"
-              >
-                <div className="transaction-filter-controls">
-                  <button type="button" onClick={() => changeFilter(null)}>
-                    All accounts
-                  </button>
-                  <button type="button" onClick={() => changeFilter([])}>
-                    Clear selection
-                  </button>
-                  <button
-                    type="button"
-                    aria-label="Close account filter"
-                    onClick={() => setFilterOpen(false)}
-                  >
-                    <X size={15} />
-                  </button>
-                </div>
-                <fieldset>
-                  <legend className="sr-only">
-                    Accounts to show in both tables
-                  </legend>
-                  {accountOptions.map((account) => (
-                    <label key={account}>
-                      <input
-                        type="checkbox"
-                        checked={
-                          selectedAccounts === null ||
-                          selectedAccounts.includes(account)
-                        }
-                        onChange={(event) => {
-                          const current = selectedAccounts ?? accountOptions;
-                          const next = event.target.checked
-                            ? [...current, account]
-                            : current.filter((item) => item !== account);
-                          changeFilter(
-                            next.length === accountOptions.length ? null : next,
-                          );
-                        }}
-                      />
-                      <span>{account}</span>
-                    </label>
-                  ))}
-                </fieldset>
-              </div>
-            )}
-          </div>
-          {selectedAccounts !== null && (
-            <button
-              type="button"
-              className="transactions-icon-button"
-              aria-label="Reset account filter"
-              onClick={() => changeFilter(null)}
-            >
-              <X size={15} />
-            </button>
-          )}
         </div>
         <div className="transactions-toolbar-actions">
           <button

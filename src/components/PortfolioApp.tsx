@@ -5602,21 +5602,48 @@ const e = {
               (0, t.jsx)("tbody", {
                 children:
                   p.length > 0
-                    ? p.map((e) =>
+                    ? [...p, "__ACCOUNT_VALUE_TOTAL__"].map((e) =>
                         (0, t.jsxs)(
                           "tr",
                           {
-                            className: "hover:bg-blue-50/35",
+                            className:
+                              "__ACCOUNT_VALUE_TOTAL__" === e
+                                ? "bg-amber-50/70 font-extrabold"
+                                : "hover:bg-blue-50/35",
                             children: [
                               (0, t.jsx)("th", {
-                                className:
-                                  "frozen-history-column sticky left-0 z-20 whitespace-nowrap border-b border-r border-slate-300 bg-slate-50 px-3 py-2 text-left font-mono font-bold text-blue-900 shadow-[3px_0_5px_-3px_rgba(0,0,0,0.3)]",
-                                children: e,
+                                className: `frozen-history-column sticky left-0 z-20 whitespace-nowrap border-b border-r border-slate-300 px-3 py-2 text-left font-mono font-bold shadow-[3px_0_5px_-3px_rgba(0,0,0,0.3)] ${"__ACCOUNT_VALUE_TOTAL__" === e ? "bg-amber-100 text-amber-950" : "bg-slate-50 text-blue-900"}`,
+                                children:
+                                  "__ACCOUNT_VALUE_TOTAL__" === e ? "Total" : e,
                               }),
                               m.flatMap((r) => {
-                                let a = r.rows.find(
-                                    (t) => t.accountNumber === e,
-                                  ),
+                                let isTotal = "__ACCOUNT_VALUE_TOTAL__" === e,
+                                  a = isTotal
+                                    ? (() => {
+                                        const marketValue = r.rows.reduce(
+                                          (sum, entry) =>
+                                            sum +
+                                            (Number(entry.investmentCurrentValue) || 0),
+                                          0,
+                                        );
+                                        const gainLossAmount = r.rows.reduce(
+                                          (sum, entry) =>
+                                            sum + (Number(entry.gainLossAmount) || 0),
+                                          0,
+                                        );
+                                        const invested = marketValue - gainLossAmount;
+                                        return {
+                                          investmentCurrentValue: marketValue,
+                                          gainLossAmount,
+                                          gainLossPercent:
+                                            invested > 0
+                                              ? (gainLossAmount / invested) * 100
+                                              : 0,
+                                        };
+                                      })()
+                                    : r.rows.find(
+                                        (t) => t.accountNumber === e,
+                                      ),
                                   n = f.has(r.key),
                                   s = a
                                     ? D(a.investmentCurrentValue).text
@@ -5635,8 +5662,7 @@ const e = {
                                         {
                                           "data-align": "right",
 
-                                          className:
-                                            "whitespace-nowrap border-b border-r border-slate-300 bg-amber-50/20 px-2 py-1.5 text-right font-mono last:border-r-0",
+                                          className: `whitespace-nowrap border-b border-r border-slate-300 px-2 py-1.5 text-right font-mono last:border-r-0 ${isTotal ? "bg-amber-50 font-bold" : "bg-amber-50/20"}`, 
                                           children: [
                                             (0, t.jsx)("div", {
                                               className:
@@ -5658,8 +5684,7 @@ const e = {
                                         {
                                           "data-align": "right",
 
-                                          className:
-                                            "whitespace-nowrap border-b border-r border-slate-300 px-2 py-2 text-right font-mono font-bold text-slate-800",
+                                          className: `whitespace-nowrap border-b border-r border-slate-300 px-2 py-2 text-right font-mono font-bold text-slate-800 ${isTotal ? "bg-amber-50" : ""}`, 
                                           children: s,
                                         },
                                         `${r.key}-${e}-current`,
@@ -5669,7 +5694,7 @@ const e = {
                                         {
                                           "data-align": "right",
 
-                                          className: `whitespace-nowrap border-b border-r border-slate-300 px-2 py-2 text-right font-mono font-bold last:border-r-0 ${i ? "text-red-600" : "text-emerald-700"}`,
+                                          className: `whitespace-nowrap border-b border-r border-slate-300 px-2 py-2 text-right font-mono font-bold last:border-r-0 ${i ? "text-red-600" : "text-emerald-700"} ${isTotal ? "bg-amber-50" : ""}`, 
                                           children: o,
                                         },
                                         `${r.key}-${e}-gain`,
@@ -6102,21 +6127,38 @@ const e = {
               (0, t.jsx)("tbody", {
                 children:
                   u.length > 0
-                    ? u.map((e) =>
+                    ? [...u, "__TRANSACTION_TOTAL__"].map((e) =>
                         (0, t.jsxs)(
                           "tr",
                           {
-                            className: "hover:bg-blue-50/30",
+                            className:
+                              "__TRANSACTION_TOTAL__" === e
+                                ? "bg-blue-50/80 font-extrabold"
+                                : "hover:bg-blue-50/30",
                             children: [
                               (0, t.jsx)("th", {
-                                className:
-                                  "frozen-history-column sticky left-0 z-20 whitespace-nowrap border-b border-r border-slate-300 bg-slate-50 px-3 py-2 text-left font-mono font-bold text-blue-900",
-                                children: e,
+                                className: `frozen-history-column sticky left-0 z-20 whitespace-nowrap border-b border-r border-slate-300 px-3 py-2 text-left font-mono font-bold ${"__TRANSACTION_TOTAL__" === e ? "bg-blue-100 text-blue-950" : "bg-slate-50 text-blue-900"}`,
+                                children:
+                                  "__TRANSACTION_TOTAL__" === e ? "Total" : e,
                               }),
                               p.flatMap((r) => {
-                                let a = r.rows.find(
-                                    (t) => t.accountNumber === e,
-                                  ),
+                                let isTotal = "__TRANSACTION_TOTAL__" === e,
+                                  a = isTotal
+                                    ? {
+                                        buyValue: r.rows.reduce(
+                                          (sum, entry) =>
+                                            sum + (Number(entry.buyValue) || 0),
+                                          0,
+                                        ),
+                                        sellValue: r.rows.reduce(
+                                          (sum, entry) =>
+                                            sum + (Number(entry.sellValue) || 0),
+                                          0,
+                                        ),
+                                      }
+                                    : r.rows.find(
+                                        (t) => t.accountNumber === e,
+                                      ),
                                   n = a
                                     ? [D(a.buyValue).text, D(a.sellValue).text]
                                     : ["—", "—"];
@@ -6127,8 +6169,7 @@ const e = {
                                         {
                                           "data-align": "right",
 
-                                          className:
-                                            "border-b border-r border-slate-300 bg-blue-50/20 px-2 py-1.5 text-right font-mono whitespace-nowrap",
+                                          className: `border-b border-r border-slate-300 px-2 py-1.5 text-right font-mono whitespace-nowrap ${isTotal ? "bg-blue-50 font-bold" : "bg-blue-50/20"}`, 
                                           children: [
                                             (0, t.jsxs)("div", {
                                               className:
@@ -6151,8 +6192,7 @@ const e = {
                                         {
                                           "data-align": "right",
 
-                                          className:
-                                            "border-b border-r border-slate-300 px-2 py-2 text-right font-mono font-bold text-slate-800 whitespace-nowrap",
+                                          className: `border-b border-r border-slate-300 px-2 py-2 text-right font-mono font-bold text-slate-800 whitespace-nowrap ${isTotal ? "bg-blue-50" : ""}`, 
                                           children: a,
                                         },
                                         `${r.key}-${e}-${n}`,

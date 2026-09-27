@@ -31,6 +31,7 @@ type SortKey =
   | "gainLossPercent";
 
 type SortState = { key: SortKey; direction: "asc" | "desc" } | null;
+type GainLossFilter = "ALL" | "POSITIVE" | "NEGATIVE";
 
 const COLUMNS: {
   key: SortKey;
@@ -316,6 +317,7 @@ export default function HoldingsPerformanceTable({
 }) {
   const [holdingFilter, setHoldingFilter] = useState<string[] | null>(null);
   const [accountFilter, setAccountFilter] = useState<string[] | null>(null);
+  const [gainLossFilter, setGainLossFilter] = useState<GainLossFilter>("ALL");
   const [sort, setSort] = useState<SortState>(null);
 
   useEffect(() => {
@@ -353,7 +355,11 @@ export default function HoldingsPerformanceTable({
         holdingFilter === null || holdingFilter.includes(row.symbol);
       const accountOk =
         accountFilter === null || accountFilter.includes(row.accountNumber);
-      return holdingOk && accountOk;
+      const gainLossOk =
+        gainLossFilter === "ALL" ||
+        (gainLossFilter === "POSITIVE" && row.profitLossAmt > 0) ||
+        (gainLossFilter === "NEGATIVE" && row.profitLossAmt < 0);
+      return holdingOk && accountOk && gainLossOk;
     });
     if (!sort) return filtered;
     return [...filtered].sort((left, right) => {
@@ -370,7 +376,7 @@ export default function HoldingsPerformanceTable({
         return sort.direction === "asc" ? compared : -compared;
       return left.id - right.id;
     });
-  }, [holdings, holdingFilter, accountFilter, sort]);
+  }, [holdings, holdingFilter, accountFilter, gainLossFilter, sort]);
 
   function toggleSort(key: SortKey) {
     setSort((current) => {
@@ -380,7 +386,10 @@ export default function HoldingsPerformanceTable({
     });
   }
 
-  const filtersActive = holdingFilter !== null || accountFilter !== null;
+  const filtersActive =
+    holdingFilter !== null ||
+    accountFilter !== null ||
+    gainLossFilter !== "ALL";
 
   return (
     <div className="holdings-performance">
@@ -397,6 +406,19 @@ export default function HoldingsPerformanceTable({
           selected={accountFilter}
           onChange={setAccountFilter}
         />
+        <label className="analytics-gain-loss-filter">
+          <span>Gain/Loss</span>
+          <select
+            value={gainLossFilter}
+            onChange={(event) =>
+              setGainLossFilter(event.target.value as GainLossFilter)
+            }
+          >
+            <option value="ALL">All</option>
+            <option value="POSITIVE">Positive</option>
+            <option value="NEGATIVE">Negative</option>
+          </select>
+        </label>
         {filtersActive && (
           <button
             type="button"
@@ -404,6 +426,7 @@ export default function HoldingsPerformanceTable({
             onClick={() => {
               setHoldingFilter(null);
               setAccountFilter(null);
+              setGainLossFilter("ALL");
             }}
           >
             Reset filters

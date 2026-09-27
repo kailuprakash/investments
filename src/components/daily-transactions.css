@@ -407,6 +407,8 @@
   border-color: #d8c5b8;
 }
 .workbook-shell .transaction-pane-toolbar {
+  position: relative;
+  z-index: 45;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -425,6 +427,29 @@
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+}
+.workbook-shell .transaction-side-account-filter {
+  flex: 1 1 138px;
+  min-width: 130px !important;
+  max-width: 210px;
+  z-index: 40;
+}
+.workbook-shell .transaction-side-account-filter .analytics-combobox {
+  min-height: 30px;
+  border-color: #ffffff66;
+  box-shadow: 0 1px 2px #052e2340;
+}
+.workbook-shell .transaction-side-account-filter .analytics-combobox input {
+  min-width: 90px;
+  min-height: 22px !important;
+  font-size: 10px;
+}
+.workbook-shell .transaction-side-account-filter .analytics-filter-menu {
+  z-index: 80;
+  color: #1e293b;
+}
+.workbook-shell .transaction-pane-sell .transaction-side-account-filter .analytics-combobox {
+  border-color: #fed7aa;
 }
 .workbook-shell .transaction-pane-date-filter {
   display: inline-flex;

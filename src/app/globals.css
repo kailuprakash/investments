@@ -884,6 +884,34 @@ select:focus-visible {
   background: transparent;
   outline: none;
 }
+.workbook-shell .analytics-gain-loss-filter {
+  display: flex;
+  min-width: 142px;
+  flex-direction: column;
+  gap: 3px;
+  color: #475569;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+.workbook-shell .analytics-gain-loss-filter select {
+  min-height: 32px;
+  border: 1px solid #c5d0da;
+  border-radius: 4px;
+  background: #fff;
+  padding: 4px 8px;
+  color: #1e293b;
+  font-size: var(--workbook-font-size);
+  font-weight: 600;
+  letter-spacing: normal;
+  text-transform: none;
+}
+.workbook-shell .analytics-gain-loss-filter select:focus {
+  border-color: #1f4e79;
+  box-shadow: 0 0 0 2px #1f4e7933;
+  outline: none;
+}
 .workbook-shell .analytics-filter-chip {
   display: inline-flex;
   align-items: center;
