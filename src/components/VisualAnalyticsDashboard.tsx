@@ -217,7 +217,7 @@ export default function VisualAnalyticsDashboard({
               </span>
             </div>
           </div>
-          <div className="grid min-w-0 flex-1 grid-cols-1 gap-2">
+          <div className="grid w-full max-w-[250px] grid-cols-1 gap-2">
             {allocation.map((row) => {
               const allocationPercent = allocationTotal > 0 ? (row.value / allocationTotal) * 100 : 0;
               return (
@@ -260,8 +260,13 @@ export default function VisualAnalyticsDashboard({
             <div className="space-y-2">
               {gainers.map((holding) => (
                 <div key={`g-${holding.id}`} className="flex items-center justify-between gap-2 rounded-md bg-emerald-50/70 px-2.5 py-2 text-xs">
-                  <span className="font-mono font-black text-slate-800">{holding.symbol}</span>
-                  <span className="text-right font-mono font-bold text-emerald-700">
+                  <span className="min-w-0">
+                    <strong className="block font-mono font-black text-slate-800">{holding.symbol}</strong>
+                    <small className="block truncate font-mono text-[10px] font-semibold text-slate-500">
+                      {holding.accountNumber}
+                    </small>
+                  </span>
+                  <span className="shrink-0 text-right font-mono font-bold text-emerald-700">
                     {moneyValue(holding.dayChangeAmount)}
                     <small className="ml-1 text-[10px]">{percent(holding.dayChangePercent)}</small>
                   </span>
@@ -276,8 +281,13 @@ export default function VisualAnalyticsDashboard({
             <div className="space-y-2">
               {losers.map((holding) => (
                 <div key={`l-${holding.id}`} className="flex items-center justify-between gap-2 rounded-md bg-rose-50/70 px-2.5 py-2 text-xs">
-                  <span className="font-mono font-black text-slate-800">{holding.symbol}</span>
-                  <span className="text-right font-mono font-bold text-rose-700">
+                  <span className="min-w-0">
+                    <strong className="block font-mono font-black text-slate-800">{holding.symbol}</strong>
+                    <small className="block truncate font-mono text-[10px] font-semibold text-slate-500">
+                      {holding.accountNumber}
+                    </small>
+                  </span>
+                  <span className="shrink-0 text-right font-mono font-bold text-rose-700">
                     {moneyValue(holding.dayChangeAmount)}
                     <small className="ml-1 text-[10px]">{percent(holding.dayChangePercent)}</small>
                   </span>
