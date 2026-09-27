@@ -844,21 +844,24 @@ export async function getPortfolioState() {
 export async function buildPortfolioState() {
   await ensureDbSeeded();
 
-  const accountsRows = await db
-    .select()
-    .from(accountsTable)
-    .orderBy(asc(accountsTable.sNo), asc(accountsTable.id));
-  const holdingsRows = await db
-    .select()
-    .from(holdingsTable)
-    .orderBy(asc(holdingsTable.id));
-  const futureRows = await db
-    .select()
-    .from(futureInvestmentsTable)
-    .orderBy(
-      desc(futureInvestmentsTable.dateTime),
-      desc(futureInvestmentsTable.id),
-    );
+  const [accountsRows, holdingsRows, futureRows, marketCacheRows] = await Promise.all([
+    db
+      .select()
+      .from(accountsTable)
+      .orderBy(asc(accountsTable.sNo), asc(accountsTable.id)),
+    db.select().from(holdingsTable).orderBy(asc(holdingsTable.id)),
+    db
+      .select()
+      .from(futureInvestmentsTable)
+      .orderBy(
+        desc(futureInvestmentsTable.dateTime),
+        desc(futureInvestmentsTable.id),
+      ),
+    db.select().from(marketCacheTable),
+  ]);
+  const marketQuoteBySymbol = new Map(
+    marketCacheRows.map((quote) => [quote.symbol.trim().toUpperCase(), quote]),
+  );
 
   const normAcc = (s: string) =>
     String(s || "")
@@ -883,6 +886,16 @@ export async function buildPortfolioState() {
         const profitLossAmt = round2(overallCurrentPrice - investAmount);
         const gainLossPercent =
           investAmount > 0 ? round2((profitLossAmt / investAmount) * 100) : 0;
+        const quote = marketQuoteBySymbol.get(h.symbol.trim().toUpperCase());
+        const previousClose = round2(
+          Number(quote?.previousClose) || h.currentPrice,
+        );
+        const dayChangePerShare = round2(h.currentPrice - previousClose);
+        const dayChangeAmount = round2(h.quantity * dayChangePerShare);
+        const dayChangePercent =
+          previousClose > 0
+            ? round2((dayChangePerShare / previousClose) * 100)
+            : 0;
         return {
           id: h.id,
           accountNumber: h.accountNumber,
@@ -892,6 +905,11 @@ export async function buildPortfolioState() {
           investAmount,
           currentPrice: h.currentPrice,
           overallCurrentPrice,
+          previousClose,
+          dayChangeAmount,
+          dayChangePercent,
+          quoteSource: quote?.source || "cached",
+          quoteUpdatedAt: quote?.lastLiveAt || quote?.lastUpdated || null,
           comments: h.comments || "",
           highlight: h.highlight || "",
           profitLossAmt,

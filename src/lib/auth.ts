@@ -13,8 +13,8 @@ const SESSION_COOKIE = "portfolio_session";
 const SESSION_SECONDS = 60 * 60 * 24 * 30;
 const scrypt = promisify(scryptCallback);
 
-// Keep this disabled only for local preview troubleshooting. Production access
-// requires password setup, a valid signed session, and protected API requests.
+// Login and session enforcement is enabled. Set this to true only for temporary
+// local preview troubleshooting, then restore it before sharing the workbook.
 const AUTH_DISABLED_FOR_PREVIEW = false;
 
 type PasswordRecord = {

@@ -6,6 +6,7 @@ import * as XLSX from "xlsx-js-style";
 import AccountDetailsSheet from "@/components/AccountDetailsSheet";
 import DailyTransactionsSheet from "@/components/DailyTransactionsSheet";
 import HoldingsPerformanceTable from "@/components/HoldingsPerformanceTable";
+import VisualAnalyticsDashboard from "@/components/VisualAnalyticsDashboard";
 import DensityToggle from "@/components/DensityToggle";
 import LiveClock from "@/components/LiveClock";
 import LogoutButton from "@/components/LogoutButton";
@@ -5080,49 +5081,94 @@ const e = {
                 }),
                 (0, t.jsxs)("div", {
                   className:
-                    "h-6 w-full bg-gray-100 rounded-full overflow-hidden flex border border-gray-300",
+                    "flex flex-col items-center gap-5 py-1 sm:flex-row sm:justify-center",
                   children: [
-                    (0, t.jsxs)("div", {
-                      style: { width: `${s}%` },
+                    (0, t.jsx)("div", {
+                      role: "img",
+                      "aria-label": `Asset composition: Cash ${s} percent, Equities ${o} percent`,
+                      title: `Cash ${s}% · Equities ${o}%`,
+                      style: {
+                        background: `conic-gradient(#10b981 0 ${s}%, #2563eb ${s}% 100%)`,
+                      },
                       className:
-                        "bg-emerald-500 h-full flex items-center justify-center text-[10px] text-white font-bold",
-                      title: `Cash: ${s}%`,
-                      children: ["Cash ", s, "%"],
+                        "grid h-40 w-40 shrink-0 place-items-center rounded-full border border-slate-200 shadow-inner",
+                      children: (0, t.jsxs)("div", {
+                        className:
+                          "grid h-24 w-24 place-items-center rounded-full border border-slate-100 bg-white text-center shadow-sm",
+                        children: [
+                          (0, t.jsx)("span", {
+                            className:
+                              "text-[9px] font-bold uppercase tracking-wide text-slate-400",
+                            children: "Total",
+                          }),
+                          (0, t.jsx)("span", {
+                            className:
+                              "px-2 font-mono text-xs font-black text-slate-800",
+                            children: D(r.accountOverallMoney).text,
+                          }),
+                        ],
+                      }),
                     }),
                     (0, t.jsxs)("div", {
-                      style: { width: `${o}%` },
-                      className:
-                        "bg-blue-600 h-full flex items-center justify-center text-[10px] text-white font-bold",
-                      title: `Equities: ${o}%`,
-                      children: ["Equities ", o, "%"],
-                    }),
-                  ],
-                }),
-                (0, t.jsxs)("div", {
-                  className:
-                    "flex items-center justify-between text-xs text-gray-600 pt-1",
-                  children: [
-                    (0, t.jsxs)("div", {
-                      className: "flex items-center gap-2",
+                      className: "w-full max-w-[250px] space-y-3 text-xs text-gray-600",
                       children: [
-                        (0, t.jsx)("span", {
+                        (0, t.jsxs)("div", {
                           className:
-                            "w-3 h-3 rounded-full bg-emerald-500 inline-block",
+                            "rounded-md border border-emerald-100 bg-emerald-50/60 p-2.5",
+                          children: [
+                            (0, t.jsxs)("div", {
+                              className: "flex items-center justify-between gap-3",
+                              children: [
+                                (0, t.jsxs)("span", {
+                                  className: "flex items-center gap-2 font-bold text-emerald-900",
+                                  children: [
+                                    (0, t.jsx)("span", {
+                                      className:
+                                        "h-3 w-3 rounded-full bg-emerald-500",
+                                    }),
+                                    "Cash",
+                                  ],
+                                }),
+                                (0, t.jsxs)("span", {
+                                  className: "font-mono font-black text-emerald-800",
+                                  children: [s, "%"],
+                                }),
+                              ],
+                            }),
+                            (0, t.jsx)("div", {
+                              className: "mt-1 font-mono font-bold text-slate-700",
+                              children: D(r.cashAvailable).text,
+                            }),
+                          ],
                         }),
-                        (0, t.jsxs)("span", {
-                          children: ["Cash: ", D(r.cashAvailable).text],
-                        }),
-                      ],
-                    }),
-                    (0, t.jsxs)("div", {
-                      className: "flex items-center gap-2",
-                      children: [
-                        (0, t.jsx)("span", {
+                        (0, t.jsxs)("div", {
                           className:
-                            "w-3 h-3 rounded-full bg-blue-600 inline-block",
-                        }),
-                        (0, t.jsxs)("span", {
-                          children: ["Equities: ", D(r.investmentCurrent).text],
+                            "rounded-md border border-blue-100 bg-blue-50/60 p-2.5",
+                          children: [
+                            (0, t.jsxs)("div", {
+                              className: "flex items-center justify-between gap-3",
+                              children: [
+                                (0, t.jsxs)("span", {
+                                  className: "flex items-center gap-2 font-bold text-blue-900",
+                                  children: [
+                                    (0, t.jsx)("span", {
+                                      className:
+                                        "h-3 w-3 rounded-full bg-blue-600",
+                                    }),
+                                    "Equities",
+                                  ],
+                                }),
+                                (0, t.jsxs)("span", {
+                                  className: "font-mono font-black text-blue-800",
+                                  children: [o, "%"],
+                                }),
+                              ],
+                            }),
+                            (0, t.jsx)("div", {
+                              className: "mt-1 font-mono font-bold text-slate-700",
+                              children: D(r.investmentCurrent).text,
+                            }),
+                          ],
                         }),
                       ],
                     }),
@@ -8464,11 +8510,20 @@ This replaces the current accounts, inventory, and transactions.`)
                     ],
                   })
                 : "analytics" === g
-                  ? (0, t.jsx)(e3, {
-                      accounts: e,
-                      grandTotal: n,
-                      jumpHit,
-                      onJumpHandled: () => setJumpHit(null),
+                  ? (0, t.jsxs)("div", {
+                      className: "space-y-4",
+                      children: [
+                        (0, t.jsx)(VisualAnalyticsDashboard, {
+                          accounts: e,
+                          grandTotal: n,
+                        }),
+                        (0, t.jsx)(e3, {
+                          accounts: e,
+                          grandTotal: n,
+                          jumpHit,
+                          onJumpHandled: () => setJumpHit(null),
+                        }),
+                      ],
                     })
                   : "market" === g
                     ? (0, t.jsx)(eq, {
