@@ -188,7 +188,7 @@ export default function VisualAnalyticsDashboard({
     .slice(0, 4);
 
   return (
-    <section className="grid gap-4 xl:grid-cols-2">
+    <section className="grid gap-4 md:grid-cols-2">
       <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-[0_10px_26px_-22px_rgba(15,23,42,0.65)]">
         <div className="mb-3 flex items-start gap-2">
           <span className="grid h-7 w-7 place-items-center rounded-md bg-blue-50 text-blue-700">
