@@ -885,15 +885,8 @@ select:focus-visible {
   outline: none;
 }
 .workbook-shell .analytics-gain-loss-filter {
-  display: flex;
+  display: block;
   min-width: 142px;
-  flex-direction: column;
-  gap: 3px;
-  color: #475569;
-  font-size: 9.5px;
-  font-weight: 700;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
 }
 .workbook-shell .analytics-gain-loss-filter select {
   min-height: 32px;

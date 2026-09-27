@@ -407,8 +407,8 @@ export default function HoldingsPerformanceTable({
           onChange={setAccountFilter}
         />
         <label className="analytics-gain-loss-filter">
-          <span>Gain/Loss</span>
           <select
+            aria-label="Filter by Gain/Loss"
             value={gainLossFilter}
             onChange={(event) =>
               setGainLossFilter(event.target.value as GainLossFilter)
