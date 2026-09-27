@@ -8,6 +8,7 @@ import {
   setSession,
   verifyPassword,
 } from "@/lib/auth";
+import { sendEmailLoginAlert } from "@/lib/email-alerts";
 
 export const dynamic = "force-dynamic";
 
@@ -140,6 +141,7 @@ export async function POST(request: NextRequest) {
         ? browserRedirect("/")
         : NextResponse.json({ configured: true, authenticated: true });
       setSession(response, credentials);
+      await sendEmailLoginAlert(request, "PASSWORD_SETUP");
       return response;
     }
 
@@ -160,6 +162,7 @@ export async function POST(request: NextRequest) {
         ? browserRedirect("/")
         : NextResponse.json({ configured: true, authenticated: true });
       setSession(response, credentials);
+      await sendEmailLoginAlert(request, "LOGIN");
       return response;
     }
 
