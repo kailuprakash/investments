@@ -1072,6 +1072,9 @@ export async function refreshAllMarketPrices() {
   for (const h of holdingsRows) {
     const sym = h.symbol.toUpperCase();
     const curPrice = marketCacheStore[sym] ?? h.currentPrice;
+    // A quote pull is not a holding-row edit when the price has not moved.
+    // Preserve Updated Date unless this specific holding's market price changes.
+    if (Math.abs(round2(curPrice) - round2(h.currentPrice)) < 0.005) continue;
     const investAmount = round2(h.quantity * h.purchasePrice);
     const overallCurrentPrice = round2(h.quantity * curPrice);
     const profitLossAmt = round2(overallCurrentPrice - investAmount);
@@ -2022,6 +2025,26 @@ export async function importExcelWorkbookData(data: {
 }) {
   await ensureDbSeeded();
 
+  // Imports replace the workbook tables, so retain the prior holding metadata
+  // long enough to decide which individual rows actually changed. The key uses
+  // the same account normalization as the rest of the portfolio service.
+  const existingHoldings = await db.select().from(holdingsTable);
+  const normalizeAccount = (value: string) =>
+    String(value || "")
+      .trim()
+      .toUpperCase()
+      .replace(/^[0-9]+\.\s*/, "")
+      .replace(/[\s_-]+/g, "");
+  const holdingKey = (accountNumber: string, symbol: string) =>
+    `${normalizeAccount(accountNumber)}|${String(symbol || "").trim().toUpperCase()}`;
+  const existingHoldingByKey = new Map(
+    existingHoldings.map((holding) => [
+      holdingKey(holding.accountNumber, holding.symbol),
+      holding,
+    ]),
+  );
+  const importStartedAt = new Date().toISOString();
+
   await db.delete(accountsTable);
   await db.delete(holdingsTable);
   await db.delete(futureInvestmentsTable);
@@ -2040,26 +2063,55 @@ export async function importExcelWorkbookData(data: {
 
   let holdCount = 0;
   for (const h of data.holdings || []) {
+    const accountNumber = String(h.accountNumber || "").trim();
+    const symbol = String(h.symbol || "").trim().toUpperCase();
     const qty = Number(h.quantity) || 0;
     const pp = Number(h.purchasePrice) || 0;
     const cp = Number(h.currentPrice) || pp;
+    const comments = String(h.comments || "").trim();
+    const previous = existingHoldingByKey.get(holdingKey(accountNumber, symbol));
+    const sameNumber = (left: number, right: number) =>
+      Math.abs(round2(left) - round2(right)) < 0.005;
+    // Market Price/Share is server-managed (not an editable workbook field), so
+    // a quote mismatch in an exported file is not a user data change. Compare
+    // only the holding inputs a user can alter through this workbook.
+    const unchanged =
+      previous !== undefined &&
+      sameNumber(previous.quantity, qty) &&
+      sameNumber(previous.purchasePrice, pp) &&
+      String(previous.comments || "").trim() === comments;
+    const storedCurrentPrice = unchanged
+      ? previous.currentPrice
+      : previous?.currentPrice || cp;
     const inv = round2(qty * pp);
-    const cur = round2(qty * cp);
+    const cur = round2(qty * storedCurrentPrice);
     const pl = round2(cur - inv);
     const plPct = inv > 0 ? round2((pl / inv) * 100) : 0;
+    const importedTimestamp =
+      typeof h.updatedAt === "string" && Number.isFinite(Date.parse(h.updatedAt))
+        ? new Date(h.updatedAt).toISOString()
+        : null;
+    // Retain the original row timestamp whenever the workbook row is unchanged.
+    // A new or modified row is the only time the import itself stamps "now".
+    const updatedAt = unchanged
+      ? previous.updatedAt
+      : previous
+        ? importStartedAt
+        : importedTimestamp || importStartedAt;
+
     await db.insert(holdingsTable).values({
-      accountNumber: h.accountNumber,
-      symbol: h.symbol.toUpperCase(),
+      accountNumber,
+      symbol,
       quantity: qty,
       purchasePrice: pp,
       investAmount: inv,
-      currentPrice: cp,
+      currentPrice: storedCurrentPrice,
       overallCurrentPrice: cur,
-      comments: h.comments || "",
+      comments,
       highlight: "",
       profitLossAmt: pl,
       gainLossPercent: plPct,
-      updatedAt: h.updatedAt || new Date().toISOString(),
+      updatedAt,
     });
     holdCount++;
   }

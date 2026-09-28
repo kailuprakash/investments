@@ -6395,7 +6395,7 @@ const e = {
     );
     return Number.isFinite(r) ? r : t;
   }
-  function tD(e) {
+  function tDOrUndefined(e) {
     if (e instanceof Date && !Number.isNaN(e.getTime())) return e.toISOString();
     if ("number" == typeof e) {
       let t = tt.SSF.parse_date_code(e);
@@ -6404,10 +6404,13 @@ const e = {
           Date.UTC(t.y, t.m - 1, t.d, t.H, t.M, t.S),
         ).toISOString();
     }
-    let t = new Date(String(e ?? ""));
-    return Number.isNaN(t.getTime())
-      ? new Date().toISOString()
-      : t.toISOString();
+    let t = String(e ?? "").trim();
+    if (!t) return void 0;
+    let r = new Date(t);
+    return Number.isNaN(r.getTime()) ? void 0 : r.toISOString();
+  }
+  function tD(e) {
+    return tDOrUndefined(e) || new Date().toISOString();
   }
   function tM(e) {
     if (e instanceof Date && !Number.isNaN(e.getTime()))
@@ -6936,7 +6939,9 @@ const e = {
                           e.overallCurrentPrice,
                           e.comments || "",
                           tj(e.profitLossAmt, e.gainLossPercent),
-                          tF(e.updatedAt),
+                          // Preserve the exact machine-readable timestamp so an
+                          // export/import round trip never invents a new time.
+                          e.updatedAt || "",
                         ]),
                           r.push({
                             type: "holding",
@@ -8029,7 +8034,7 @@ const e = {
                                 currentPrice: tL(tH(e, l), h),
                                 comments: String(tH(e, c)).trim(),
                                 updatedAt:
-                                  f >= 0 && tH(e, f) ? tD(tH(e, f)) : void 0,
+                                  f >= 0 ? tDOrUndefined(tH(e, f)) : void 0,
                               };
                         })
                         .filter((e) => null !== e);
