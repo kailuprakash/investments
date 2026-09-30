@@ -1072,8 +1072,8 @@ export async function refreshAllMarketPrices() {
   for (const h of holdingsRows) {
     const sym = h.symbol.toUpperCase();
     const curPrice = marketCacheStore[sym] ?? h.currentPrice;
-    // A quote pull is not a holding-row edit when the price has not moved.
-    // Preserve Updated Date unless this specific holding's market price changes.
+    // Calculated market values do not count as a user edit. Skip an unchanged
+    // quote, and never rewrite the holding's Updated Date for a market pull.
     if (Math.abs(round2(curPrice) - round2(h.currentPrice)) < 0.005) continue;
     const investAmount = round2(h.quantity * h.purchasePrice);
     const overallCurrentPrice = round2(h.quantity * curPrice);
@@ -1088,7 +1088,6 @@ export async function refreshAllMarketPrices() {
         overallCurrentPrice,
         profitLossAmt,
         gainLossPercent,
-        updatedAt: nowIso,
       })
       .where(eq(holdingsTable.id, h.id));
   }
