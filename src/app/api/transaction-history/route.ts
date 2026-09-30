@@ -23,8 +23,15 @@ export async function GET(req: NextRequest) {
 
   try {
     await ensureDbSeeded();
-    const capture = await captureDueSnapshots().catch((error: unknown) => {
-      console.error("[transaction-history] lazy capture failed:", error);
+    // Buy/Sell history is derived from dated ledger rows. Rebuild recent closed
+    // weeks so prior-week totals remain correct after late imports/edits and
+    // old account-number formatting does not leave stale zero placeholders.
+    const capture = await captureDueSnapshots({
+      force: true,
+      lookbackWeeks: 8,
+      bypassThrottle: true,
+    }).catch((error: unknown) => {
+      console.error("[transaction-history] reconciliation failed:", error);
       return null;
     });
     const history = await db
@@ -73,8 +80,12 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => ({}));
     const action = String(body?.action || "capture");
     const capture = await captureDueSnapshots({
-      force: action === "recalculate",
+      // Transaction history is derived from the trade ledger, so a manual
+      // capture always reconciles prior closed weeks; `recalculate` retains
+      // the same behavior for compatibility with the existing UI.
+      force: action === "capture" || action === "recalculate",
       lookbackWeeks: Number(body?.lookbackWeeks) || undefined,
+      bypassThrottle: true,
     });
     const history = await db
       .select()

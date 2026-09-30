@@ -11,7 +11,7 @@ import {
   settingsTable,
   marketCacheTable,
 } from "@/db/schema";
-import { and, eq, asc, desc } from "drizzle-orm";
+import { and, eq, asc, desc, inArray } from "drizzle-orm";
 import seedData from "@/db/seed-data.json";
 import { DEFAULT_AUTO_REFRESH_INTERVAL, readAutoRefreshInterval } from "@/lib/auto-refresh";
 import { summarizeMarketRefresh, type SymbolQuote } from "@/lib/market-quotes";
@@ -189,6 +189,16 @@ if (Array.isArray(seedData.portfolio.marketCache)) {
 
 function round2(n: number): number {
   return Number((Number(n) || 0).toFixed(2));
+}
+
+/** Account numbers are a cross-sheet key; spaces, hyphens and legacy prefixes
+ * must not split transaction history into separate account totals. */
+function normalizeAccountKey(value: string | null | undefined): string {
+  return String(value || "")
+    .trim()
+    .toUpperCase()
+    .replace(/^[0-9]+\.\s*/, "")
+    .replace(/[\s_-]+/g, "");
 }
 
 export function parseDateForSort(val: string | null | undefined): number {
@@ -1727,6 +1737,13 @@ export async function editFutureTransaction(data: {
       }
     }
   });
+  // Edits may change amount, side, account, or transaction date in a closed
+  // prior week. Rebuild those reconstructable Buy/Sell totals immediately.
+  await captureDueSnapshots({ force: true, bypassThrottle: true }).catch(
+    (error) => {
+      console.error("[editFutureTransaction] transaction history rebuild failed:", error);
+    },
+  );
   return buildPortfolioState();
 }
 /** Remove exactly one consolidated holding. This is NOT a sell operation:
@@ -2252,6 +2269,15 @@ export async function importExcelWorkbookData(data: {
       depCount++;
     }
   }
+
+  // Imported transactions can belong to already-closed weeks. Rebuild the
+  // reconstructable transaction history immediately instead of leaving prior
+  // week totals at an old zero snapshot until a manual recalculate is run.
+  await captureDueSnapshots({ force: true, bypassThrottle: true }).catch(
+    (error) => {
+      console.error("[importExcelWorkbookData] transaction history rebuild failed:", error);
+    },
+  );
 
   const portfolio = await getPortfolioState();
   return {
@@ -2936,7 +2962,7 @@ async function buildTransactionWeeklyTotals(): Promise<
     const week = weekEndingForDateMs(parseDateForSort(tx.dateTime));
     if (!week) continue;
 
-    const account = String(tx.accountNumber || "").trim() || "UNASSIGNED";
+    const account = normalizeAccountKey(tx.accountNumber) || "UNASSIGNED";
     if (!byWeek.has(week)) byWeek.set(week, new Map());
     const perAccount = byWeek.get(week)!;
     if (!perAccount.has(account)) {
@@ -3053,7 +3079,18 @@ export async function captureDueSnapshots(
   }
 
   const state = await buildPortfolioState();
-  if (state.accounts.length === 0) {
+  // Imports or legacy workbook versions can contain cosmetic variants of the
+  // same account number. Snapshot once per canonical account key, not once per
+  // spelling, so Buy/Sell totals remain consolidated.
+  const canonicalAccounts = Array.from(
+    new Map(
+      state.accounts.map((account) => [
+        normalizeAccountKey(account.accountNumber),
+        account,
+      ]),
+    ).values(),
+  );
+  if (canonicalAccounts.length === 0) {
     const result = { ...empty, ran: false, reason: "no-accounts" as const };
     lastSnapshotCapture = result;
     return result;
@@ -3070,7 +3107,7 @@ export async function captureDueSnapshots(
   );
   let weeklyRowsWritten = 0;
   for (const week of valueWeeks) {
-    for (const acc of state.accounts) {
+    for (const acc of canonicalAccounts) {
       const values = {
         investmentCurrentValue: round2(acc.investmentCurrent),
         gainLossAmount: round2(acc.gainLoss),
@@ -3108,9 +3145,19 @@ export async function captureDueSnapshots(
   // ---- Transaction history ---------------------------------------------------
   // Reconstructable for any past week, because transactions carry their own
   // dates — so catch-up runs fill the whole backlog here, not just last week.
-  const txWeeks = force ? due : missingTxWeeks;
+  // Transaction totals are fully reconstructable from Daily Transactions. Always
+  // rebuild the most recently closed week so late-entered prior-week trades are
+  // consolidated even when a zero snapshot was previously written.
+  const txWeeks = force
+    ? due
+    : Array.from(new Set([...missingTxWeeks, mostRecentClosed].filter(Boolean)));
   let transactionRowsWritten = 0;
   if (txWeeks.length > 0) {
+    // Remove the selected periods first so legacy account formatting variants
+    // cannot remain beside their canonical consolidated replacement rows.
+    await db
+      .delete(transactionHistoryTable)
+      .where(inArray(transactionHistoryTable.snapshotWeek, txWeeks));
     const totals = await buildTransactionWeeklyTotals();
     const txTarget = [
       transactionHistoryTable.accountNumber,
@@ -3118,8 +3165,8 @@ export async function captureDueSnapshots(
     ];
     for (const week of txWeeks) {
       const perAccount = totals.get(week);
-      for (const acc of state.accounts) {
-        const agg = perAccount?.get(acc.accountNumber) ?? {
+      for (const acc of canonicalAccounts) {
+        const agg = perAccount?.get(normalizeAccountKey(acc.accountNumber)) ?? {
           buyValue: 0,
           sellValue: 0,
           netCashFlow: 0,
@@ -3168,7 +3215,7 @@ export async function captureDueSnapshots(
     dueWeeks: due,
     weeklyRowsWritten,
     transactionRowsWritten,
-    accounts: state.accounts.length,
+    accounts: canonicalAccounts.length,
     forced: force,
     valueWeeksSkipped: missingWeeks.filter((k) => k !== mostRecentClosed),
     weekEnding: mostRecentClosed,
@@ -3221,9 +3268,17 @@ export async function buildLivePeriodSnapshot(now: Date = new Date()): Promise<{
   const nextSnapshotAt = nextSnapshotMoment(now).at.toISOString();
 
   const state = await buildPortfolioState();
+  const canonicalAccounts = Array.from(
+    new Map(
+      state.accounts.map((account) => [
+        normalizeAccountKey(account.accountNumber),
+        account,
+      ]),
+    ).values(),
+  );
 
   // Account value: a live now() observation of current holdings.
-  const weekly = state.accounts.map((acc) => ({
+  const weekly = canonicalAccounts.map((acc) => ({
     accountNumber: acc.accountNumber,
     snapshotWeek: weekEnding,
     investmentCurrentValue: round2(acc.investmentCurrent),
@@ -3236,8 +3291,8 @@ export async function buildLivePeriodSnapshot(now: Date = new Date()): Promise<{
   // Transaction totals: every trade whose date falls in the current open week.
   const totals = await buildTransactionWeeklyTotals();
   const perAccount = totals.get(weekEnding);
-  const transactions = state.accounts.map((acc) => {
-    const agg = perAccount?.get(acc.accountNumber) ?? {
+  const transactions = canonicalAccounts.map((acc) => {
+    const agg = perAccount?.get(normalizeAccountKey(acc.accountNumber)) ?? {
       buyValue: 0,
       sellValue: 0,
       netCashFlow: 0,
@@ -3280,6 +3335,14 @@ export async function buildLiveMonthTransactionTotals(now: Date = new Date()): P
   await ensureDbSeeded();
   const monthKey = weekEndingForInstant(now).slice(0, 7);
   const state = await buildPortfolioState();
+  const canonicalAccounts = Array.from(
+    new Map(
+      state.accounts.map((account) => [
+        normalizeAccountKey(account.accountNumber),
+        account,
+      ]),
+    ).values(),
+  );
   const totals = await buildTransactionWeeklyTotals();
 
   const merged = new Map<
@@ -3315,9 +3378,9 @@ export async function buildLiveMonthTransactionTotals(now: Date = new Date()): P
     }
   }
 
-  return state.accounts.map((acc) => ({
+  return canonicalAccounts.map((acc) => ({
     accountNumber: acc.accountNumber,
-    ...(merged.get(acc.accountNumber) ?? {
+    ...(merged.get(normalizeAccountKey(acc.accountNumber)) ?? {
       buyValue: 0,
       sellValue: 0,
       netCashFlow: 0,
