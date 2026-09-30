@@ -120,7 +120,8 @@ CREATE TABLE IF NOT EXISTS market_cache (
   last_updated TEXT NOT NULL,
   source TEXT NOT NULL DEFAULT 'cached',
   error TEXT NOT NULL DEFAULT '',
-  last_live_at TEXT NOT NULL DEFAULT ''
+  last_live_at TEXT NOT NULL DEFAULT '',
+  sector TEXT NOT NULL DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS portfolio_account_details (
@@ -172,6 +173,7 @@ CREATE INDEX IF NOT EXISTS idx_portfolio_login_attempts_ip_time
 ALTER TABLE market_cache ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'cached';
 ALTER TABLE market_cache ADD COLUMN IF NOT EXISTS error TEXT NOT NULL DEFAULT '';
 ALTER TABLE market_cache ADD COLUMN IF NOT EXISTS last_live_at TEXT NOT NULL DEFAULT '';
+ALTER TABLE market_cache ADD COLUMN IF NOT EXISTS sector TEXT NOT NULL DEFAULT '';
 
 -- ---------------------------------------------------------------------------
 -- DML: Default setting and complete application starter dataset.
@@ -388,7 +390,7 @@ COMMIT;
 -- INSERT INTO portfolio_watchlist (symbol, name, exchange, quote_type, created_at) VALUES ('<symbol>', '<name>', '<exchange>', '<quote_type>', '<ISO-8601 timestamp>') ON CONFLICT (symbol) DO NOTHING;
 -- DELETE FROM portfolio_watchlist WHERE symbol = '<symbol>';
 -- INSERT INTO portfolio_settings (key, value, updated_at) VALUES ('<key>', '<value>', '<ISO-8601 timestamp>') ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at;
--- INSERT INTO market_cache (symbol, price, previous_close, change_amount, change_percent, currency, last_updated, source, error, last_live_at) VALUES ('<symbol>', <price>, <previous_close>, <change_amount>, <change_percent>, 'USD', '<ISO-8601 timestamp>', 'live or cached', '<error_or_empty>', '<ISO-8601 timestamp_or_empty>') ON CONFLICT (symbol) DO UPDATE SET price = EXCLUDED.price, previous_close = EXCLUDED.previous_close, change_amount = EXCLUDED.change_amount, change_percent = EXCLUDED.change_percent, last_updated = EXCLUDED.last_updated, source = EXCLUDED.source, error = EXCLUDED.error, last_live_at = EXCLUDED.last_live_at;
+-- INSERT INTO market_cache (symbol, price, previous_close, change_amount, change_percent, currency, last_updated, source, error, last_live_at, sector) VALUES ('<symbol>', <price>, <previous_close>, <change_amount>, <change_percent>, 'USD', '<ISO-8601 timestamp>', 'live or cached', '<error_or_empty>', '<ISO-8601 timestamp_or_empty>', '<market_sector>') ON CONFLICT (symbol) DO UPDATE SET price = EXCLUDED.price, previous_close = EXCLUDED.previous_close, change_amount = EXCLUDED.change_amount, change_percent = EXCLUDED.change_percent, last_updated = EXCLUDED.last_updated, source = EXCLUDED.source, error = EXCLUDED.error, last_live_at = EXCLUDED.last_live_at, sector = EXCLUDED.sector;
 --
 -- ACCOUNT DETAIL / DEPOSIT
 -- INSERT INTO portfolio_account_details (financial_institute, active_status, account_type, account_number, start_date, comments, tax_period, order_index) VALUES ('<institution>', 'Active', '<account_type>', '<account_number>', '<start_date>', '<comments>', '<tax_period>', <order_index>);

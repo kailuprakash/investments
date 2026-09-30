@@ -9,6 +9,7 @@ type Holding = {
   overallCurrentPrice: number;
   dayChangeAmount?: number;
   dayChangePercent?: number;
+  sector?: string;
 };
 
 type PortfolioAccount = {
@@ -127,7 +128,9 @@ function percent(value: number) {
   return `${normalized > 0 ? "+" : ""}${normalized.toFixed(1)}%`;
 }
 
-function sectorOrAsset(symbol: string) {
+function sectorOrAsset(symbol: string, marketSector?: string) {
+  const resolved = String(marketSector || "").trim();
+  if (resolved && resolved !== "Unclassified") return resolved;
   const normalized = symbol.trim().toUpperCase();
   if (LEVERAGED_ETFS.has(normalized)) return "Leveraged ETF";
   if (FUNDS.has(normalized)) return "ETF / Fund";
@@ -158,7 +161,7 @@ export default function VisualAnalyticsDashboard({
   const allocationMap = new Map<string, { value: number; holdings: number }>();
   allocationMap.set("Cash", { value: numberValue(grandTotal.cashAvailable), holdings: 0 });
   for (const holding of holdings) {
-    const label = sectorOrAsset(holding.symbol);
+    const label = sectorOrAsset(holding.symbol, holding.sector);
     const current = allocationMap.get(label) || { value: 0, holdings: 0 };
     current.value += numberValue(holding.overallCurrentPrice);
     current.holdings += 1;

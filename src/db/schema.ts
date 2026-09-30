@@ -112,6 +112,7 @@ export const marketCacheTable = pgTable("market_cache", {
   source: text("source").notNull().default("cached"),
   error: text("error").notNull().default(""),
   lastLiveAt: text("last_live_at").notNull().default(""),
+  sector: text("sector").notNull().default(""),
 });
 
 export const accountDetailsTable = pgTable("portfolio_account_details", {

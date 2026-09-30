@@ -1518,7 +1518,7 @@ const e = {
   const Z = LucideEyeOff;
   const ea = LucidePencil;
 
-  const el = "portfolio-consolidated-view-columns-v6";
+  const el = "portfolio-consolidated-view-columns-v7";
   const ec = [
     {
       id: "symbol",
@@ -1567,6 +1567,14 @@ const e = {
       editable: false,
       kind: "calculated",
       align: "right",
+    },
+    {
+      id: "sector",
+      label: "Sector",
+      visible: true,
+      editable: false,
+      kind: "readonly",
+      align: "left",
     },
     {
       id: "comments",
@@ -1621,12 +1629,14 @@ const e = {
       [h, d] = (0, r.useState)(!1),
       [u, p] = (0, r.useState)(null),
       [g, b] = (0, r.useState)(null),
-      [x, v] = (0, r.useState)(""),
-      [y, w] = (0, r.useState)(null),
-      [A, T] = (0, r.useState)(new Set());
+       [x, v] = (0, r.useState)(""),
+       [y, w] = (0, r.useState)(null),
+       [A, T] = (0, r.useState)(new Set());
+    let [groupBy, setGroupBy] = (0, r.useState)("account");
     (0, r.useEffect)(() => {
       let e = [
         el,
+        "portfolio-consolidated-view-columns-v6",
         "portfolio-consolidated-view-columns-v5",
         "portfolio-consolidated-view-columns-v4",
         "portfolio-consolidation-inventory-columns-v3",
@@ -1682,8 +1692,22 @@ const e = {
                 .filter((e) => null !== e),
               r = ec.filter((e) => !t.some((t) => t.id === e.id));
             if (t.length > 0) {
-              let e = [...t, ...r],
-                a = e.find((e) => "symbol" === e.id);
+              let hadSector = t.some((column) => "sector" === column.id),
+                e = [...t, ...r];
+              // Existing saved layouts predate Sector. Insert the new market
+              // column after Market Value unless the user has already moved it.
+              if (!hadSector) {
+                let sector = e.find((column) => "sector" === column.id),
+                  sectorIndex = e.findIndex((column) => "sector" === column.id),
+                  marketValueIndex = e.findIndex(
+                    (column) => "overallCurrentPrice" === column.id,
+                  );
+                if (sector && sectorIndex >= 0 && marketValueIndex >= 0) {
+                  e.splice(sectorIndex, 1);
+                  e.splice(marketValueIndex + 1, 0, sector);
+                }
+              }
+              let a = e.find((e) => "symbol" === e.id);
               l([
                 { ...(a || ec[0]), visible: !0, editable: !1 },
                 ...e.filter((e) => "symbol" !== e.id),
@@ -1728,6 +1752,8 @@ const e = {
                 lengths.push(String(D(h.currentPrice).text).length);
               } else if ("overallCurrentPrice" === r.id) {
                 lengths.push(String(D(h.overallCurrentPrice).text).length);
+              } else if ("sector" === r.id) {
+                lengths.push(String(h.sector || "Unclassified").length);
               } else if ("comments" === r.id) {
                 lengths.push(String(h.comments || "—").length);
               } else if ("profitLossAmt" === r.id) {
@@ -1768,8 +1794,55 @@ const e = {
             return [r.id, colW];
           }),
         );
-      }, [i, e]),
-      k = C.reduce((e, t) => e + E[t.id], 0),
+      }, [i, e]);
+    let G = (0, r.useMemo)(() => {
+      const makeGroup = (key, label, holdings, accountNumber) => {
+        const amountInvested = holdings.reduce(
+          (sum, holding) => sum + Number(holding.investAmount || 0),
+          0,
+        );
+        const investmentCurrent = holdings.reduce(
+          (sum, holding) => sum + Number(holding.overallCurrentPrice || 0),
+          0,
+        );
+        const gainLoss = investmentCurrent - amountInvested;
+        return {
+          key,
+          label,
+          accountNumber,
+          holdings,
+          amountInvested,
+          investmentCurrent,
+          gainLoss,
+          gainLossPercent:
+            amountInvested > 0 ? (gainLoss / amountInvested) * 100 : 0,
+        };
+      };
+      if ("account" === groupBy) {
+        return e.map((account) =>
+          makeGroup(
+            `account:${account.accountNumber}`,
+            account.accountNumber,
+            account.holdings || [],
+            account.accountNumber,
+          ),
+        );
+      }
+      const groups = new Map();
+      for (const holding of e.flatMap((account) => account.holdings || [])) {
+        const label =
+          "sector" === groupBy
+            ? String(holding.sector || "Unclassified").trim() || "Unclassified"
+            : String(holding.comments || "").trim() || "No comments";
+        const rows = groups.get(label) || [];
+        rows.push(holding);
+        groups.set(label, rows);
+      }
+      return Array.from(groups, ([label, holdings]) =>
+        makeGroup(`${groupBy}:${label}`, label, holdings),
+      ).sort((left, right) => left.label.localeCompare(right.label));
+    }, [e, groupBy]);
+    let k = C.reduce((e, t) => e + E[t.id], 0),
       S = (e, t) => {
         l((r) =>
           r.map((r) =>
@@ -1829,11 +1902,14 @@ const e = {
           fi = 0;
         }
         if (hi < 0 || hi >= holdings.length) return null;
-        let nextHolding = holdings[hi];
-        if (A.has(nextHolding.accountNumber)) {
+        let nextHolding = holdings[hi],
+          targetGroup = G.find((group) =>
+            group.holdings.some((holding) => holding.id === nextHolding.id),
+          );
+        if (targetGroup && A.has(targetGroup.key)) {
           T((collapsed) => {
             let next = new Set(collapsed);
-            next.delete(nextHolding.accountNumber);
+            next.delete(targetGroup.key);
             return next;
           });
         }
@@ -1871,11 +1947,9 @@ const e = {
     (0, r.useEffect)(() => {
       if (!jumpHit || jumpHit.sheet !== "inventory") return;
       if (jumpHit.accountNumber) {
-        T((collapsed) => {
-          let next = new Set(collapsed);
-          next.delete(jumpHit.accountNumber);
-          return next;
-        });
+        // A search hit can arrive while grouping by Account, Sector, or
+        // Comments. Expanding every current group guarantees its row is visible.
+        T(new Set());
       }
       let tries = 0;
       const timer = window.setInterval(() => {
@@ -1905,6 +1979,36 @@ const e = {
             (0, t.jsxs)("div", {
               className: "flex flex-wrap items-center gap-1.5 normal-case",
               children: [
+                (0, t.jsxs)("label", {
+                  className:
+                    "inline-flex items-center gap-1 rounded border border-white/25 bg-emerald-950/20 px-2 py-1 text-[9px] font-semibold text-blue-50",
+                  children: [
+                    "Group by",
+                    (0, t.jsxs)("select", {
+                      value: groupBy,
+                      onChange: (e) => {
+                        setGroupBy(e.target.value), T(new Set());
+                      },
+                      className:
+                        "cursor-pointer bg-transparent text-white outline-none [&>option]:text-slate-900",
+                      "aria-label": "Group consolidated holdings by",
+                      children: [
+                        (0, t.jsx)("option", {
+                          value: "account",
+                          children: "Account",
+                        }),
+                        (0, t.jsx)("option", {
+                          value: "sector",
+                          children: "Sector",
+                        }),
+                        (0, t.jsx)("option", {
+                          value: "comments",
+                          children: "Comments",
+                        }),
+                      ],
+                    }),
+                  ],
+                }),
                 (0, t.jsxs)("button", {
                   type: "button",
                   onClick: () =>
@@ -1924,9 +2028,9 @@ const e = {
                   children: "Expand All",
                 }),
                 (0, t.jsx)("button", {
-                  type: "button",
-                  onClick: () => T(new Set(e.map((e) => e.accountNumber))),
-                  className:
+                   type: "button",
+                   onClick: () => T(new Set(G.map((group) => group.key))),
+                   className:
                     "rounded bg-[#163857] px-2 py-1 text-[10px] sm:text-[10.5px] font-semibold hover:bg-blue-900",
                   children: "Collapse All",
                 }),
@@ -2142,9 +2246,9 @@ const e = {
                 }),
               }),
               (0, t.jsx)("tbody", {
-                children: e.map((e, o) => {
+                children: G.map((e, o) => {
                   let i = 10 + 10 * o,
-                    l = A.has(e.accountNumber);
+                    l = A.has(e.key);
                   return (0, t.jsxs)(
                     r.default.Fragment,
                     {
@@ -2164,7 +2268,7 @@ const e = {
                                   onClick: () => {
                                     var t;
                                     return (
-                                      (t = e.accountNumber),
+                                      (t = e.key),
                                       void T((e) => {
                                         let r = new Set(e);
                                         return (
@@ -2181,7 +2285,7 @@ const e = {
                                       ? (0, t.jsx)(X, { className: "w-4 h-4" })
                                       : (0, t.jsx)(V, { className: "w-4 h-4" }),
                                     (0, t.jsx)("span", {
-                                      children: e.accountNumber,
+                                      children: e.label,
                                     }),
                                     (0, t.jsxs)("span", {
                                       className:
@@ -2198,17 +2302,19 @@ const e = {
                                     }),
                                   ],
                                 }),
-                                (0, t.jsxs)("button", {
-                                  type: "button",
-                                  onClick: () => s(e.accountNumber),
-                                  className:
-                                    "inline-flex items-center gap-1 text-emerald-700 hover:text-emerald-900 font-medium text-xs px-2 py-0.5 rounded hover:bg-emerald-50 transition",
-                                  children: [
-                                    (0, t.jsx)(L, { className: "w-3 h-3" }),
-                                    "Add Holding to ",
-                                    e.accountNumber,
-                                  ],
-                                }),
+                                "account" === groupBy &&
+                                  e.accountNumber &&
+                                  (0, t.jsxs)("button", {
+                                    type: "button",
+                                    onClick: () => s(e.accountNumber),
+                                    className:
+                                      "inline-flex items-center gap-1 text-emerald-700 hover:text-emerald-900 font-medium text-xs px-2 py-0.5 rounded hover:bg-emerald-50 transition",
+                                    children: [
+                                      (0, t.jsx)(L, { className: "w-3 h-3" }),
+                                      "Add Holding to ",
+                                      e.accountNumber,
+                                    ],
+                                  }),
                               ],
                             }),
                           }),
@@ -2225,9 +2331,9 @@ const e = {
                                       className:
                                         "border border-gray-300 px-4 py-3 text-center text-gray-400 italic bg-gray-50",
                                       children: [
-                                        "No active holdings for ",
-                                        e.accountNumber,
-                                        ".",
+                                         "No active holdings for ",
+                                         e.label,
+                                          ".",
                                       ],
                                     }),
                                   })
@@ -2295,6 +2401,7 @@ const e = {
                                                     overallCurrentPrice: D(
                                                       e.overallCurrentPrice,
                                                     ).text,
+                                                    sector: e.sector || "Unclassified",
                                                     comments: e.comments || "",
                                                     profitLossAmt: ef(
                                                       e.profitLossAmt,
@@ -2516,6 +2623,20 @@ const e = {
                                                                   ).text,
                                                                 },
                                                               );
+                                                            case "sector":
+                                                              return (0, t.jsx)(
+                                                                "span",
+                                                                {
+                                                                  className:
+                                                                    "inline-flex max-w-[170px] truncate rounded-full border border-blue-100 bg-blue-50 px-2 py-0.5 font-sans text-[10px] font-semibold text-blue-800",
+                                                                  title:
+                                                                    e.sector ||
+                                                                    "Unclassified",
+                                                                  children:
+                                                                    e.sector ||
+                                                                    "Unclassified",
+                                                                },
+                                                              );
                                                             case "comments":
                                                               return e.comments
                                                                 ? (0, t.jsx)(
@@ -2591,7 +2712,7 @@ const e = {
                                             className: "font-bold",
                                             children: [
                                               "Total (",
-                                              e.accountNumber,
+                                              e.label,
                                               ")",
                                             ],
                                           });
@@ -2637,7 +2758,7 @@ const e = {
                         }),
                       ],
                     },
-                    e.accountNumber,
+                    e.key,
                   );
                 }),
               }),
@@ -6921,6 +7042,7 @@ const e = {
                           "Invest Amount",
                           "Market Price/Share",
                           "Market Value",
+                          "Sector",
                           "Comments",
                           "Gain/Loss",
                           "Last Updated",
@@ -6937,6 +7059,7 @@ const e = {
                           e.investAmount,
                           e.currentPrice,
                           e.overallCurrentPrice,
+                          e.sector || "Unclassified",
                           e.comments || "",
                           tj(e.profitLossAmt, e.gainLossPercent),
                           // Preserve the exact machine-readable timestamp so an
@@ -6956,6 +7079,7 @@ const e = {
                         "",
                         a.investmentCurrent,
                         "",
+                        "",
                         tj(a.gainLoss, a.gainLossPercent),
                         "",
                       ]),
@@ -6968,19 +7092,19 @@ const e = {
                     let a = tt.utils.aoa_to_sheet(t);
                     return (
                       (a["!merges"] = [
-                        { s: { r: 0, c: 0 }, e: { r: 0, c: 9 } },
+                        { s: { r: 0, c: 0 }, e: { r: 0, c: 10 } },
                       ]),
                       (a["!cols"] = tO(t, 10, 28)),
                       (a["!rows"] = [{ hpt: 24 }, { hpt: 30 }]),
-                      (a["!autofilter"] = { ref: `A2:J${t.length}` }),
+                      (a["!autofilter"] = { ref: `A2:K${t.length}` }),
                       tI(a, 1, 2),
-                      t_(a, 0, 0, 0, 9, tA(tr)),
-                      t_(a, 1, 1, 0, 9, tT(to)),
+                      t_(a, 0, 0, 0, 10, tA(tr)),
+                      t_(a, 1, 1, 0, 10, tT(to)),
                       r.forEach((e, t) => {
                         let r = t + 2,
                           n = "subtotal" === e.type ? tE : tC;
-                        for (let e = 0; e <= 9; e += 1) {
-                          let t = [2, 3, 4, 5, 6, 8].includes(e)
+                         for (let e = 0; e <= 10; e += 1) {
+                           let t = [2, 3, 4, 5, 6, 9].includes(e)
                             ? "right"
                             : "left";
                           tN(a, r, e, n(t));
@@ -6990,7 +7114,7 @@ const e = {
                           tN(a, r, e, n("right"), tx);
                         void 0 !== e.gainLoss &&
                           e.gainLoss < 0 &&
-                          tN(a, r, 8, {
+                          tN(a, r, 9, {
                             ...n("right"),
                             font: {
                               name: tb,

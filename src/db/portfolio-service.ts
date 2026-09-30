@@ -38,7 +38,8 @@ const DEFAULT_QUOTES: Record<
     exchange: string;
     quoteType: string;
   }
-> = {
+> = { 
+
   AAPL: {
     price: 337.0,
     previousClose: 332.41,
@@ -175,6 +176,38 @@ const DEFAULT_QUOTES: Record<
     quoteType: "ETF",
   },
 };
+
+const LEVERAGED_ETF_SYMBOLS = new Set([
+  "SOXL", "SOXS", "NVDL", "NVDU", "AMZU", "AMDL", "MSFU", "GGLL",
+  "MUU", "SNDG", "SNDU", "SPCX", "TQQQ", "SQQQ", "FNGU", "FNGD",
+]);
+const FUND_SYMBOLS = new Set([
+  "GLD", "SPY", "QQQ", "VTI", "VOO", "IWM", "DIA", "XLK", "XLF",
+  "XLE", "XLV",
+]);
+const FALLBACK_SECTORS: Record<string, string> = {
+  AAPL: "Technology",
+  MSFT: "Technology",
+  GOOG: "Communication Services",
+  GOOGL: "Communication Services",
+  META: "Communication Services",
+  NFLX: "Communication Services",
+  NVDA: "Technology",
+  MU: "Technology",
+  TSLA: "Consumer Cyclical",
+  AMZN: "Consumer Cyclical",
+  CMG: "Consumer Cyclical",
+  SFTBY: "Technology",
+  OPK: "Healthcare",
+};
+
+function fallbackSectorForSymbol(symbolRaw: string): string {
+  const symbol = symbolRaw.trim().toUpperCase();
+  if (LEVERAGED_ETF_SYMBOLS.has(symbol)) return "Leveraged ETF";
+  if (FUND_SYMBOLS.has(symbol) || DEFAULT_QUOTES[symbol]?.quoteType === "ETF")
+    return "ETF / Fund";
+  return FALLBACK_SECTORS[symbol] || "Unclassified";
+}
 
 // Populate initial cache from seedData.portfolio.marketCache if present
 const marketCacheStore: Record<string, number> = {};
@@ -370,13 +403,15 @@ export async function ensureDbSeeded(): Promise<void> {
         last_updated TEXT NOT NULL DEFAULT '',
         source TEXT NOT NULL DEFAULT 'cached',
         error TEXT NOT NULL DEFAULT '',
-        last_live_at TEXT NOT NULL DEFAULT ''
+        last_live_at TEXT NOT NULL DEFAULT '',
+        sector TEXT NOT NULL DEFAULT ''
       );
     `);
     await pool.query(`
       ALTER TABLE market_cache ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'cached';
       ALTER TABLE market_cache ADD COLUMN IF NOT EXISTS error TEXT NOT NULL DEFAULT '';
       ALTER TABLE market_cache ADD COLUMN IF NOT EXISTS last_live_at TEXT NOT NULL DEFAULT '';
+      ALTER TABLE market_cache ADD COLUMN IF NOT EXISTS sector TEXT NOT NULL DEFAULT '';
     `);
 
     // Keep existing supported preferences (especially Off); move obsolete
@@ -713,6 +748,7 @@ async function persistQuote(quote: SymbolQuote) {
       source: quote.source,
       error: quote.error || "",
       lastLiveAt: quote.lastLiveAt || "",
+      sector: fallbackSectorForSymbol(quote.symbol),
     })
     .onConflictDoUpdate({
       target: marketCacheTable.symbol,
@@ -727,6 +763,66 @@ async function persistQuote(quote: SymbolQuote) {
         lastLiveAt: quote.lastLiveAt || "",
       },
     });
+}
+
+async function fetchSymbolSector(symbolRaw: string): Promise<string> {
+  await ensureDbSeeded();
+  const symbol = symbolRaw.trim().toUpperCase();
+  const stored = await loadStoredQuote(symbol);
+  const existingSector = String(stored?.sector || "").trim();
+  if (existingSector && existingSector !== "Unclassified") return existingSector;
+
+  let sector = fallbackSectorForSymbol(symbol);
+  const searchUrls = [
+    `https://query2.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(symbol)}&quotesCount=8&newsCount=0`,
+    `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(symbol)}&quotesCount=8&newsCount=0`,
+  ];
+  for (const url of searchUrls) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 3_000);
+    try {
+      const response = await fetch(url, {
+        signal: controller.signal,
+        headers: {
+          "User-Agent": "Mozilla/5.0 (compatible; PortfolioTracker/1.0)",
+          Accept: "application/json",
+        },
+        cache: "no-store",
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok || !Array.isArray(data?.quotes)) continue;
+      const exact = data.quotes.find(
+        (item: { symbol?: string }) =>
+          String(item.symbol || "").trim().toUpperCase() === symbol,
+      );
+      const metadata = exact || data.quotes[0];
+      const marketSector = String(
+        metadata?.sectorDisp || metadata?.sector || "",
+      ).trim();
+      if (marketSector) {
+        sector = marketSector;
+        break;
+      }
+      const quoteType = String(metadata?.quoteType || "").toUpperCase();
+      if (quoteType.includes("ETF") || quoteType.includes("FUND")) {
+        sector = "ETF / Fund";
+        break;
+      }
+    } catch {
+      // Keep the deterministic fallback sector and try the next Yahoo host.
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  // `fetchSymbolQuote` creates the cache row before this helper is called in
+  // normal flows. The update remains intentionally narrow: sector metadata must
+  // not overwrite quote prices or quote timestamps.
+  await db
+    .update(marketCacheTable)
+    .set({ sector })
+    .where(eq(marketCacheTable.symbol, symbol));
+  return sector;
 }
 
 function fallbackQuote(
@@ -920,6 +1016,9 @@ export async function buildPortfolioState() {
           dayChangePercent,
           quoteSource: quote?.source || "cached",
           quoteUpdatedAt: quote?.lastLiveAt || quote?.lastUpdated || null,
+          sector:
+            String(quote?.sector || "").trim() ||
+            fallbackSectorForSymbol(h.symbol),
           comments: h.comments || "",
           highlight: h.highlight || "",
           profitLossAmt,
@@ -1077,6 +1176,13 @@ export async function refreshAllMarketPrices() {
     const q = await fetchSymbolQuote(sym);
     marketCacheStore[sym] = q.price;
   }
+  // Sector comes from Yahoo symbol-search metadata. Resolve in small batches so
+  // a large portfolio does not burst the public endpoint.
+  for (let index = 0; index < symbols.length; index += 4) {
+    await Promise.all(
+      symbols.slice(index, index + 4).map((symbol) => fetchSymbolSector(symbol)),
+    );
+  }
 
   const nowIso = new Date().toISOString();
   for (const h of holdingsRows) {
@@ -1149,6 +1255,7 @@ export async function executeFutureTrade(data: {
   const pricePerShare = Number(data.pricePerShare) || 0;
   const totalAmount = round2(quantity * pricePerShare);
   const quote = await fetchSymbolQuote(symbol);
+  await fetchSymbolSector(symbol);
   const currentPrice = quote.price || pricePerShare;
 
   // Find or create account
@@ -1784,6 +1891,7 @@ export async function saveHolding(data: {
     throw new Error("Average price must be zero or greater");
 
   const quote = await fetchSymbolQuote(symbol);
+  await fetchSymbolSector(symbol);
   const normAccount = (value: string) =>
     String(value || "")
       .trim()
