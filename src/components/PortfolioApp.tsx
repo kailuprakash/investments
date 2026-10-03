@@ -7,6 +7,7 @@ import AccountDetailsSheet from "@/components/AccountDetailsSheet";
 import DailyTransactionsSheet from "@/components/DailyTransactionsSheet";
 import HoldingsPerformanceTable from "@/components/HoldingsPerformanceTable";
 import VisualAnalyticsDashboard from "@/components/VisualAnalyticsDashboard";
+import PlannerSheet from "@/components/PlannerSheet";
 import DensityToggle from "@/components/DensityToggle";
 import LiveClock from "@/components/LiveClock";
 import LogoutButton from "@/components/LogoutButton";
@@ -385,6 +386,7 @@ const e = {
       { id: "accountDetails", label: "Account Details" },
       { id: "market", label: "Market Data & Watch" },
       { id: "analytics", label: "Visual Analytics" },
+      { id: "planner", label: "Planner" },
     ];
   function S({
     onRefreshMarket: e,
@@ -8654,6 +8656,11 @@ This replaces the current accounts, inventory, and transactions.`)
                         }),
                       ],
                     })
+                  : "planner" === g
+                    ? (0, t.jsx)(PlannerSheet, {
+                        accounts: e,
+                        onNotify: ei,
+                      })
                   : "market" === g
                     ? (0, t.jsx)(eq, {
                         defaultAccount: e[0]?.accountNumber || "CS - 9271",

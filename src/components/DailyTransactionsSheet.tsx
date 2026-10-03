@@ -1677,7 +1677,10 @@ export default function DailyTransactionsSheet({
           onClick={() => selectTab("ALL")}
         >
           All
-          <span className="transaction-subtab-count">{buyCount + sellCount}</span>
+          {/* The Buy & Sell account/date filters are scoped to that tab, so the
+              All badge must reflect the All table's own rows (allCount), not
+              the filtered Buy/Sell counts. */}
+          <span className="transaction-subtab-count">{allCount}</span>
         </button>
       </div>
 

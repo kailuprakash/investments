@@ -142,6 +142,27 @@ export const settingsTable = pgTable("portfolio_settings", {
   updatedAt: text("updated_at").notNull().default(""),
 });
 
+/** Planner sheet: one planned allocation row per (account, symbol). */
+export const plannerTable = pgTable("portfolio_planner", {
+  id: serial("id").primaryKey(),
+  accountNumber: text("account_number").notNull(),
+  symbol: text("symbol").notNull().default(""),
+  shares: doublePrecision("shares").notNull().default(0),
+  sharePrice: doublePrecision("share_price").notNull().default(0),
+  total: doublePrecision("total").notNull().default(0),
+  /** NULL means "auto": derived from Total / account cash balance. */
+  allocationPercent: doublePrecision("allocation_percent"),
+  asOfDate: text("as_of_date").notNull().default(""),
+  comments: text("comments").notNull().default(""),
+  orderIndex: integer("order_index").notNull().default(0),
+});
+
+/** Planner: per-account editable total "Account Level - Cash Allocation". */
+export const plannerAccountTable = pgTable("portfolio_planner_account", {
+  accountNumber: text("account_number").primaryKey(),
+  totalOverride: doublePrecision("total_override"),
+});
+
 /** Security metadata only — password values are never stored in this table. */
 export const loginAttemptsTable = pgTable(
   "portfolio_login_attempts",
@@ -178,3 +199,5 @@ export const accountDetails = accountDetailsTable;
 export const depositDetails = depositDetailsTable;
 export const settings = settingsTable;
 export const portfolioSettings = settingsTable;
+export const planner = plannerTable;
+export const plannerAccount = plannerAccountTable;

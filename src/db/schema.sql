@@ -408,3 +408,25 @@ COMMIT;
 -- SELECT ip_address, attempted_at, event, alerted FROM portfolio_login_attempts ORDER BY attempted_at DESC;
 -- DELETE FROM portfolio_login_attempts WHERE ip_address = '<public_ip_address>';
 -- Passwords are never stored in portfolio_login_attempts.
+-- PLANNER (allocation planning sheet, one row per account/symbol plan)
+CREATE TABLE IF NOT EXISTS portfolio_planner (
+  id SERIAL PRIMARY KEY,
+  account_number TEXT NOT NULL,
+  symbol TEXT NOT NULL DEFAULT '',
+  shares DOUBLE PRECISION NOT NULL DEFAULT 0,
+  share_price DOUBLE PRECISION NOT NULL DEFAULT 0,
+  total DOUBLE PRECISION NOT NULL DEFAULT 0,
+  allocation_percent DOUBLE PRECISION,
+  as_of_date TEXT NOT NULL DEFAULT '',
+  comments TEXT NOT NULL DEFAULT '',
+  order_index INTEGER NOT NULL DEFAULT 0
+);
+-- INSERT INTO portfolio_planner (account_number, symbol, shares, share_price, total, allocation_percent, as_of_date, comments, order_index) VALUES ('<account_number>', '<symbol>', <shares>, <share_price>, <total>, <allocation_percent_or_NULL>, '<YYYY-MM-DD>', '<comments>', <order_index>);
+-- UPDATE portfolio_planner SET symbol = '<symbol>', shares = <shares>, share_price = <share_price>, total = <total>, allocation_percent = <allocation_percent_or_NULL>, as_of_date = '<YYYY-MM-DD>', comments = '<comments>' WHERE id = <planner_row_id>;
+-- DELETE FROM portfolio_planner WHERE id = <planner_row_id>;
+-- PLANNER ACCOUNT BUDGET (editable "Total - Account Level - Cash Allocation")
+CREATE TABLE IF NOT EXISTS portfolio_planner_account (
+  account_number TEXT PRIMARY KEY,
+  total_override DOUBLE PRECISION
+);
+-- Clear the override (NULL/absent row) to fall back to the live account cash balance.
