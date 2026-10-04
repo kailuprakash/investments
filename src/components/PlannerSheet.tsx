@@ -781,12 +781,13 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
                     <tr className="h-6 bg-[#E7E6E6] text-[11px] font-semibold text-gray-800 border-y border-gray-300">
                       <td colSpan={13} className="border border-gray-300 px-3 py-1">
                         <div className="flex items-center justify-between gap-3">
-                          <button
-                            type="button"
-                            onClick={() => toggleAccount(group.accountNumber)}
-                            aria-expanded={!isCollapsed}
-                            className="inline-flex items-center gap-2 font-bold text-[#1F4E79] hover:text-blue-900"
-                          >
+                          <div className="flex items-center gap-3">
+                            <button
+                              type="button"
+                              onClick={() => toggleAccount(group.accountNumber)}
+                              aria-expanded={!isCollapsed}
+                              className="inline-flex items-center gap-2 font-bold text-[#1F4E79] hover:text-blue-900"
+                            >
                             {isCollapsed ? (
                               <ChevronRight className="h-4 w-4" />
                             ) : (
@@ -800,13 +801,13 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
                           </button>
                           <div className="flex items-center gap-3 whitespace-nowrap text-[10px] font-normal text-gray-600">
                             <span>
-                              Account - Cash{" "}
+                              Cash Balance{" "}
                               <strong className="text-gray-800">
                                 {money(group.cashAvailable)}
                               </strong>
                             </span>
                             <span>
-                              Allocated Cash{" "}
+                              Allocation{" "}
                               <strong className="text-gray-800">
                                 {money(group.budget)}
                               </strong>
@@ -817,12 +818,26 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
                                 {money(group.plannedTotal)}
                               </strong>
                             </span>
-                            <button
-                              type="button"
-                              onClick={() => void addRow(group.accountNumber)}
-                              disabled={addingFor === group.accountNumber}
-                              className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium text-emerald-700 transition hover:bg-emerald-50 hover:text-emerald-900 disabled:opacity-60"
-                            >
+                            <span>
+                              Planned Remaining{" "}
+                              <strong
+                                className={
+                                  group.remainingPercent < 0
+                                    ? "text-red-700"
+                                    : "text-emerald-700"
+                                }
+                              >
+                                {pct(group.remainingPercent)}
+                              </strong>
+                            </span>
+                          </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => void addRow(group.accountNumber)}
+                            disabled={addingFor === group.accountNumber}
+                            className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium text-emerald-700 transition hover:bg-emerald-50 hover:text-emerald-900 disabled:opacity-60 whitespace-nowrap"
+                          >
                               {addingFor === group.accountNumber ? (
                                 <LoaderCircle className="h-3 w-3 animate-spin" />
                               ) : (
@@ -831,9 +846,8 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
                               Add Row to {group.accountNumber}
                             </button>
                           </div>
-                        </div>
                       </td>
-                    </tr>
+                      </tr>
 
                     {!isCollapsed && group.rows.length === 0 && (
                       <tr className="h-6">
@@ -853,6 +867,10 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
                           group.budget > 0
                             ? (row.amount / group.budget) * 100
                             : 0;
+                        const balancePct =
+                          row.amount > 0
+                            ? (row.balanceAmount / row.amount) * 100
+                            : null;
                         return (
                           <tr
                             key={row.id}
@@ -955,6 +973,8 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
                               title="Plan Amount − Actual Total Amount"
                             >
                               {money(row.balanceAmount)}
+                              {balancePct !== null &&
+                                ` (${pct(balancePct)})`}
                             </td>
                             <td data-field-kind="editable" className={editableTd} style={{ whiteSpace: "normal" }}>
                               <PlannerEditCell
@@ -1002,12 +1022,12 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
                         <td className={`${tdMoney} italic text-slate-600`}>
                           {pct(group.remainingPercent)}
                         </td>
-                        <td className={`${td} bg-[#eceff2]`} />
-                        <td className={`${td} bg-[#eceff2]`} />
-                        <td className={`${td} bg-[#eceff2]`} />
-                        <td className={`${td} bg-[#eceff2]`} />
-                        <td className={`${td} bg-[#eceff2]`} />
-                        <td className={`${td} ${stickyRight} bg-[#f6f8fa]`} />
+                        {/* Trailing cells after % Allocation are intentionally
+                            empty — merged into one span. */}
+                        <td
+                          colSpan={6}
+                          className={`${td} ${stickyRight} bg-[#f6f8fa]`}
+                        />
                       </tr>
                     )}
 
@@ -1028,6 +1048,7 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
                             align="right"
                             value={String(group.budget ?? 0)}
                             displayValue={money(group.budget)}
+                            inputClassName="font-bold text-emerald-950"
                             onCommit={(next) =>
                               void setBudget(group.accountNumber, next)
                             }
@@ -1036,21 +1057,11 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
                         <td className={`${tdMoney} text-emerald-950`}>
                           100.00%
                         </td>
-                        <td className={`${td}`} />
-                        <td className={`${td}`} />
-                        <td className={`${td}`} />
+                        {/* No total Balance Amount; empty cells merged after 100.00%. */}
                         <td
-                          className={`${tdMoney} ${
-                            group.balanceTotal < 0
-                              ? "text-red-700"
-                              : "text-emerald-800"
-                          }`}
-                          title="Σ Plan Amount − Σ Actual Total Amount"
-                        >
-                          {money(group.balanceTotal)}
-                        </td>
-                        <td className={`${td}`} />
-                        <td className={`${td} ${stickyRight} bg-[#DCEFE5]`} />
+                          colSpan={6}
+                          className={`${td} ${stickyRight} bg-[#DCEFE5]`}
+                        />
                       </tr>
                     )}
                   </Fragment>
