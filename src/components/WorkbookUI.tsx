@@ -5,24 +5,56 @@ import { Pencil, Trash2, LoaderCircle } from "lucide-react";
 
 export type FieldKind = "editable" | "readonly" | "calculated";
 
+/**
+ * Hover explanations for auto-calculated columns, keyed by header label.
+ * Shared across every sheet so calculated columns explain their formula
+ * wherever they appear in the workbook.
+ */
+const CALCULATED_TOOLTIPS: Record<string, string> = {
+  Amount: "Auto-calculated: % Allocation × Total Account Level - Cash Allocation",
+  "~ # of Shares": "Auto-calculated: trunc(Amount ÷ Share Price)",
+  "Balance Amount": "Auto-calculated: Plan Amount − Actual Total Amount",
+  "Shares Purchased":
+    "Auto-calculated live from Consolidated View - Account Level (holding quantity for this account)",
+  "Total Amount":
+    "Auto-calculated from Consolidated View - Account Level (holding quantity × average price)",
+  "Market Price": "Pulled live from the market cache; refresh via the column icon",
+  "Share Price":
+    "Calculated column — value is derived from the workbook, not entered by hand (editing lives in the Plan section)",
+  "Invest Amount": "Auto-calculated: Quantity × Avg Price",
+  "Market Value": "Auto-calculated: Quantity × Market Price/Share",
+  "Gain/Loss": "Auto-calculated: Market Value − Invest Amount (amount and %)",
+  "Gain / Loss": "Auto-calculated: Market Value − Invest Amount (amount and %)",
+  "Account Value": "Auto-calculated: Cash Balance + Market Value",
+  "Amount Invested": "Auto-calculated: Σ (Quantity × Avg Price)",
+};
+
 /** Use the same field semantics in every sheet, regardless of its toolbar color. */
 export function FieldHeader({
   label,
   kind = "readonly",
+  tooltip,
 }: {
   label: ReactNode;
   kind?: FieldKind;
+  /** Optional override shown instead of the kind/key-based default. */
+  tooltip?: string;
 }) {
+  const calculatedTip =
+    kind === "calculated" && typeof label === "string"
+      ? CALCULATED_TOOLTIPS[label]
+      : undefined;
   return (
     <span
       className="field-label"
       data-kind={kind}
       title={
-        kind === "editable"
+        tooltip ??
+        (kind === "editable"
           ? "Editable field"
           : kind === "calculated"
-            ? "Calculated automatically"
-            : "Read-only field"
+            ? calculatedTip ?? "Calculated automatically"
+            : "Read-only field")
       }
     >
       <span>{label}</span>

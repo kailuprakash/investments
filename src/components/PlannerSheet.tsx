@@ -1016,6 +1016,7 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
                             <td data-field-kind="editable" className={editableTd} style={{ whiteSpace: "normal" }}>
                               <PlannerEditCell
                                 value={row.comments}
+                                displayValue={row.comments}
                                 placeholder="Notes…"
                                 onCommit={(next) =>
                                   void commit(row.id, "comments", next)
