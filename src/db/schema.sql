@@ -430,3 +430,4 @@ CREATE TABLE IF NOT EXISTS portfolio_planner_account (
   total_override DOUBLE PRECISION
 );
 -- Clear the override (NULL/absent row) to fall back to the live account cash balance.
+ALTER TABLE portfolio_planner ADD COLUMN IF NOT EXISTS updated_at TEXT NOT NULL DEFAULT '';

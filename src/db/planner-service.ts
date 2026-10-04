@@ -35,6 +35,10 @@ export type PlannerRow = {
   actualTotalAmount: number;
   /** Planned Total − Actual Total Amount. */
   balanceAmount: number;
+  /** ISO timestamp of the last edit to an editable field (blank = never). */
+  updatedAt: string;
+  /** Read-only display: allocationPercent × budget when % is set, else Total. */
+  amount: number;
 };
 
 export type PlannerAccountGroup = {
@@ -78,8 +82,11 @@ async function ensurePlannerTable(): Promise<void> {
         allocation_percent DOUBLE PRECISION,
         as_of_date TEXT NOT NULL DEFAULT '',
         comments TEXT NOT NULL DEFAULT '',
-        order_index INTEGER NOT NULL DEFAULT 0
+        order_index INTEGER NOT NULL DEFAULT 0,
+        updated_at TEXT NOT NULL DEFAULT ''
       );
+      ALTER TABLE portfolio_planner
+        ADD COLUMN IF NOT EXISTS updated_at TEXT NOT NULL DEFAULT '';
       CREATE TABLE IF NOT EXISTS portfolio_planner_account (
         account_number TEXT PRIMARY KEY,
         total_override DOUBLE PRECISION
@@ -105,6 +112,7 @@ type PlannerDbRow = {
   as_of_date: string | null;
   comments: string | null;
   order_index: number;
+  updated_at: string | null;
 };
 
 type DbPortfolioAccount = Awaited<
@@ -117,7 +125,7 @@ export async function getPlannerState(): Promise<PlannerState> {
     [
       pool.query<PlannerDbRow>(
         `SELECT id, account_number, symbol, shares, share_price, total,
-              allocation_percent, as_of_date, comments, order_index
+              allocation_percent, as_of_date, comments, order_index, updated_at
        FROM portfolio_planner
        ORDER BY account_number ASC, order_index ASC, id ASC`,
       ),
@@ -209,11 +217,15 @@ export async function getPlannerState(): Promise<PlannerState> {
         row.allocation_percent === null
           ? null
           : round2(Number(row.allocation_percent) || 0);
+      // Amount is auto-derived: % Allocation × budget when a % is stored,
+      // falling back to the stored Total for rows planned before % editing.
+      const amount =
+        storedAlloc !== null ? round2((storedAlloc / 100) * budget) : total;
       const autoAlloc =
-        budget > 0 ? round2((total / budget) * 100) : 0;
+        budget > 0 ? round2((amount / budget) * 100) : 0;
       const effectiveAllocation = storedAlloc ?? autoAlloc;
 
-      plannedTotal += total;
+      plannedTotal += amount;
       actualTotal += actualTotalAmount;
       allocatedPercent += effectiveAllocation;
 
@@ -233,7 +245,9 @@ export async function getPlannerState(): Promise<PlannerState> {
         sharesPurchased: Number(holding?.quantity) || 0,
         actualSharePrice: Number(holding?.purchasePrice) || 0,
         actualTotalAmount,
-        balanceAmount: round2(total - actualTotalAmount),
+        balanceAmount: round2(amount - actualTotalAmount),
+        updatedAt: String(row.updated_at ?? ""),
+        amount,
       };
     });
 
@@ -381,12 +395,20 @@ export async function editPlannerRow(data: {
     throw new Error("A valid planner row id is required.");
   }
   const field = data?.field;
+  if (field === "total") {
+    // Amount is auto-calculated (allocation % × budget); no manual edits.
+    throw new Error(
+      "Amount is auto-calculated from % Allocation and cannot be edited directly.",
+    );
+  }
   if (!field || !(field in COLUMN_BY_FIELD)) {
     throw new Error("That planner field cannot be edited.");
   }
 
   const column = COLUMN_BY_FIELD[field];
   let value: unknown = data?.value;
+  /** Stamped only for editable-field changes (Actual/auto fields skip it). */
+  const editedAt = new Date().toISOString();
 
   if (field === "symbol") {
     value = String(value ?? "")
@@ -438,17 +460,8 @@ export async function editPlannerRow(data: {
       }
     }
     result = await pool.query(
-      `UPDATE portfolio_planner SET symbol = $2 WHERE id = $1`,
-      [id, value],
-    );
-  } else if (field === "total") {
-    // Editing Total hand-tunes the plan: fall back to auto-derived % so the
-    // percentage column never disagrees with the dollar value.
-    result = await pool.query(
-      `UPDATE portfolio_planner
-       SET total = $2, allocation_percent = NULL
-       WHERE id = $1`,
-      [id, value],
+      `UPDATE portfolio_planner SET symbol = $2, updated_at = $3 WHERE id = $1`,
+      [id, value, editedAt],
     );
   } else if (field === "allocationPercent" && value !== null) {
     // Typing a % Allocation drives the row Total off the cash allocation:
@@ -465,14 +478,14 @@ export async function editPlannerRow(data: {
     const total = round2(((value as number) / 100) * budget);
     result = await pool.query(
       `UPDATE portfolio_planner
-       SET allocation_percent = $2, total = $3
+       SET allocation_percent = $2, total = $3, updated_at = $4
        WHERE id = $1`,
-      [id, value, total],
+      [id, value, total, editedAt],
     );
   } else {
     result = await pool.query(
-      `UPDATE portfolio_planner SET ${column} = $2 WHERE id = $1`,
-      [id, value],
+      `UPDATE portfolio_planner SET ${column} = $2, updated_at = $3 WHERE id = $1`,
+      [id, value, editedAt],
     );
   }
   if (result.rowCount === 0) {

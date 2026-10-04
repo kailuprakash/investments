@@ -13,6 +13,7 @@ import {
   ChevronRight,
   LoaderCircle,
   Plus,
+  RefreshCw,
   Trash2,
 } from "lucide-react";
 import type {
@@ -39,7 +40,6 @@ type AccountInfo = {
 };
 
 interface Props {
-  /** Kept in the signature for the workbook host; refreshes are manual. */
   accounts: AccountInfo[];
   onNotify?: (msg: string, type?: "success" | "error" | "info") => void;
 }
@@ -48,7 +48,6 @@ type EditableField =
   | "symbol"
   | "shares"
   | "sharePrice"
-  | "total"
   | "allocationPercent"
   | "asOfDate"
   | "comments";
@@ -69,6 +68,35 @@ const pct = (value: number) =>
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}%`;
+
+const eastFormatter = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/New_York",
+  month: "2-digit",
+  day: "2-digit",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: true,
+});
+
+function formatUpdatedAt(iso: string): string {
+  if (!iso) return "—";
+  const dt = new Date(iso);
+  if (Number.isNaN(dt.getTime())) return "—";
+  return eastFormatter.format(dt);
+}
+
+/** Keep only number characters while typing (digits, one dot, leading minus). */
+function sanitizeNumeric(raw: string): string {
+  let out = raw.replace(/[^0-9.-]/g, "");
+  const firstDot = out.indexOf(".");
+  if (firstDot !== -1) {
+    out = out.slice(0, firstDot + 1) + out.slice(firstDot + 1).replace(/\./g, "");
+  }
+  const neg = out.startsWith("-");
+  out = out.replace(/-/g, "");
+  return (neg ? "-" : "") + out;
+}
 
 /* ------------------------- editable primitives ------------------------- */
 
@@ -100,7 +128,6 @@ function PlannerEditCell({
   return (
     <input
       type={type === "date" ? "date" : "text"}
-      step={type === "number" ? "any" : undefined}
       inputMode={type === "number" ? "decimal" : undefined}
       className={`${inputBase} ${
         align === "right"
@@ -116,7 +143,11 @@ function PlannerEditCell({
         setDraft(value);
         setEditing(true);
       }}
-      onChange={(event) => setDraft(event.target.value)}
+      onChange={(event) => {
+        const next = event.target.value;
+        // Numeric fields reject non-number characters while typing.
+        setDraft(type === "number" ? sanitizeNumeric(next) : next);
+      }}
       onBlur={() => {
         setEditing(false);
         if (draft !== value) onCommit(draft);
@@ -250,12 +281,13 @@ function SymbolSuggestInput({
 const COLLAPSED_KEY = "planner-collapsed-accounts-v1";
 
 /** Fixed column layout (Account's Summary style). */
-const COL_WIDTHS = [176, 110, 90, 100, 122, 112, 124, 144, 100, 122, 126, 210, 34];
+const COL_WIDTHS = [176, 34, 110, 128, 90, 100, 126, 112, 144, 100, 124, 128, 210, 148];
 
-export default function PlannerSheet({ onNotify }: Props) {
+export default function PlannerSheet({ accounts, onNotify }: Props) {
   const [state, setState] = useState<PlannerState | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [marketRefreshing, setMarketRefreshing] = useState(false);
   const [addingFor, setAddingFor] = useState<string | null>(null);
   const [status, setStatus] = useState<"" | "saving" | "saved">("");
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
@@ -313,9 +345,32 @@ export default function PlannerSheet({ onNotify }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Manual refresh: pull the latest Actual columns (market price, purchased
-  // shares, deployed amount) from the Consolidated View on demand. Triggered
-  // by the refresh icon on the Planner workbook tab.
+  // Actual columns re-sync automatically whenever the Consolidated View -
+  // Account Level (holdings/cash) changes — no manual refresh needed.
+  const accountsKey = useMemo(
+    () =>
+      JSON.stringify(
+        (accounts ?? []).map((account) => [
+          account.accountNumber,
+          account.cashAvailable,
+          (account.holdings ?? []).map((h) => [
+            h.symbol,
+            h.quantity,
+            h.purchasePrice,
+            h.currentPrice,
+          ]),
+        ]),
+      ),
+    [accounts],
+  );
+  const prevKeyRef = useRef(accountsKey);
+  useEffect(() => {
+    if (prevKeyRef.current === accountsKey) return;
+    prevKeyRef.current = accountsKey;
+    void load(true);
+  }, [accountsKey, load]);
+
+  // Manual refresh (Planner tab icon): pull the latest Actual columns.
   const refreshActuals = useCallback(async () => {
     window.dispatchEvent(
       new CustomEvent(PLANNER_REFRESH_STATUS_EVENT, {
@@ -341,6 +396,31 @@ export default function PlannerSheet({ onNotify }: Props) {
     return () =>
       window.removeEventListener(PLANNER_REFRESH_EVENT, handleRefresh);
   }, [refreshActuals]);
+
+  // Market pull from the Market Price header icon: fetch fresh quotes for
+  // the symbols into the market cache and rebuild the table.
+  const refreshMarketPrices = useCallback(async () => {
+    setMarketRefreshing(true);
+    try {
+      const response = await fetch("/api/planner", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "refresh-market" }),
+      });
+      const body = await response.json();
+      if (!response.ok)
+        throw new Error(body?.error || "Unable to refresh market prices");
+      setState(body);
+    } catch (error) {
+      fail(
+        error instanceof Error
+          ? error.message
+          : "Unable to refresh market prices",
+      );
+    } finally {
+      setMarketRefreshing(false);
+    }
+  }, [fail]);
 
   const markSaving = () => {
     savingRef.current += 1;
@@ -474,6 +554,7 @@ export default function PlannerSheet({ onNotify }: Props) {
   const editableTd =
     "border border-slate-300 p-0 bg-[#FFF2CC] text-[#78350F] whitespace-nowrap";
   const stickyLeft = "sticky left-0 z-[19] shadow-[3px_0_5px_-4px_#33415566]";
+  const stickyRight = "sticky right-0 z-[19] shadow-[-3px_0_5px_-4px_#33415566]";
 
   if (loading && !state) {
     return (
@@ -492,20 +573,17 @@ export default function PlannerSheet({ onNotify }: Props) {
 
   return (
     <div className="space-y-2">
-      {(status !== "" || refreshing) && (
+      {(status !== "" || refreshing || marketRefreshing) && (
         <div className="flex justify-end pr-1 text-[10px] font-semibold">
-          {refreshing && (
+          {refreshing || marketRefreshing ? (
             <span className="inline-flex items-center gap-1 text-slate-500">
-              <LoaderCircle className="w-3 h-3 animate-spin" /> Refreshing
-              actuals…
+              <LoaderCircle className="w-3 h-3 animate-spin" /> Refreshing…
             </span>
-          )}
-          {!refreshing && status === "saving" && (
+          ) : status === "saving" ? (
             <span className="inline-flex items-center gap-1 text-slate-500">
               <LoaderCircle className="w-3 h-3 animate-spin" /> Saving…
             </span>
-          )}
-          {!refreshing && status === "saved" && (
+          ) : (
             <span className="text-emerald-700">All changes saved</span>
           )}
         </div>
@@ -532,13 +610,18 @@ export default function PlannerSheet({ onNotify }: Props) {
                   <FieldHeader label="Account" kind="readonly" />
                 </th>
                 <th
-                  colSpan={5}
+                  rowSpan={2}
+                  className={`${th} sticky top-0 z-30 text-center`}
+                  aria-label="Delete row"
+                />
+                <th
+                  colSpan={6}
                   className={`${th} text-center font-bold sticky top-0 z-30`}
                 >
                   Plan - Budget Allocation
                 </th>
                 <th
-                  colSpan={4}
+                  colSpan={3}
                   className={`${th} text-center font-bold sticky top-0 z-30`}
                 >
                   Actual
@@ -546,7 +629,7 @@ export default function PlannerSheet({ onNotify }: Props) {
                 <th
                   rowSpan={2}
                   data-field-kind="calculated"
-                  className={`${th} text-right font-bold sticky top-0 z-30`}
+                  className={`${th} text-center font-bold sticky top-0 z-30`}
                 >
                   <FieldHeader label="Balance Amount" kind="calculated" />
                 </th>
@@ -559,13 +642,41 @@ export default function PlannerSheet({ onNotify }: Props) {
                 </th>
                 <th
                   rowSpan={2}
-                  className={`${th} align-middle sticky top-0 z-30`}
-                  aria-label="Row actions"
-                />
+                  data-field-kind="readonly"
+                  className={`${th} text-center font-bold sticky top-0 right-0 z-40`}
+                >
+                  <FieldHeader label="Updated Date" kind="readonly" />
+                </th>
               </tr>
               <tr className="border-b border-slate-400">
                 <th data-field-kind="editable" className={`${thEditable} text-left sticky top-[25px] z-30`}>
                   <FieldHeader label="Symbol" kind="editable" />
+                </th>
+                <th data-field-kind="calculated" className={`${th} text-right font-semibold sticky top-[25px] z-30`}>
+                  <span className="inline-flex items-center justify-end gap-1">
+                    <FieldHeader label="Market Price" kind="calculated" />
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      aria-label="Pull latest market prices"
+                      title="Pull latest market prices for these symbols"
+                      aria-busy={marketRefreshing}
+                      onClick={() => void refreshMarketPrices()}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          void refreshMarketPrices();
+                        }
+                      }}
+                      className="inline-flex h-[14px] w-[14px] items-center justify-center rounded text-[#1F4E79]/70 transition-colors hover:text-[#1F4E79] cursor-pointer"
+                    >
+                      <RefreshCw
+                        size={11}
+                        aria-hidden="true"
+                        className={marketRefreshing ? "animate-spin" : ""}
+                      />
+                    </span>
+                  </span>
                 </th>
                 <th data-field-kind="editable" className={`${thEditable} text-right sticky top-[25px] z-30`}>
                   <FieldHeader label="Shares" kind="editable" />
@@ -573,14 +684,11 @@ export default function PlannerSheet({ onNotify }: Props) {
                 <th data-field-kind="editable" className={`${thEditable} text-right sticky top-[25px] z-30`}>
                   <FieldHeader label="Share Price" kind="editable" />
                 </th>
-                <th data-field-kind="editable" className={`${thEditable} text-right sticky top-[25px] z-30`}>
-                  <FieldHeader label="Amount" kind="editable" />
+                <th data-field-kind="calculated" className={`${th} text-right font-semibold sticky top-[25px] z-30`}>
+                  <FieldHeader label="Amount" kind="calculated" />
                 </th>
                 <th data-field-kind="editable" className={`${thEditable} text-right sticky top-[25px] z-30`}>
                   <FieldHeader label="% Allocation" kind="editable" />
-                </th>
-                <th data-field-kind="readonly" className={`${th} text-right font-semibold sticky top-[25px] z-30`}>
-                  <FieldHeader label="Market Price" kind="readonly" />
                 </th>
                 <th data-field-kind="calculated" className={`${th} text-right font-semibold sticky top-[25px] z-30`}>
                   <FieldHeader label="Shares Purchased" kind="calculated" />
@@ -597,8 +705,6 @@ export default function PlannerSheet({ onNotify }: Props) {
               {groups.map((group: PlannerAccountGroup) => {
                 const isCollapsed = !!collapsed[group.accountNumber];
                 const cashRemainingLow = group.cashRemaining < 0;
-                // Account cell spans all symbol rows (or the empty notice
-                // row) plus the Cash Balance and Total footer rows.
                 const rowSpan = isCollapsed
                   ? 1
                   : Math.max(group.rows.length, 1) + 2;
@@ -662,16 +768,14 @@ export default function PlannerSheet({ onNotify }: Props) {
                       className="h-6 bg-white transition-colors hover:bg-blue-50/40"
                     >
                       {accountCell}
-                      <td
-                        colSpan={12}
-                        className={`${td} italic text-slate-500`}
-                      >
+                      <td colSpan={12} className={`${td} italic text-slate-500`}>
                         Collapsed — {group.rows.length}{" "}
                         {group.rows.length === 1 ? " Planned row" : " Planned rows"} ·
                         Planned {money(group.plannedTotal)} of{" "}
                         {money(group.budget)} · Cash Balance{" "}
                         {money(group.cashRemaining)}
                       </td>
+                      <td className={`${td} ${stickyRight} bg-white`} />
                     </tr>
                   );
                 }
@@ -685,12 +789,13 @@ export default function PlannerSheet({ onNotify }: Props) {
                           No planned rows yet — press “Row” to start the
                           allocation plan for this account.
                         </td>
+                        <td className={`${td} ${stickyRight} bg-white`} />
                       </tr>
                     ) : (
                       group.rows.map((row, rowIndex) => {
                         const autoAlloc =
                           group.budget > 0
-                            ? (row.total / group.budget) * 100
+                            ? (row.amount / group.budget) * 100
                             : 0;
                         return (
                           <tr
@@ -698,6 +803,18 @@ export default function PlannerSheet({ onNotify }: Props) {
                             className="h-6 bg-white transition-colors hover:bg-blue-50/40"
                           >
                             {rowIndex === 0 && accountCell}
+                            {/* Delete moved to the front of the row */}
+                            <td className={`${td} !px-0 text-center`}>
+                              <button
+                                type="button"
+                                aria-label={`Delete planner row ${row.symbol || row.id}`}
+                                title="Delete row"
+                                onClick={() => void deleteRow(row.id, row.symbol)}
+                                className="p-1 text-slate-400 transition-colors hover:text-red-600"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </td>
                             <td data-field-kind="editable" className={editableTd}>
                               <SymbolSuggestInput
                                 value={row.symbol}
@@ -706,6 +823,11 @@ export default function PlannerSheet({ onNotify }: Props) {
                                   void commit(row.id, "symbol", next)
                                 }
                               />
+                            </td>
+                            <td data-field-kind="calculated" className={tdMoney}>
+                              {row.currentMarketPrice
+                                ? money(row.currentMarketPrice)
+                                : "—"}
                             </td>
                             <td data-field-kind="editable" className={editableTd}>
                               <PlannerEditCell
@@ -731,16 +853,13 @@ export default function PlannerSheet({ onNotify }: Props) {
                                 }
                               />
                             </td>
-                            <td data-field-kind="editable" className={editableTd}>
-                              <PlannerEditCell
-                                type="number"
-                                align="right"
-                                value={rowNumeric(row, "total")}
-                                displayValue={row.total ? money(row.total) : ""}
-                                onCommit={(next) =>
-                                  void commit(row.id, "total", num(next))
-                                }
-                              />
+                            {/* Amount is auto-calculated (% × cash allocation) */}
+                            <td
+                              data-field-kind="calculated"
+                              className={`${tdMoney} font-semibold text-slate-800`}
+                              title="Auto-calculated: % Allocation × Total Account Level - Cash Allocation"
+                            >
+                              {row.amount ? money(row.amount) : ""}
                             </td>
                             <td data-field-kind="editable" className={editableTd}>
                               <PlannerEditCell
@@ -763,11 +882,6 @@ export default function PlannerSheet({ onNotify }: Props) {
                                 }
                               />
                             </td>
-                            <td data-field-kind="readonly" className={tdMoney}>
-                              {row.currentMarketPrice
-                                ? money(row.currentMarketPrice)
-                                : "—"}
-                            </td>
                             <td data-field-kind="calculated" className={tdMoney}>
                               {row.sharesPurchased ? qty(row.sharesPurchased) : "0"}
                             </td>
@@ -788,7 +902,7 @@ export default function PlannerSheet({ onNotify }: Props) {
                                   ? "text-red-700"
                                   : "text-emerald-800"
                               }`}
-                              title="Plan Total − Actual Total Amount"
+                              title="Plan Amount − Actual Total Amount"
                             >
                               {money(row.balanceAmount)}
                             </td>
@@ -801,32 +915,30 @@ export default function PlannerSheet({ onNotify }: Props) {
                                 }
                               />
                             </td>
-                            <td className={`${td} text-center`}>
-                              <button
-                                type="button"
-                                aria-label={`Delete planner row ${row.symbol || row.id}`}
-                                title="Delete row"
-                                onClick={() => void deleteRow(row.id, row.symbol)}
-                                className="p-1 text-slate-400 transition-colors hover:text-red-600"
-                              >
-                                <Trash2 size={13} />
-                              </button>
+                            <td
+                              data-field-kind="readonly"
+                              className={`${td} ${stickyRight} bg-white text-center tabular-nums text-slate-600`}
+                              title={row.updatedAt ? `Last edited at ${row.updatedAt}` : "No edits yet"}
+                            >
+                              {formatUpdatedAt(row.updatedAt)}
                             </td>
                           </tr>
                         );
                       })
                     )}
                     <tr className="h-6 bg-[#f6f8fa]">
+                      <td className={td} />
                       <td className={`${td} font-semibold italic text-slate-600`}>
                         Cash Balance
                       </td>
+                      <td className={td} />
                       <td className={td} />
                       <td className={td} />
                       <td
                         className={`${tdMoney} font-semibold ${
                           cashRemainingLow ? "text-red-700" : "text-slate-700"
                         }`}
-                        title="Auto-calculated: Total Account Level Cash Allocation − Σ symbol totals"
+                        title="Auto-calculated: Total Account Level Cash Allocation − Σ symbol amounts"
                       >
                         {money(group.cashRemaining)}
                       </td>
@@ -838,15 +950,12 @@ export default function PlannerSheet({ onNotify }: Props) {
                       <td className={`${td} bg-[#eceff2]`} />
                       <td className={`${td} bg-[#eceff2]`} />
                       <td className={`${td} bg-[#eceff2]`} />
-                      <td className={`${td} bg-[#eceff2]`} />
-                      <td className={`${td} bg-[#eceff2]`} />
+                      <td className={`${td} ${stickyRight} bg-[#f6f8fa]`} />
                     </tr>
                     <tr data-field-kind="calculated" className="h-6 bg-[#DCEFE5] font-bold">
-                      {/* Label spans Symbol + Shares + Share Price */}
-                      <td
-                        colSpan={3}
-                        className={`${td} text-emerald-950`}
-                      >
+                      <td className={td} />
+                      {/* Label spans Symbol + Market Price + Shares + Share Price */}
+                      <td colSpan={4} className={`${td} text-emerald-950`}>
                         Total - Account Level - Cash Allocation
                       </td>
                       <td
@@ -871,19 +980,18 @@ export default function PlannerSheet({ onNotify }: Props) {
                       <td className={`${td}`} />
                       <td className={`${td}`} />
                       <td className={`${td}`} />
-                      <td className={`${td}`} />
                       <td
                         className={`${tdMoney} ${
                           group.balanceTotal < 0
                             ? "text-red-700"
                             : "text-emerald-800"
                         }`}
-                        title="Σ Plan Total − Σ Actual Total Amount"
+                        title="Σ Plan Amount − Σ Actual Total Amount"
                       >
                         {money(group.balanceTotal)}
                       </td>
                       <td className={`${td}`} />
-                      <td className={`${td}`} />
+                      <td className={`${td} ${stickyRight} bg-[#DCEFE5]`} />
                     </tr>
                   </Fragment>
                 );

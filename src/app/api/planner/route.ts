@@ -7,6 +7,7 @@ import {
   getPlannerState,
   setPlannerAccountBudget,
 } from "@/db/planner-service";
+import { refreshAllMarketPrices } from "@/db/portfolio-service";
 
 export async function GET(req: NextRequest) {
   const unauthorised = await requirePortfolioAuth(req);
@@ -32,6 +33,15 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json().catch(() => ({}));
+    if (body?.action === "refresh-market") {
+      // Pull fresh quotes into the market cache, then rebuild the planner so
+      // the Market Price column reflects the live pull.
+      await refreshAllMarketPrices();
+      const planner = await getPlannerState();
+      return NextResponse.json(planner, {
+        headers: { "Cache-Control": "no-store" },
+      });
+    }
     const planner = await addPlannerRow({
       accountNumber: body?.accountNumber,
     });
