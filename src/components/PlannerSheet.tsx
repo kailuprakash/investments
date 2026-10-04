@@ -21,6 +21,7 @@ import type {
   PlannerRow,
   PlannerState,
 } from "@/db/planner-service";
+import { FieldHeader } from "@/components/WorkbookUI";
 
 type AccountInfo = {
   accountNumber: string;
@@ -95,7 +96,7 @@ function PlannerEditCell({
   const shown = editing ? draft : displayValue ?? value;
   return (
     <input
-      type={type}
+      type={type === "date" ? "date" : "text"}
       step={type === "number" ? "any" : undefined}
       inputMode={type === "number" ? "decimal" : undefined}
       className={`${inputBase} ${
@@ -173,7 +174,7 @@ function SymbolSuggestInput({
         type="text"
         autoComplete="off"
         spellCheck={false}
-        className={`${inputBase} text-left font-semibold uppercase`}
+        className={`${inputBase} text-left font-semibold uppercase whitespace-nowrap`}
         value={editing ? draft : value}
         placeholder="Symbol"
         onFocus={() => {
@@ -244,6 +245,9 @@ function SymbolSuggestInput({
 /* ------------------------------ main sheet ------------------------------ */
 
 const COLLAPSED_KEY = "planner-collapsed-accounts-v1";
+
+/** Fixed column layout (Account's Summary style). */
+const COL_WIDTHS = [176, 110, 90, 100, 122, 112, 124, 144, 100, 122, 126, 210, 34];
 
 export default function PlannerSheet({ onNotify }: Props) {
   const [state, setState] = useState<PlannerState | null>(null);
@@ -422,12 +426,16 @@ export default function PlannerSheet({ onNotify }: Props) {
     return String(raw ?? "");
   };
 
-  /* workbook table chrome (matches Daily Transactions / Consolidated View) */
-  const pane =
-    "rounded-[7px] border border-[#bfcfc8] bg-white overflow-hidden shadow-sm";
-  const th = "border-r border-b border-[#d5dde2] px-2 text-slate-800";
-  const td = "border-r border-b border-[#d5dde2]";
-  const editableTd = `${td} p-0 bg-[#FFF9CC]`;
+  /* Account's Summary table chrome: navy-on-blue headers, golden editable
+     cells, green calculated footer, 12px text and full cell borders. */
+  const pane = "rounded-[7px] border border-[#bfcfc8] bg-white overflow-hidden shadow-sm";
+  const th = "border border-slate-300 px-2 py-1 whitespace-nowrap bg-[#D9E1F2] text-[#1F4E79]";
+  const thEditable = `${th} !bg-[#FFF2CC] !text-[#78350F] font-bold`;
+  const td = "border border-slate-300 px-2 py-1 whitespace-nowrap";
+  const tdMoney = `${td} text-right tabular-nums`;
+  const editableTd =
+    "border border-slate-300 p-0 bg-[#FFF2CC] text-[#78350F] whitespace-nowrap";
+  const stickyLeft = "sticky left-0 z-[19] shadow-[3px_0_5px_-4px_#33415566]";
 
   if (loading && !state) {
     return (
@@ -442,7 +450,7 @@ export default function PlannerSheet({ onNotify }: Props) {
 
   const groups = state?.groups ?? [];
   const symbolOptions = state?.symbols ?? [];
-  const colCount = 12; // everything except the row-spanning Account cell
+  const tableWidth = COL_WIDTHS.reduce((sum, width) => sum + width, 0);
 
   return (
     <div className="space-y-2">
@@ -451,12 +459,6 @@ export default function PlannerSheet({ onNotify }: Props) {
           <h2 className="text-sm font-bold text-emerald-950 tracking-wide">
             Planner
           </h2>
-          <p className="text-[11px] text-slate-500">
-            Type a Symbol (suggestions appear), set % Allocation and the Total
-            auto-calculates from the account cash allocation. Plan columns
-            (yellow) are editable; press Refresh to pull the Actual columns
-            from the market and the Consolidated View.
-          </p>
         </div>
         <div className="flex items-center gap-2 text-[11px] font-semibold">
           {status === "saving" && (
@@ -484,73 +486,84 @@ export default function PlannerSheet({ onNotify }: Props) {
       </div>
 
       <section className={pane}>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[1180px] border-separate border-spacing-0 text-[11px] leading-[1.25]">
+        <div className="max-h-[62vh] overflow-auto">
+          <table
+            className="table-fixed border-separate border-spacing-0 text-xs"
+            style={{ width: tableWidth, minWidth: tableWidth }}
+          >
+            <colgroup>
+              {COL_WIDTHS.map((width, idx) => (
+                <col key={idx} style={{ width, minWidth: width, maxWidth: width }} />
+              ))}
+            </colgroup>
             <thead>
-              <tr className="bg-[#D9EAF7]">
+              <tr className="border-b border-slate-400">
                 <th
                   rowSpan={2}
-                  className={`${th} text-left font-bold align-middle w-[128px]`}
+                  data-field-kind="readonly"
+                  className={`${th} text-left font-bold sticky left-0 top-0 z-40`}
                 >
-                  Account
+                  <FieldHeader label="Account" kind="readonly" />
                 </th>
                 <th
                   colSpan={5}
-                  className={`${th} py-1 text-center font-bold !bg-[#bcd8ef]`}
+                  className={`${th} text-center font-bold sticky top-0 z-30`}
                 >
-                  Plan
+                  Plan - Budget Allocation
                 </th>
                 <th
                   colSpan={4}
-                  className={`${th} py-1 text-center font-bold !bg-[#bcd8ef]`}
+                  className={`${th} text-center font-bold sticky top-0 z-30`}
                 >
                   Actual
                 </th>
-                <th className={`${th} py-1 text-center font-bold !bg-[#bcd8ef]`}>
-                  Remaining Budget
-                </th>
                 <th
                   rowSpan={2}
-                  className={`${th} py-1 text-left font-semibold align-middle min-w-[150px] bg-[#D9EAF7]`}
+                  data-field-kind="calculated"
+                  className={`${th} text-right font-bold sticky top-0 z-30`}
                 >
-                  Comments
+                  <FieldHeader label="Balance Amount" kind="calculated" />
                 </th>
                 <th
                   rowSpan={2}
-                  className={`${th} !border-r-0 align-middle w-[32px]`}
+                  data-field-kind="editable"
+                  className={`${thEditable} text-left sticky top-0 z-30`}
+                >
+                  <FieldHeader label="Comments" kind="editable" />
+                </th>
+                <th
+                  rowSpan={2}
+                  className={`${th} align-middle sticky top-0 z-30`}
                   aria-label="Row actions"
                 />
               </tr>
-              <tr className="bg-[#D9EAF7]">
-                <th className={`${th} py-1 text-left font-semibold min-w-[104px]`}>
-                  Symbol
+              <tr className="border-b border-slate-400">
+                <th data-field-kind="editable" className={`${thEditable} text-left sticky top-[25px] z-30`}>
+                  <FieldHeader label="Symbol" kind="editable" />
                 </th>
-                <th className={`${th} py-1 text-right font-semibold min-w-[82px]`}>
-                  Shares
+                <th data-field-kind="editable" className={`${thEditable} text-right sticky top-[25px] z-30`}>
+                  <FieldHeader label="Shares" kind="editable" />
                 </th>
-                <th className={`${th} py-1 text-right font-semibold min-w-[92px]`}>
-                  Share Price
+                <th data-field-kind="editable" className={`${thEditable} text-right sticky top-[25px] z-30`}>
+                  <FieldHeader label="Share Price" kind="editable" />
                 </th>
-                <th className={`${th} py-1 text-right font-semibold min-w-[104px]`}>
-                  Total
+                <th data-field-kind="editable" className={`${thEditable} text-right sticky top-[25px] z-30`}>
+                  <FieldHeader label="Amount" kind="editable" />
                 </th>
-                <th className={`${th} py-1 text-right font-semibold min-w-[100px]`}>
-                  % Allocation
+                <th data-field-kind="editable" className={`${thEditable} text-right sticky top-[25px] z-30`}>
+                  <FieldHeader label="% Allocation" kind="editable" />
                 </th>
-                <th className={`${th} py-1 text-right font-semibold min-w-[126px]`}>
-                  Current Market Price
+                <th data-field-kind="readonly" className={`${th} text-right font-semibold sticky top-[25px] z-30`}>
+                  <FieldHeader label="Market Price" kind="readonly" />
                 </th>
-                <th className={`${th} py-1 text-right font-semibold min-w-[114px]`}>
-                  Shares Purchased
+                <th data-field-kind="calculated" className={`${th} text-right font-semibold sticky top-[25px] z-30`}>
+                  <FieldHeader label="Shares Purchased" kind="calculated" />
                 </th>
-                <th className={`${th} py-1 text-right font-semibold min-w-[92px]`}>
-                  Share Price
+                <th data-field-kind="calculated" className={`${th} text-right font-semibold sticky top-[25px] z-30`}>
+                  <FieldHeader label="Share Price" kind="calculated" />
                 </th>
-                <th className={`${th} py-1 text-right font-semibold min-w-[106px]`}>
-                  Total Amount
-                </th>
-                <th className={`${th} py-1 text-right font-semibold min-w-[108px]`}>
-                  Balance Amount
+                <th data-field-kind="calculated" className={`${th} text-right font-semibold sticky top-[25px] z-30`}>
+                  <FieldHeader label="Total Amount" kind="calculated" />
                 </th>
               </tr>
             </thead>
@@ -567,10 +580,11 @@ export default function PlannerSheet({ onNotify }: Props) {
                   <td
                     key={`${group.accountNumber}-account`}
                     rowSpan={rowSpan}
-                    className={`${td} bg-white px-2 py-1.5 align-top`}
+                    data-field-kind="readonly"
+                    className={`${td} ${stickyLeft} bg-white align-top`}
                   >
                     <div className="flex flex-col gap-1">
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1 whitespace-nowrap">
                         <button
                           type="button"
                           onClick={() => toggleAccount(group.accountNumber)}
@@ -581,7 +595,7 @@ export default function PlannerSheet({ onNotify }: Props) {
                               : `Collapse ${group.accountNumber}`
                           }
                           title={isCollapsed ? "Expand" : "Collapse"}
-                          className="inline-flex h-[18px] w-[18px] items-center justify-center rounded border border-emerald-700/30 bg-emerald-50 text-emerald-800 transition-colors hover:bg-emerald-100"
+                          className="inline-flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded border border-emerald-700/30 bg-emerald-50 text-emerald-800 transition-colors hover:bg-emerald-100"
                         >
                           {isCollapsed ? (
                             <ChevronRight size={12} strokeWidth={2.5} />
@@ -589,11 +603,11 @@ export default function PlannerSheet({ onNotify }: Props) {
                             <ChevronDown size={12} strokeWidth={2.5} />
                           )}
                         </button>
-                        <span className="break-all text-[11px] font-bold leading-tight text-emerald-950">
+                        <span className="whitespace-nowrap text-xs font-bold leading-tight text-emerald-950">
                           {group.accountNumber}
                         </span>
                       </div>
-                      <span className="text-[10px] text-slate-400">
+                      <span className="whitespace-nowrap text-[10px] text-slate-400">
                         {group.rows.length}{" "}
                         {group.rows.length === 1 ? "row" : "rows"}
                       </span>
@@ -602,7 +616,7 @@ export default function PlannerSheet({ onNotify }: Props) {
                         onClick={() => void addRow(group.accountNumber)}
                         disabled={addingFor === group.accountNumber}
                         title={`Add a planned row to ${group.accountNumber}`}
-                        className="inline-flex items-center gap-1 self-start rounded border border-emerald-700 bg-emerald-700 px-1.5 py-0.5 text-[10px] font-semibold text-white transition-colors hover:bg-emerald-800 disabled:opacity-60"
+                        className="inline-flex items-center gap-1 self-start whitespace-nowrap rounded border border-emerald-700 bg-emerald-700 px-1.5 py-0.5 text-[10px] font-semibold text-white transition-colors hover:bg-emerald-800 disabled:opacity-60"
                       >
                         {addingFor === group.accountNumber ? (
                           <LoaderCircle className="w-3 h-3 animate-spin" />
@@ -619,12 +633,12 @@ export default function PlannerSheet({ onNotify }: Props) {
                   return (
                     <tr
                       key={group.accountNumber}
-                      className="bg-white hover:bg-[#f4f9f6]"
+                      className="bg-white transition-colors hover:bg-blue-50/40"
                     >
                       {accountCell}
                       <td
-                        colSpan={colCount}
-                        className={`${td} px-3 py-1.5 italic text-slate-500`}
+                        colSpan={12}
+                        className={`${td} italic text-slate-500`}
                       >
                         Collapsed — {group.rows.length}{" "}
                         {group.rows.length === 1 ? " Planned row" : " Planned rows"} ·
@@ -641,10 +655,7 @@ export default function PlannerSheet({ onNotify }: Props) {
                     {group.rows.length === 0 ? (
                       <tr>
                         {accountCell}
-                        <td
-                          colSpan={colCount}
-                          className={`${td} px-3 py-3 italic text-slate-500`}
-                        >
+                        <td colSpan={12} className={`${td} italic text-slate-500`}>
                           No planned rows yet — press “Row” to start the
                           allocation plan for this account.
                         </td>
@@ -656,9 +667,12 @@ export default function PlannerSheet({ onNotify }: Props) {
                             ? (row.total / group.budget) * 100
                             : 0;
                         return (
-                          <tr key={row.id} className="hover:bg-[#f4f9f6]">
+                          <tr
+                            key={row.id}
+                            className="bg-white transition-colors hover:bg-blue-50/40"
+                          >
                             {rowIndex === 0 && accountCell}
-                            <td className={editableTd}>
+                            <td data-field-kind="editable" className={editableTd}>
                               <SymbolSuggestInput
                                 value={row.symbol}
                                 options={symbolOptions}
@@ -667,7 +681,7 @@ export default function PlannerSheet({ onNotify }: Props) {
                                 }
                               />
                             </td>
-                            <td className={editableTd}>
+                            <td data-field-kind="editable" className={editableTd}>
                               <PlannerEditCell
                                 type="number"
                                 align="right"
@@ -678,7 +692,7 @@ export default function PlannerSheet({ onNotify }: Props) {
                                 }
                               />
                             </td>
-                            <td className={editableTd}>
+                            <td data-field-kind="editable" className={editableTd}>
                               <PlannerEditCell
                                 type="number"
                                 align="right"
@@ -691,7 +705,7 @@ export default function PlannerSheet({ onNotify }: Props) {
                                 }
                               />
                             </td>
-                            <td className={editableTd}>
+                            <td data-field-kind="editable" className={editableTd}>
                               <PlannerEditCell
                                 type="number"
                                 align="right"
@@ -702,7 +716,7 @@ export default function PlannerSheet({ onNotify }: Props) {
                                 }
                               />
                             </td>
-                            <td className={editableTd}>
+                            <td data-field-kind="editable" className={editableTd}>
                               <PlannerEditCell
                                 type="number"
                                 align="right"
@@ -723,26 +737,27 @@ export default function PlannerSheet({ onNotify }: Props) {
                                 }
                               />
                             </td>
-                            <td className={`${td} px-2 py-1 text-right tabular-nums`}>
+                            <td data-field-kind="readonly" className={tdMoney}>
                               {row.currentMarketPrice
                                 ? money(row.currentMarketPrice)
                                 : "—"}
                             </td>
-                            <td className={`${td} px-2 py-1 text-right tabular-nums`}>
+                            <td data-field-kind="calculated" className={tdMoney}>
                               {row.sharesPurchased ? qty(row.sharesPurchased) : "0"}
                             </td>
-                            <td className={`${td} px-2 py-1 text-right tabular-nums`}>
+                            <td data-field-kind="calculated" className={tdMoney}>
                               {row.actualSharePrice
                                 ? money(row.actualSharePrice)
                                 : "—"}
                             </td>
-                            <td className={`${td} px-2 py-1 text-right tabular-nums`}>
+                            <td data-field-kind="calculated" className={tdMoney}>
                               {row.actualTotalAmount
                                 ? money(row.actualTotalAmount)
                                 : "—"}
                             </td>
                             <td
-                              className={`${td} px-2 py-1 text-right tabular-nums font-semibold ${
+                              data-field-kind="calculated"
+                              className={`${tdMoney} font-semibold ${
                                 row.balanceAmount < 0
                                   ? "text-red-700"
                                   : "text-emerald-800"
@@ -751,7 +766,7 @@ export default function PlannerSheet({ onNotify }: Props) {
                             >
                               {money(row.balanceAmount)}
                             </td>
-                            <td className={editableTd}>
+                            <td data-field-kind="editable" className={editableTd} style={{ whiteSpace: "normal" }}>
                               <PlannerEditCell
                                 value={row.comments}
                                 placeholder="Notes…"
@@ -760,7 +775,7 @@ export default function PlannerSheet({ onNotify }: Props) {
                                 }
                               />
                             </td>
-                            <td className={`${td} !border-r-0 text-center`}>
+                            <td className={`${td} text-center`}>
                               <button
                                 type="button"
                                 aria-label={`Delete planner row ${row.symbol || row.id}`}
@@ -776,37 +791,41 @@ export default function PlannerSheet({ onNotify }: Props) {
                       })
                     )}
                     <tr className="bg-[#f6f8fa]">
-                      <td className={`${td} px-2 py-1 font-semibold italic text-slate-600`}>
+                      <td className={`${td} font-semibold italic text-slate-600`}>
                         Cash Balance
                       </td>
                       <td className={td} />
                       <td className={td} />
                       <td
-                        className={`${td} px-2 py-1 text-right tabular-nums font-semibold ${
+                        className={`${tdMoney} font-semibold ${
                           cashRemainingLow ? "text-red-700" : "text-slate-700"
                         }`}
                         title="Auto-calculated: Total Account Level Cash Allocation − Σ symbol totals"
                       >
                         {money(group.cashRemaining)}
                       </td>
-                      <td className={`${td} px-2 py-1 text-right tabular-nums italic text-slate-600`}>
+                      <td className={`${tdMoney} italic text-slate-600`}>
                         {pct(group.remainingPercent)}
                       </td>
-                      <td className={`${td} bg-[#eceff2]`} colSpan={4} />
                       <td className={`${td} bg-[#eceff2]`} />
                       <td className={`${td} bg-[#eceff2]`} />
-                      <td className={`${td} bg-[#eceff2] !border-r-0`} />
+                      <td className={`${td} bg-[#eceff2]`} />
+                      <td className={`${td} bg-[#eceff2]`} />
+                      <td className={`${td} bg-[#eceff2]`} />
+                      <td className={`${td} bg-[#eceff2]`} />
+                      <td className={`${td} bg-[#eceff2]`} />
                     </tr>
-                    <tr className="bg-[#EAF3FA] font-bold">
+                    <tr data-field-kind="calculated" className="bg-[#DCEFE5] font-bold">
                       {/* Label spans Symbol + Shares + Share Price */}
                       <td
                         colSpan={3}
-                        className={`${td} px-2 py-1.5 text-emerald-950`}
+                        className={`${td} text-emerald-950`}
                       >
                         Total - Account Level - Cash Allocation
                       </td>
                       <td
-                        className={`${td} p-0 bg-[#FFF9CC]`}
+                        data-field-kind="editable"
+                        className={editableTd}
                         title="Editable. Cleared value falls back to the account cash balance from Account Details."
                       >
                         <PlannerEditCell
@@ -820,12 +839,15 @@ export default function PlannerSheet({ onNotify }: Props) {
                           }
                         />
                       </td>
-                      <td className={`${td} px-2 py-1.5 text-right tabular-nums text-emerald-950`}>
+                      <td className={`${tdMoney} text-emerald-950`}>
                         100.00%
                       </td>
-                      <td className={`${td} bg-[#dbe5eb]`} colSpan={4} />
+                      <td className={`${td}`} />
+                      <td className={`${td}`} />
+                      <td className={`${td}`} />
+                      <td className={`${td}`} />
                       <td
-                        className={`${td} px-2 py-1.5 text-right tabular-nums ${
+                        className={`${tdMoney} ${
                           group.balanceTotal < 0
                             ? "text-red-700"
                             : "text-emerald-800"
@@ -834,8 +856,8 @@ export default function PlannerSheet({ onNotify }: Props) {
                       >
                         {money(group.balanceTotal)}
                       </td>
-                      <td className={`${td} bg-[#dbe5eb]`} />
-                      <td className={`${td} bg-[#dbe5eb] !border-r-0`} />
+                      <td className={`${td}`} />
+                      <td className={`${td}`} />
                     </tr>
                   </Fragment>
                 );
