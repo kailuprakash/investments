@@ -11,7 +11,9 @@ import {
 import {
   ChevronDown,
   ChevronRight,
+  ChevronUp,
   LoaderCircle,
+  Pencil,
   Plus,
   RefreshCw,
   Trash2,
@@ -385,6 +387,21 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
     });
   };
 
+  const setAllCollapsed = (next: boolean) => {
+    setCollapsed((prev) => {
+      const updated: Record<string, boolean> = { ...prev };
+      for (const group of state?.groups ?? []) {
+        updated[group.accountNumber] = next;
+      }
+      try {
+        window.localStorage.setItem(COLLAPSED_KEY, JSON.stringify(updated));
+      } catch {
+        /* storage unavailable */
+      }
+      return updated;
+    });
+  };
+
   const fail = useCallback(
     (msg: string) => {
       if (onNotify) onNotify(msg, "error");
@@ -673,8 +690,43 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
                 <th
                   rowSpan={2}
                   className={`${th} sticky top-0 z-30 text-center`}
-                  aria-label="Delete row"
-                />
+                  aria-label="Expand or collapse all accounts"
+                >
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    onClick={() =>
+                      setAllCollapsed(
+                        groups.some((g) => !collapsed[g.accountNumber]),
+                      )
+                    }
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        setAllCollapsed(
+                          groups.some((g) => !collapsed[g.accountNumber]),
+                        );
+                      }
+                    }}
+                    title={
+                      groups.some((g) => !collapsed[g.accountNumber])
+                        ? "Collapse all accounts"
+                        : "Expand all accounts"
+                    }
+                    aria-label={
+                      groups.some((g) => !collapsed[g.accountNumber])
+                        ? "Collapse all accounts"
+                        : "Expand all accounts"
+                    }
+                    className="mx-auto inline-flex h-[16px] w-[16px] items-center justify-center rounded text-[#1F4E79]/80 transition-colors hover:text-[#1F4E79] cursor-pointer"
+                  >
+                    {groups.some((g) => !collapsed[g.accountNumber]) ? (
+                      <ChevronUp size={12} strokeWidth={2.5} aria-hidden="true" />
+                    ) : (
+                      <ChevronDown size={12} strokeWidth={2.5} aria-hidden="true" />
+                    )}
+                  </span>
+                </th>
                 <th
                   rowSpan={2}
                   data-field-kind="editable"
@@ -747,25 +799,25 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
                 </th>
               </tr>
               <tr className="border-b border-slate-400">
-                <th data-field-kind="calculated" className={`${th} text-right font-semibold sticky top-[25px] z-30`} title="Auto-calculated: trunc(Amount ÷ Share Price)">
+                <th data-field-kind="calculated" className={`${th} text-right font-semibold sticky top-[26px] z-30`} title="Auto-calculated: trunc(Amount ÷ Share Price)">
                   <FieldHeader label="~ # of Shares" kind="calculated" />
                 </th>
-                <th data-field-kind="editable" className={`${thEditable} text-right sticky top-[25px] z-30`}>
+                <th data-field-kind="editable" className={`${thEditable} text-right sticky top-[26px] z-30`}>
                   <FieldHeader label="Share Price" kind="editable" />
                 </th>
-                <th data-field-kind="calculated" className={`${th} text-right font-semibold sticky top-[25px] z-30`}>
+                <th data-field-kind="calculated" className={`${th} text-right font-semibold sticky top-[26px] z-30`}>
                   <FieldHeader label="Amount" kind="calculated" />
                 </th>
-                <th data-field-kind="editable" className={`${thEditable} text-right sticky top-[25px] z-30`}>
+                <th data-field-kind="editable" className={`${thEditable} text-right sticky top-[26px] z-30`}>
                   <FieldHeader label="% Allocation" kind="editable" />
                 </th>
-                <th data-field-kind="calculated" className={`${th} text-right font-semibold sticky top-[25px] z-30`}>
+                <th data-field-kind="calculated" className={`${th} text-right font-semibold sticky top-[26px] z-30`}>
                   <FieldHeader label="Shares Purchased" kind="calculated" />
                 </th>
-                <th data-field-kind="calculated" className={`${th} text-right font-semibold sticky top-[25px] z-30`}>
+                <th data-field-kind="calculated" className={`${th} text-right font-semibold sticky top-[26px] z-30`}>
                   <FieldHeader label="Share Price" kind="calculated" />
                 </th>
-                <th data-field-kind="calculated" className={`${th} text-right font-semibold sticky top-[25px] z-30`}>
+                <th data-field-kind="calculated" className={`${th} text-right font-semibold sticky top-[26px] z-30`}>
                   <FieldHeader label="Total Amount" kind="calculated" />
                 </th>
               </tr>
@@ -780,71 +832,57 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
                         Consolidated View account rows. */}
                     <tr className="h-6 bg-[#E7E6E6] text-[11px] font-semibold text-gray-800 border-y border-gray-300">
                       <td colSpan={13} className="border border-gray-300 px-3 py-1">
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="flex items-center gap-3">
+  <div className="flex items-center gap-3">
                             <button
                               type="button"
                               onClick={() => toggleAccount(group.accountNumber)}
                               aria-expanded={!isCollapsed}
                               className="inline-flex items-center gap-2 font-bold text-[#1F4E79] hover:text-blue-900"
                             >
-                            {isCollapsed ? (
-                              <ChevronRight className="h-4 w-4" />
-                            ) : (
-                              <ChevronDown className="h-4 w-4" />
-                            )}
-                            <span>{group.accountNumber}</span>
-                            <span className="text-[10px] font-normal text-gray-500">
-                              ({group.rows.length}{" "}
-                              {group.rows.length === 1 ? "row" : "rows"})
-                            </span>
-                          </button>
-                          <div className="flex items-center gap-3 whitespace-nowrap text-[10px] font-normal text-gray-600">
-                            <span>
-                              Cash Balance{" "}
-                              <strong className="text-gray-800">
-                                {money(group.cashAvailable)}
-                              </strong>
-                            </span>
-                            <span>
-                              Allocation{" "}
-                              <strong className="text-gray-800">
-                                {money(group.budget)}
-                              </strong>
-                            </span>
-                            <span>
-                              Budgeted{" "}
-                              <strong className="text-gray-800">
-                                {money(group.plannedTotal)}
-                              </strong>
-                            </span>
-                            <span>
-                              Planned Remaining{" "}
-                              <strong
-                                className={
-                                  group.remainingPercent < 0
-                                    ? "text-red-700"
-                                    : "text-emerald-700"
-                                }
-                              >
-                                {pct(group.remainingPercent)}
-                              </strong>
-                            </span>
-                          </div>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => void addRow(group.accountNumber)}
-                            disabled={addingFor === group.accountNumber}
-                            className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium text-emerald-700 transition hover:bg-emerald-50 hover:text-emerald-900 disabled:opacity-60 whitespace-nowrap"
-                          >
+                              {isCollapsed ? (
+                                <ChevronRight className="h-4 w-4" />
+                              ) : (
+                                <ChevronDown className="h-4 w-4" />
+                              )}
+                              <span>{group.accountNumber}</span>
+                              <span className="text-[10px] font-normal text-gray-500">
+                                ({group.rows.length}{" "}
+                                {group.rows.length === 1 ? "row" : "rows"})
+                              </span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void addRow(group.accountNumber)}
+                              disabled={addingFor === group.accountNumber}
+                              className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium text-emerald-700 transition hover:bg-emerald-50 hover:text-emerald-900 disabled:opacity-60 whitespace-nowrap"
+                            >
                               {addingFor === group.accountNumber ? (
                                 <LoaderCircle className="h-3 w-3 animate-spin" />
                               ) : (
                                 <Plus size={12} strokeWidth={2.5} />
                               )}
-                              Add Row to {group.accountNumber}
+                              Add Row
                             </button>
+                            <div className="flex items-center gap-3 whitespace-nowrap text-[10px] font-normal text-gray-600">
+                              <span>
+                                Account - Cash Value{" "}
+                                <strong className="text-gray-800">
+                                  {money(group.cashAvailable)}
+                                </strong>
+                              </span>
+                              <span>
+                                Allocation{" "}
+                                <strong className="text-gray-800">
+                                  {money(group.budget)}
+                                </strong>
+                              </span>
+                              <span>
+                                Allocated{" "}
+                                <strong className="text-gray-800">
+                                  {money(group.plannedTotal)}
+                                </strong>
+                              </span>
+                            </div>
                           </div>
                       </td>
                       </tr>
@@ -1009,7 +1047,7 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
                           colSpan={4}
                           className={`${td} font-semibold italic text-slate-600`}
                         >
-                          Cash Balance
+                          Cash Balance - Unallocated
                         </td>
                         <td
                           className={`${tdMoney} font-semibold ${
@@ -1041,16 +1079,23 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
                           className={editableTd}
                           title="Editable. Cleared value falls back to the account cash balance from Account Details."
                         >
-                          <PlannerEditCell
-                            type="number"
-                            align="right"
-                            value={String(group.budget ?? 0)}
-                            displayValue={money(group.budget)}
-                            inputClassName="font-bold text-emerald-950"
-                            onCommit={(next) =>
-                              void setBudget(group.accountNumber, next)
-                            }
-                          />
+                          <div className="flex items-center gap-1">
+                            <Pencil
+                              size={11}
+                              aria-hidden="true"
+                              className="ml-1 shrink-0 text-[#78350F]/70"
+                            />
+                            <PlannerEditCell
+                              type="number"
+                              align="right"
+                              value={String(group.budget ?? 0)}
+                              displayValue={money(group.budget)}
+                              inputClassName="font-bold text-emerald-950"
+                              onCommit={(next) =>
+                                void setBudget(group.accountNumber, next)
+                              }
+                            />
+                          </div>
                         </td>
                         <td className={`${tdMoney} text-emerald-950`}>
                           100.00%
