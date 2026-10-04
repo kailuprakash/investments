@@ -837,7 +837,7 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
                               type="button"
                               onClick={() => toggleAccount(group.accountNumber)}
                               aria-expanded={!isCollapsed}
-                              className="inline-flex items-center gap-2 font-bold text-[#1F4E79] hover:text-blue-900"
+                              className="inline-flex items-center gap-2 leading-none font-bold text-[#1F4E79] hover:text-blue-900"
                             >
                               {isCollapsed ? (
                                 <ChevronRight className="h-4 w-4" />
@@ -845,7 +845,7 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
                                 <ChevronDown className="h-4 w-4" />
                               )}
                               <span>{group.accountNumber}</span>
-                              <span className="text-[10px] font-normal text-gray-500">
+                              <span className="text-[11px] leading-none font-normal text-gray-500">
                                 ({group.rows.length}{" "}
                                 {group.rows.length === 1 ? "row" : "rows"})
                               </span>
@@ -854,7 +854,7 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
                               type="button"
                               onClick={() => void addRow(group.accountNumber)}
                               disabled={addingFor === group.accountNumber}
-                              className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium text-emerald-700 transition hover:bg-emerald-50 hover:text-emerald-900 disabled:opacity-60 whitespace-nowrap"
+                              className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-[11px] leading-none font-medium text-emerald-700 transition hover:bg-emerald-50 hover:text-emerald-900 disabled:opacity-60 whitespace-nowrap"
                             >
                               {addingFor === group.accountNumber ? (
                                 <LoaderCircle className="h-3 w-3 animate-spin" />
@@ -863,7 +863,7 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
                               )}
                               Add Row
                             </button>
-                            <div className="flex items-center gap-3 whitespace-nowrap text-[10px] font-normal text-gray-600">
+                            <div className="flex items-center gap-3 whitespace-nowrap text-[11px] leading-none font-normal text-gray-600">
                               <span>
                                 Account - Cash Value{" "}
                                 <strong className="text-gray-800">
