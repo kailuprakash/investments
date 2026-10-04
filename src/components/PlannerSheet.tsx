@@ -691,7 +691,44 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
                   aria-label="Delete row"
                 />
                 <th
-                  colSpan={6}
+                  rowSpan={2}
+                  data-field-kind="editable"
+                  className={`${thEditable} text-left sticky top-0 z-30`}
+                >
+                  <FieldHeader label="Symbol" kind="editable" />
+                </th>
+                <th
+                  rowSpan={2}
+                  data-field-kind="calculated"
+                  className={`${th} text-right font-semibold sticky top-0 z-30`}
+                >
+                  <span className="inline-flex items-center justify-end gap-1">
+                    <FieldHeader label="Market Price" kind="calculated" />
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      aria-label="Pull latest market prices"
+                      title="Pull latest market prices for these symbols"
+                      aria-busy={marketRefreshing}
+                      onClick={() => void refreshMarketPrices()}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          void refreshMarketPrices();
+                        }
+                      }}
+                      className="inline-flex h-[14px] w-[14px] items-center justify-center rounded text-[#1F4E79]/70 transition-colors hover:text-[#1F4E79] cursor-pointer"
+                    >
+                      <RefreshCw
+                        size={11}
+                        aria-hidden="true"
+                        className={marketRefreshing ? "animate-spin" : ""}
+                      />
+                    </span>
+                  </span>
+                </th>
+                <th
+                  colSpan={4}
                   className={`${th} text-center font-bold sticky top-0 z-30`}
                 >
                   Plan - Budget Allocation
@@ -725,35 +762,6 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
                 </th>
               </tr>
               <tr className="border-b border-slate-400">
-                <th data-field-kind="editable" className={`${thEditable} text-left sticky top-[25px] z-30`}>
-                  <FieldHeader label="Symbol" kind="editable" />
-                </th>
-                <th data-field-kind="calculated" className={`${th} text-right font-semibold sticky top-[25px] z-30`}>
-                  <span className="inline-flex items-center justify-end gap-1">
-                    <FieldHeader label="Market Price" kind="calculated" />
-                    <span
-                      role="button"
-                      tabIndex={0}
-                      aria-label="Pull latest market prices"
-                      title="Pull latest market prices for these symbols"
-                      aria-busy={marketRefreshing}
-                      onClick={() => void refreshMarketPrices()}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter" || event.key === " ") {
-                          event.preventDefault();
-                          void refreshMarketPrices();
-                        }
-                      }}
-                      className="inline-flex h-[14px] w-[14px] items-center justify-center rounded text-[#1F4E79]/70 transition-colors hover:text-[#1F4E79] cursor-pointer"
-                    >
-                      <RefreshCw
-                        size={11}
-                        aria-hidden="true"
-                        className={marketRefreshing ? "animate-spin" : ""}
-                      />
-                    </span>
-                  </span>
-                </th>
                 <th data-field-kind="editable" className={`${thEditable} text-right sticky top-[25px] z-30`}>
                   <FieldHeader label="Shares" kind="editable" />
                 </th>
@@ -833,6 +841,40 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
                         )}
                         Row
                       </button>
+                      {/* Account-level allocation summary (cash / budgeted /
+                          planned), kept with the account grouping. */}
+                      <div className="mt-1 flex flex-col gap-0.5 whitespace-nowrap border-t border-slate-200 pt-1 text-[10px] leading-tight text-slate-500">
+                        <span>
+                          Cash Balance:{" "}
+                          <strong className="text-slate-800">
+                            {money(group.cashAvailable)}
+                          </strong>
+                        </span>
+                        <span>
+                          Allocation:{" "}
+                          <strong className="text-slate-800">
+                            {money(group.budget)}
+                          </strong>
+                        </span>
+                        <span>
+                          Budgeted:{" "}
+                          <strong className="text-slate-800">
+                            {money(group.plannedTotal)}
+                          </strong>
+                        </span>
+                        <span>
+                          Planned Remaining:{" "}
+                          <strong
+                            className={
+                              group.remainingPercent < 0
+                                ? "text-red-700"
+                                : "text-emerald-700"
+                            }
+                          >
+                            {pct(group.remainingPercent)}
+                          </strong>
+                        </span>
+                      </div>
                     </div>
                   </td>
                 );
