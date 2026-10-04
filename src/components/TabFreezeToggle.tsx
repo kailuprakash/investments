@@ -13,6 +13,7 @@ const SCREEN_IDS = [
   "accountDetails",
   "market",
   "analytics",
+  "planner",
 ] as const;
 
 function canonicalScreen(screen: string): string {

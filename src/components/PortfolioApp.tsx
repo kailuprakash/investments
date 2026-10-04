@@ -8,6 +8,7 @@ import DailyTransactionsSheet from "@/components/DailyTransactionsSheet";
 import HoldingsPerformanceTable from "@/components/HoldingsPerformanceTable";
 import VisualAnalyticsDashboard from "@/components/VisualAnalyticsDashboard";
 import PlannerSheet from "@/components/PlannerSheet";
+import PlannerTabRefresh from "@/components/PlannerTabRefresh";
 import DensityToggle from "@/components/DensityToggle";
 import LiveClock from "@/components/LiveClock";
 import LogoutButton from "@/components/LogoutButton";
@@ -642,6 +643,9 @@ const e = {
                 children: [
                   (0, t.jsx)("span", { children: e.label }),
                   (0, t.jsx)(TabFreezeToggle, { screen: e.id, active: r }),
+                  r &&
+                    e.id === "planner" &&
+                    (0, t.jsx)(PlannerTabRefresh, {}),
                   r &&
                     (0, t.jsx)("span", {
                       className:

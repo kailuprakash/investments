@@ -13,7 +13,6 @@ import {
   ChevronRight,
   LoaderCircle,
   Plus,
-  RefreshCw,
   Trash2,
 } from "lucide-react";
 import type {
@@ -22,6 +21,10 @@ import type {
   PlannerState,
 } from "@/db/planner-service";
 import { FieldHeader } from "@/components/WorkbookUI";
+import {
+  PLANNER_REFRESH_EVENT,
+  PLANNER_REFRESH_STATUS_EVENT,
+} from "@/components/PlannerTabRefresh";
 
 type AccountInfo = {
   accountNumber: string;
@@ -311,15 +314,33 @@ export default function PlannerSheet({ onNotify }: Props) {
   }, []);
 
   // Manual refresh: pull the latest Actual columns (market price, purchased
-  // shares, deployed amount) from the Consolidated View on demand.
-  const refreshActuals = async () => {
+  // shares, deployed amount) from the Consolidated View on demand. Triggered
+  // by the refresh icon on the Planner workbook tab.
+  const refreshActuals = useCallback(async () => {
+    window.dispatchEvent(
+      new CustomEvent(PLANNER_REFRESH_STATUS_EVENT, {
+        detail: { refreshing: true },
+      }),
+    );
     setRefreshing(true);
     try {
       await load(true);
     } finally {
       setRefreshing(false);
+      window.dispatchEvent(
+        new CustomEvent(PLANNER_REFRESH_STATUS_EVENT, {
+          detail: { refreshing: false },
+        }),
+      );
     }
-  };
+  }, [load]);
+
+  useEffect(() => {
+    const handleRefresh = () => void refreshActuals();
+    window.addEventListener(PLANNER_REFRESH_EVENT, handleRefresh);
+    return () =>
+      window.removeEventListener(PLANNER_REFRESH_EVENT, handleRefresh);
+  }, [refreshActuals]);
 
   const markSaving = () => {
     savingRef.current += 1;
@@ -454,39 +475,27 @@ export default function PlannerSheet({ onNotify }: Props) {
 
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h2 className="text-sm font-bold text-emerald-950 tracking-wide">
-            Planner
-          </h2>
-        </div>
-        <div className="flex items-center gap-2 text-[11px] font-semibold">
-          {status === "saving" && (
+      {(status !== "" || refreshing) && (
+        <div className="flex justify-end pr-1 text-[10px] font-semibold">
+          {refreshing && (
             <span className="inline-flex items-center gap-1 text-slate-500">
-              <LoaderCircle className="w-3.5 h-3.5 animate-spin" /> Saving…
+              <LoaderCircle className="w-3 h-3 animate-spin" /> Refreshing
+              actuals…
             </span>
           )}
-          {status === "saved" && (
+          {!refreshing && status === "saving" && (
+            <span className="inline-flex items-center gap-1 text-slate-500">
+              <LoaderCircle className="w-3 h-3 animate-spin" /> Saving…
+            </span>
+          )}
+          {!refreshing && status === "saved" && (
             <span className="text-emerald-700">All changes saved</span>
           )}
-          <button
-            type="button"
-            onClick={() => void refreshActuals()}
-            disabled={refreshing || loading}
-            title="Refresh Actual columns from the Consolidated View and market data"
-            className="inline-flex min-h-[29px] items-center gap-1 rounded border border-emerald-700 bg-emerald-700 px-2 py-1 text-[11px] font-semibold text-white transition-colors hover:bg-emerald-800 disabled:opacity-60"
-          >
-            <RefreshCw
-              size={13}
-              className={refreshing ? "animate-spin" : ""}
-            />
-            {refreshing ? "Refreshing…" : "Refresh Actuals"}
-          </button>
         </div>
-      </div>
+      )}
 
       <section className={pane}>
-        <div className="max-h-[62vh] overflow-auto">
+        <div className="h-[calc(100dvh-125px)] min-h-[320px] overflow-auto">
           <table
             className="table-fixed border-separate border-spacing-0 text-xs"
             style={{ width: tableWidth, minWidth: tableWidth }}
