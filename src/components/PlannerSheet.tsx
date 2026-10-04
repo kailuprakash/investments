@@ -178,6 +178,10 @@ function SymbolSuggestInput({
   const [draft, setDraft] = useState(value);
   const [open, setOpen] = useState(false);
   const [highlight, setHighlight] = useState(0);
+  const [marketSuggestions, setMarketSuggestions] = useState<
+    { symbol: string; name: string }[]
+  >([]);
+  const [searching, setSearching] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const matches = useMemo(() => {
@@ -189,6 +193,62 @@ function SymbolSuggestInput({
     );
     return [...prefix, ...contains].slice(0, 12);
   }, [draft, options]);
+
+  // Live market search: typing also pulls suggestions from the market search
+  // API (Yahoo search with a local fallback) so brand-new symbols appear even
+  // if they are not yet held or watched.
+  useEffect(() => {
+    if (!open || !editing) return;
+    const query = draft.trim().toUpperCase();
+    if (!query) {
+      setMarketSuggestions([]);
+      setSearching(false);
+      return;
+    }
+    setSearching(true);
+    const timer = window.setTimeout(async () => {
+      try {
+        const response = await fetch(
+          `/api/market-search?q=${encodeURIComponent(query)}`,
+        );
+        const body = response.ok ? await response.json() : null;
+        const suggestions: unknown = body?.suggestions;
+        setMarketSuggestions(
+          Array.isArray(suggestions)
+            ? suggestions
+                .map((entry) => ({
+                  symbol: String(
+                    (entry as { symbol?: unknown })?.symbol ?? "",
+                  )
+                    .trim()
+                    .toUpperCase(),
+                  name: String((entry as { name?: unknown })?.name ?? "").trim(),
+                }))
+                .filter((entry) => entry.symbol !== "")
+            : [],
+        );
+      } catch {
+        /* local suggestions remain on search failure */
+      } finally {
+        setSearching(false);
+      }
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [draft, open, editing]);
+
+  // Portfolio symbols first (exact and prefix matches), then market-only
+  // symbols with their company name for context.
+  const combined = useMemo(() => {
+    const seen = new Set(matches);
+    const list = matches.map((symbol) => ({ symbol, hint: "" }));
+    for (const item of marketSuggestions) {
+      if (!seen.has(item.symbol)) {
+        seen.add(item.symbol);
+        list.push({ symbol: item.symbol, hint: item.name });
+      }
+    }
+    return list.slice(0, 12);
+  }, [matches, marketSuggestions]);
 
   const commit = useCallback(
     (raw: string, blur = false) => {
@@ -227,16 +287,17 @@ function SymbolSuggestInput({
           if (event.key === "ArrowDown") {
             event.preventDefault();
             setHighlight((prev) =>
-              matches.length ? Math.min(prev + 1, matches.length - 1) : prev,
+              combined.length ? Math.min(prev + 1, combined.length - 1) : prev,
             );
           } else if (event.key === "ArrowUp") {
             event.preventDefault();
             setHighlight((prev) => Math.max(prev - 1, 0));
           } else if (event.key === "Enter") {
             event.preventDefault();
-            if (open && matches[highlight]) {
-              setDraft(matches[highlight]);
-              commit(matches[highlight], true);
+            const target = combined[highlight];
+            if (open && target) {
+              setDraft(target.symbol);
+              commit(target.symbol, true);
             } else {
               commit(draft, true);
             }
@@ -248,28 +309,43 @@ function SymbolSuggestInput({
           }
         }}
       />
-      {open && editing && matches.length > 0 && (
+      {open && editing && (combined.length > 0 || searching) && (
         <ul
           role="listbox"
-          className="absolute left-0 top-full z-50 mt-0.5 max-h-56 w-44 overflow-auto rounded border border-slate-300 bg-white py-0.5 shadow-lg"
+          className="absolute left-0 top-full z-50 mt-0.5 max-h-56 w-56 overflow-auto rounded border border-slate-300 bg-white py-0.5 shadow-lg"
         >
-          {matches.map((option, index) => (
+          {combined.map((option, index) => (
             <li
-              key={option}
+              key={option.symbol}
               role="option"
               aria-selected={index === highlight}
+              title={option.hint || undefined}
               onMouseDown={(event) => event.preventDefault()}
               onMouseEnter={() => setHighlight(index)}
-              onClick={() => commit(option, true)}
+              onClick={() => commit(option.symbol, true)}
               className={`cursor-pointer px-2 py-1 text-[11px] font-semibold ${
                 index === highlight
                   ? "bg-emerald-600 text-white"
                   : "text-slate-800 hover:bg-emerald-50"
               }`}
             >
-              {option}
+              {option.symbol}
+              {option.hint && (
+                <span
+                  className={`ml-2 truncate text-[10px] font-normal ${
+                    index === highlight ? "text-emerald-100" : "text-slate-400"
+                  }`}
+                >
+                  {option.hint}
+                </span>
+              )}
             </li>
           ))}
+          {searching && (
+            <li className="px-2 py-1 text-[10px] italic text-slate-400">
+              Searching market…
+            </li>
+          )}
         </ul>
       )}
     </div>

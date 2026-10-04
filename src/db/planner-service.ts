@@ -1,5 +1,9 @@
 import { pool } from "@/db";
-import { buildPortfolioState } from "@/db/portfolio-service";
+import {
+  buildPortfolioState,
+  fetchSymbolQuote,
+  refreshAllMarketPrices,
+} from "@/db/portfolio-service";
 
 const round2 = (value: number) =>
   Math.round((value + Number.EPSILON) * 100) / 100;
@@ -490,6 +494,34 @@ export async function editPlannerRow(data: {
   }
   if (result.rowCount === 0) {
     throw new Error("That planner row no longer exists. Refresh the sheet.");
+  }
+  return getPlannerState();
+}
+
+/**
+ * Market pull for the Planner: refreshes every held/watched symbol via the
+ * shared market refresh, then pulls quotes for planner-only symbols that have
+ * never been quoted (so a brand-new symbol picked from the market search gets
+ * a Market Price right away).
+ */
+export async function refreshPlannerMarketPrices(): Promise<PlannerState> {
+  await ensurePlannerTable();
+  await refreshAllMarketPrices();
+  const plannerSymbols = await pool.query<{ symbol: string }>(
+    `SELECT DISTINCT UPPER(BTRIM(symbol)) AS symbol
+     FROM portfolio_planner WHERE BTRIM(symbol) <> ''`,
+  );
+  const cached = await pool.query<{ symbol: string }>(
+    `SELECT symbol FROM market_cache`,
+  );
+  const cachedSet = new Set(
+    cached.rows.map((row) => normSym(row.symbol)),
+  );
+  const missing = plannerSymbols.rows
+    .map((row) => normSym(row.symbol))
+    .filter((symbol) => symbol && !cachedSet.has(symbol));
+  for (const symbol of missing) {
+    await fetchSymbolQuote(symbol).catch(() => null);
   }
   return getPlannerState();
 }
