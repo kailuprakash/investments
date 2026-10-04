@@ -622,7 +622,7 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
   const tdMoney = `${td} text-right tabular-nums`;
   const editableTd =
     "border border-slate-300 p-0 bg-[#FFF2CC] text-[#78350F] whitespace-nowrap";
-  const stickyRight = "sticky right-0 z-[19] shadow-[-3px_0_5px_-4px_#33415566]";
+  const stickyRight = "sticky right-0 z-[19] shadow-[-3px_0_5px_-4px_#33415566] [background-clip:padding-box]";
 
   if (loading && !state) {
     return (
@@ -741,7 +741,7 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
                 <th
                   rowSpan={2}
                   data-field-kind="readonly"
-                  className={`${th} text-center font-bold sticky top-0 right-0 z-40`}
+                  className={`${th} text-center font-bold sticky top-0 right-0 z-40 [background-clip:padding-box]`}
                 >
                   <FieldHeader label="Updated Date" kind="readonly" />
                 </th>
@@ -1022,12 +1022,10 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
                         <td className={`${tdMoney} italic text-slate-600`}>
                           {pct(group.remainingPercent)}
                         </td>
-                        {/* Trailing cells after % Allocation are intentionally
-                            empty — merged into one span. */}
-                        <td
-                          colSpan={6}
-                          className={`${td} ${stickyRight} bg-[#f6f8fa]`}
-                        />
+                        {/* Empty cells after % Allocation merge into one span;
+                            only Updated Date stays pinned to the right. */}
+                        <td colSpan={5} className={`${td} bg-[#f6f8fa]`} />
+                        <td className={`${td} ${stickyRight} bg-[#f6f8fa]`} />
                       </tr>
                     )}
 
@@ -1057,11 +1055,10 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
                         <td className={`${tdMoney} text-emerald-950`}>
                           100.00%
                         </td>
-                        {/* No total Balance Amount; empty cells merged after 100.00%. */}
-                        <td
-                          colSpan={6}
-                          className={`${td} ${stickyRight} bg-[#DCEFE5]`}
-                        />
+                        {/* No total Balance Amount; empty cells merge into one
+                            span; only Updated Date stays pinned to the right. */}
+                        <td colSpan={5} className={`${td}`} />
+                        <td className={`${td} ${stickyRight} bg-[#DCEFE5]`} />
                       </tr>
                     )}
                   </Fragment>
