@@ -414,7 +414,34 @@ export async function editPlannerRow(data: {
   }
 
   let result;
-  if (field === "total") {
+  if (field === "symbol") {
+    // Symbols are unique per account: a symbol can only be planned once in
+    // an account block. Blank drafts (no symbol yet) are exempt.
+    if (value) {
+      const current = await pool.query<{ account_number: string }>(
+        `SELECT account_number FROM portfolio_planner WHERE id = $1`,
+        [id],
+      );
+      const accountNumber = current.rows[0]?.account_number;
+      if (accountNumber) {
+        const duplicate = await pool.query<{ id: number }>(
+          `SELECT id FROM portfolio_planner
+           WHERE account_number = $1 AND UPPER(BTRIM(symbol)) = $2 AND id <> $3
+           LIMIT 1`,
+          [accountNumber, value, id],
+        );
+        if (duplicate.rows.length > 0) {
+          throw new Error(
+            `"${value}" is already in this account's plan. Edit that row instead of adding a duplicate.`,
+          );
+        }
+      }
+    }
+    result = await pool.query(
+      `UPDATE portfolio_planner SET symbol = $2 WHERE id = $1`,
+      [id, value],
+    );
+  } else if (field === "total") {
     // Editing Total hand-tunes the plan: fall back to auto-derived % so the
     // percentage column never disagrees with the dollar value.
     result = await pool.query(

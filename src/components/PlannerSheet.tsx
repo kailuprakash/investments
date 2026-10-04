@@ -73,7 +73,7 @@ const pct = (value: number) =>
 /* ------------------------- editable primitives ------------------------- */
 
 const inputBase =
-  "planner-cell-input w-full bg-transparent px-1.5 py-1 outline-none border border-transparent focus:border-emerald-600 focus:bg-white focus:ring-1 focus:ring-emerald-500/40 rounded-[2px]";
+  "planner-cell-input w-full h-6 bg-transparent px-1.5 outline-none border border-transparent focus:border-emerald-600 focus:bg-white focus:ring-1 focus:ring-emerald-500/40 rounded-[2px]";
 
 function PlannerEditCell({
   value,
@@ -355,6 +355,23 @@ export default function PlannerSheet({ onNotify }: Props) {
   };
 
   const commit = async (rowId: number, field: EditableField, raw: string) => {
+    if (field === "symbol" && raw.trim() !== "") {
+      // Symbols must be unique within an account block (server enforces too).
+      const nextSymbol = raw.trim().toUpperCase();
+      const group = state?.groups.find((g) =>
+        g.rows.some((row) => row.id === rowId),
+      );
+      const duplicate = group?.rows.find(
+        (row) => row.id !== rowId && row.symbol.trim().toUpperCase() === nextSymbol,
+      );
+      if (duplicate) {
+        fail(
+          `"${nextSymbol}" is already in this account's plan. Edit that row instead of adding a duplicate.`,
+        );
+        void load(true);
+        return;
+      }
+    }
     markSaving();
     try {
       const value =
@@ -642,7 +659,7 @@ export default function PlannerSheet({ onNotify }: Props) {
                   return (
                     <tr
                       key={group.accountNumber}
-                      className="bg-white transition-colors hover:bg-blue-50/40"
+                      className="h-6 bg-white transition-colors hover:bg-blue-50/40"
                     >
                       {accountCell}
                       <td
@@ -662,7 +679,7 @@ export default function PlannerSheet({ onNotify }: Props) {
                 return (
                   <Fragment key={group.accountNumber}>
                     {group.rows.length === 0 ? (
-                      <tr>
+                      <tr className="h-6">
                         {accountCell}
                         <td colSpan={12} className={`${td} italic text-slate-500`}>
                           No planned rows yet — press “Row” to start the
@@ -678,7 +695,7 @@ export default function PlannerSheet({ onNotify }: Props) {
                         return (
                           <tr
                             key={row.id}
-                            className="bg-white transition-colors hover:bg-blue-50/40"
+                            className="h-6 bg-white transition-colors hover:bg-blue-50/40"
                           >
                             {rowIndex === 0 && accountCell}
                             <td data-field-kind="editable" className={editableTd}>
@@ -799,7 +816,7 @@ export default function PlannerSheet({ onNotify }: Props) {
                         );
                       })
                     )}
-                    <tr className="bg-[#f6f8fa]">
+                    <tr className="h-6 bg-[#f6f8fa]">
                       <td className={`${td} font-semibold italic text-slate-600`}>
                         Cash Balance
                       </td>
@@ -824,7 +841,7 @@ export default function PlannerSheet({ onNotify }: Props) {
                       <td className={`${td} bg-[#eceff2]`} />
                       <td className={`${td} bg-[#eceff2]`} />
                     </tr>
-                    <tr data-field-kind="calculated" className="bg-[#DCEFE5] font-bold">
+                    <tr data-field-kind="calculated" className="h-6 bg-[#DCEFE5] font-bold">
                       {/* Label spans Symbol + Shares + Share Price */}
                       <td
                         colSpan={3}
