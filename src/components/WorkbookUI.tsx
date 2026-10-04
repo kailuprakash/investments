@@ -18,7 +18,8 @@ const CALCULATED_TOOLTIPS: Record<string, string> = {
     "Auto-calculated live from Consolidated View - Account Level (holding quantity for this account)",
   "Total Amount":
     "Auto-calculated from Consolidated View - Account Level (holding quantity × average price)",
-  "Market Price": "Pulled live from the market cache; refresh via the column icon",
+  "Market Price":
+    "Pulled live from market data (Yahoo Finance); refresh via the column header icon",
   "Share Price":
     "Calculated column — value is derived from the workbook, not entered by hand (editing lives in the Plan section)",
   "Invest Amount": "Auto-calculated: Quantity × Avg Price",
@@ -27,6 +28,22 @@ const CALCULATED_TOOLTIPS: Record<string, string> = {
   "Gain / Loss": "Auto-calculated: Market Value − Invest Amount (amount and %)",
   "Account Value": "Auto-calculated: Cash Balance + Market Value",
   "Amount Invested": "Auto-calculated: Σ (Quantity × Avg Price)",
+};
+
+/**
+ * Hover explanations for read-only columns whose values are pulled live from
+ * market data, keyed by header label — used across every tab/table.
+ */
+const MARKET_TOOLTIPS: Record<string, string> = {
+  "Market Price/Share":
+    "Pulled live from market data (Yahoo Finance); refreshed on the auto-pull cycle or any market refresh",
+  "Market Price":
+    "Pulled live from market data (Yahoo Finance); refreshed on every market pull",
+  "Current Price":
+    "Pulled live from market data (Yahoo Finance); refreshed on every market pull",
+  Price: "Pulled live from market data; refreshed on every market pull",
+  Change: "Pulled live from market data — change vs previous close",
+  "Change %": "Pulled live from market data — % change vs previous close",
 };
 
 /** Use the same field semantics in every sheet, regardless of its toolbar color. */
@@ -44,6 +61,10 @@ export function FieldHeader({
     kind === "calculated" && typeof label === "string"
       ? CALCULATED_TOOLTIPS[label]
       : undefined;
+  const marketTip =
+    kind === "readonly" && typeof label === "string"
+      ? MARKET_TOOLTIPS[label]
+      : undefined;
   return (
     <span
       className="field-label"
@@ -54,7 +75,7 @@ export function FieldHeader({
           ? "Editable field"
           : kind === "calculated"
             ? calculatedTip ?? "Calculated automatically"
-            : "Read-only field")
+            : marketTip ?? "Read-only field")
       }
     >
       <span>{label}</span>
