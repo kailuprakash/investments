@@ -46,6 +46,7 @@ interface Props {
 
 type EditableField =
   | "symbol"
+  | "sharePrice"
   | "allocationPercent"
   | "asOfDate"
   | "comments";
@@ -760,11 +761,11 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
                 </th>
               </tr>
               <tr className="border-b border-slate-400">
-                <th data-field-kind="calculated" className={`${th} text-right font-semibold sticky top-[25px] z-30`}>
-                  <FieldHeader label="Shares" kind="calculated" />
+                <th data-field-kind="calculated" className={`${th} text-right font-semibold sticky top-[25px] z-30`} title="Auto-calculated: trunc(Amount ÷ Share Price)">
+                  <FieldHeader label="~ # of Shares" kind="calculated" />
                 </th>
-                <th data-field-kind="calculated" className={`${th} text-right font-semibold sticky top-[25px] z-30`}>
-                  <FieldHeader label="Share Price" kind="calculated" />
+                <th data-field-kind="editable" className={`${thEditable} text-right sticky top-[25px] z-30`}>
+                  <FieldHeader label="Share Price" kind="editable" />
                 </th>
                 <th data-field-kind="calculated" className={`${th} text-right font-semibold sticky top-[25px] z-30`}>
                   <FieldHeader label="Amount" kind="calculated" />
@@ -948,16 +949,22 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
                             <td
                               data-field-kind="calculated"
                               className={tdMoney}
-                              title="Auto-calculated: Amount ÷ Market Price"
+                              title="Auto-calculated: trunc(Amount ÷ Share Price)"
                             >
                               {row.shares ? qty(row.shares) : ""}
                             </td>
-                            <td
-                              data-field-kind="calculated"
-                              className={tdMoney}
-                              title="Auto-calculated: Amount ÷ Shares"
-                            >
-                              {row.sharePrice ? money(row.sharePrice) : ""}
+                            <td data-field-kind="editable" className={editableTd}>
+                              <PlannerEditCell
+                                type="number"
+                                align="right"
+                                value={rowNumeric(row, "sharePrice")}
+                                displayValue={
+                                  row.sharePrice ? money(row.sharePrice) : ""
+                                }
+                                onCommit={(next) =>
+                                  void commit(row.id, "sharePrice", num(next))
+                                }
+                              />
                             </td>
                             {/* Amount is auto-calculated (% × cash allocation) */}
                             <td

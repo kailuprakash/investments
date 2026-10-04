@@ -230,14 +230,14 @@ export async function getPlannerState(): Promise<PlannerState> {
       const autoAlloc =
         budget > 0 ? round2((amount / budget) * 100) : 0;
       const effectiveAllocation = storedAlloc ?? autoAlloc;
-      // Shares derive from the plan (Amount ÷ Market Price when quotable) and
-      // Share Price follows the workbook formula Share Price = Amount ÷ Share.
+      // # of Shares is auto-calculated from the manually entered Share Price:
+      // trunc(Amount ÷ Share Price). Share Price itself stays editable.
+      const enteredSharePrice = Number(row.share_price) || 0;
       const sharesView =
-        amount > 0 && currentMarketPrice > 0
-          ? round4(amount / currentMarketPrice)
+        amount > 0 && enteredSharePrice > 0
+          ? Math.trunc(amount / enteredSharePrice)
           : Number(row.shares) || 0;
-      const sharePriceView =
-        amount > 0 && sharesView > 0 ? round4(amount / sharesView) : 0;
+      const sharePriceView = enteredSharePrice;
 
       plannedTotal += amount;
       actualTotal += actualTotalAmount;
@@ -415,10 +415,10 @@ export async function editPlannerRow(data: {
       "Amount is auto-calculated from % Allocation and cannot be edited directly.",
     );
   }
-  if (field === "shares" || field === "sharePrice") {
-    // Shares come from Amount ÷ Market Price and Share Price = Amount ÷ Share.
+  if (field === "shares") {
+    // # of Shares is auto-calculated: trunc(Amount ÷ Share Price).
     throw new Error(
-      "Shares and Share Price are auto-calculated and cannot be edited.",
+      "# of Shares is auto-calculated and cannot be edited.",
     );
   }
   if (!field || !(field in COLUMN_BY_FIELD)) {
