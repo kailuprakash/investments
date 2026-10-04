@@ -8,7 +8,6 @@ import DailyTransactionsSheet from "@/components/DailyTransactionsSheet";
 import HoldingsPerformanceTable from "@/components/HoldingsPerformanceTable";
 import VisualAnalyticsDashboard from "@/components/VisualAnalyticsDashboard";
 import PlannerSheet from "@/components/PlannerSheet";
-import PlannerTabRefresh from "@/components/PlannerTabRefresh";
 import DensityToggle from "@/components/DensityToggle";
 import LiveClock from "@/components/LiveClock";
 import LogoutButton from "@/components/LogoutButton";
@@ -643,9 +642,6 @@ const e = {
                 children: [
                   (0, t.jsx)("span", { children: e.label }),
                   (0, t.jsx)(TabFreezeToggle, { screen: e.id, active: r }),
-                  r &&
-                    e.id === "planner" &&
-                    (0, t.jsx)(PlannerTabRefresh, {}),
                   r &&
                     (0, t.jsx)("span", {
                       className:
@@ -6915,15 +6911,17 @@ const e = {
               let r,
                 a,
                 s,
-                [i, l, adRes] = await Promise.all([
+                [i, l, adRes, plRes] = await Promise.all([
                   fetch("/api/weekly-history", { cache: "no-store" }),
                   fetch("/api/transaction-history", { cache: "no-store" }),
                   fetch("/api/account-details", { cache: "no-store" }),
+                  fetch("/api/planner", { cache: "no-store" }),
                 ]),
-                [c, f, adData] = await Promise.all([
+                [c, f, adData, plData] = await Promise.all([
                   i.json(),
                   l.json(),
                   adRes.json(),
+                  plRes.json(),
                 ]);
               if (!i.ok)
                 throw Error(c.error || "Unable to load account history");
@@ -8060,6 +8058,95 @@ const e = {
                     return r;
                   })(t),
                   "Overview",
+                ),
+                tt.utils.book_append_sheet(
+                  r,
+                  (function () {
+                    let rows = [
+                      ["PLANNER"],
+                      [
+                        "Account",
+                        "Symbol",
+                        "Market Price",
+                        "~ # of Shares",
+                        "Share Price",
+                        "Amount",
+                        "% Allocation",
+                        "Shares Purchased",
+                        "Share Price",
+                        "Total Amount",
+                        "Balance Amount",
+                        "Balance %",
+                        "Comments",
+                        "Updated Date",
+                      ],
+                    ];
+                    for (let g of plData?.groups || []) {
+                      rows.push([`ACCOUNT — ${g.accountNumber}`]);
+                      for (let row of g.rows || []) {
+                        let balancePct =
+                          row.amount > 0
+                            ? (row.balanceAmount / row.amount) * 100
+                            : 0;
+                        rows.push([
+                          g.accountNumber,
+                          row.symbol || "",
+                          row.currentMarketPrice || 0,
+                          row.shares || 0,
+                          row.sharePrice || 0,
+                          row.amount || 0,
+                          `${(row.effectiveAllocation ?? 0).toFixed(2)}%`,
+                          row.sharesPurchased || 0,
+                          row.actualSharePrice || 0,
+                          row.actualTotalAmount || 0,
+                          row.balanceAmount || 0,
+                          `${balancePct.toFixed(2)}%`,
+                          row.comments || "",
+                          row.updatedAt || "",
+                        ]);
+                      }
+                      rows.push([
+                        "",
+                        `Cash Balance - Unallocated — ${g.accountNumber}`,
+                        "",
+                        "",
+                        "",
+                        g.cashRemaining ?? 0,
+                        `${(g.remainingPercent ?? 0).toFixed(2)}%`,
+                      ]);
+                      rows.push([
+                        "",
+                        `Total - Account Level - Cash Allocation — ${g.accountNumber}`,
+                        "",
+                        "",
+                        "",
+                        g.budget ?? 0,
+                        "100.00%",
+                      ]);
+                    }
+                    let sheet = tt.utils.aoa_to_sheet(rows);
+                    sheet["!merges"] = [
+                      { s: { r: 0, c: 0 }, e: { r: 0, c: 13 } },
+                    ];
+                    sheet["!cols"] = [
+                      { wch: 16 },
+                      { wch: 44 },
+                      { wch: 12 },
+                      { wch: 14 },
+                      { wch: 12 },
+                      { wch: 12 },
+                      { wch: 12 },
+                      { wch: 16 },
+                      { wch: 12 },
+                      { wch: 12 },
+                      { wch: 14 },
+                      { wch: 10 },
+                      { wch: 24 },
+                      { wch: 24 },
+                    ];
+                    return sheet;
+                  })(),
+                  "Planner",
                 ),
                 tt.writeFile(
                   r,

@@ -24,10 +24,9 @@ import type {
   PlannerState,
 } from "@/db/planner-service";
 import { FieldHeader } from "@/components/WorkbookUI";
-import {
-  PLANNER_REFRESH_EVENT,
-  PLANNER_REFRESH_STATUS_EVENT,
-} from "@/components/PlannerTabRefresh";
+
+const PLANNER_REFRESH_EVENT = "planner:refresh-actuals";
+const PLANNER_REFRESH_STATUS_EVENT = "planner:refresh-status";
 
 type AccountInfo = {
   accountNumber: string;
