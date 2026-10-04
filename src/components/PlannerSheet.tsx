@@ -1013,7 +1013,7 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
                               {balancePct !== null &&
                                 ` (${pct(balancePct)})`}
                             </td>
-                            <td data-field-kind="editable" className={editableTd} style={{ whiteSpace: "normal" }}>
+                            <td data-field-kind="editable" className={editableTd} style={{ whiteSpace: "nowrap" }}>
                               <PlannerEditCell
                                 value={row.comments}
                                 displayValue={row.comments}

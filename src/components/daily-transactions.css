@@ -626,8 +626,10 @@
   background: #dcefe5;
 }
 .workbook-shell .transaction-comments {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
+  /* Comments never wrap to a second row; full text lives in the tooltip. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   min-width: 0;
   flex: 1;
 }

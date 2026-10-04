@@ -1384,8 +1384,12 @@ export default function AccountDetailsSheet({
                                 data-field-kind="editable"
                                 data-field="comments"
                                 onDoubleClick={() => handleOpenEditDeposit(dep)}
-                                title="Double-click to edit deposit comments"
-                                className="border border-slate-300 px-3 py-1.5 text-slate-700 text-[11px] whitespace-nowrap"
+                                title={
+                                  dep.comments
+                                    ? `${dep.comments} (Double-click to edit)`
+                                    : "Double-click to edit deposit comments"
+                                }
+                                className="border border-slate-300 px-3 py-1.5 text-slate-700 text-[11px] whitespace-nowrap truncate max-w-[180px]"
                               >
                                 {dep.comments || "—"}
                               </td>

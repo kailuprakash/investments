@@ -1349,8 +1349,9 @@ const e = {
                               startEditComment(item);
                             },
                             className: `border border-slate-300 px-2.5 py-1 whitespace-nowrap group cursor-pointer transition ${isInactive ? "text-slate-400 bg-slate-100/60" : "text-slate-700"} ${isEditingThisComment ? "bg-amber-50 ring-2 ring-emerald-600 ring-inset" : "hover:bg-amber-50/40"}`,
-                            title:
-                              "Double-click or click pencil to edit comments",
+                            title: item.comments
+                              ? `${item.comments} · Double-click or click pencil to edit`
+                              : "Double-click or click pencil to edit comments",
                             children: isEditingThisComment
                               ? (0, t.jsxs)("div", {
                                   className: "flex items-center gap-1",
@@ -1404,6 +1405,9 @@ const e = {
                                     "flex items-center justify-between gap-1.5",
                                   children: [
                                     (0, t.jsx)("span", {
+                                      title: item.comments || undefined,
+                                      className:
+                                        "inline-block max-w-[280px] truncate align-middle",
                                       children: item.comments || "—",
                                     }),
                                     (0, t.jsx)("button", {
@@ -2644,7 +2648,8 @@ const e = {
                                                                 ? (0, t.jsx)(
                                                                     "span",
                                                                     {
-                                                                      className: `px-1.5 py-0.5 rounded text-[10px] font-semibold ${e.comments.toLowerCase().includes("loss") ? "bg-red-100 text-red-700 border border-red-200" : "bg-gray-100 text-gray-700"}`,
+                                                                      title: e.comments,
+                                                                      className: `inline-block max-w-full truncate align-middle px-1.5 py-0.5 rounded text-[10px] font-semibold ${e.comments.toLowerCase().includes("loss") ? "bg-red-100 text-red-700 border border-red-200" : "bg-gray-100 text-gray-700"}`,
                                                                       children:
                                                                         e.comments,
                                                                     },

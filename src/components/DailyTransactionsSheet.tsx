@@ -473,6 +473,7 @@ function EditableTransactionCell({
                 ? "transaction-comments"
                 : "transaction-cell-value"
             }
+            title={field === "comments" ? String(children ?? "") : undefined}
           >
             {children}
           </span>
