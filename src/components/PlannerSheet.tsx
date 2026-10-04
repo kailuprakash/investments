@@ -163,7 +163,7 @@ function PlannerEditCell({
   );
 }
 
-/** Symbol cell with a type-ahead suggestion dropdown (holdings/watchlist). */
+/** Symbol cell with a type-ahead suggestion dropdown (holdings/watchlist/market). */
 function SymbolSuggestInput({
   value,
   options,
@@ -194,8 +194,7 @@ function SymbolSuggestInput({
   }, [draft, options]);
 
   // Live market search: typing also pulls suggestions from the market search
-  // API (Yahoo search with a local fallback) so brand-new symbols appear even
-  // if they are not yet held or watched.
+  // API (Yahoo search with a local fallback).
   useEffect(() => {
     if (!open || !editing) return;
     const query = draft.trim().toUpperCase();
@@ -235,8 +234,6 @@ function SymbolSuggestInput({
     return () => window.clearTimeout(timer);
   }, [draft, open, editing]);
 
-  // Portfolio symbols first (exact and prefix matches), then market-only
-  // symbols with their company name for context.
   const combined = useMemo(() => {
     const seen = new Set(matches);
     const list = matches.map((symbol) => ({ symbol, hint: "" }));
@@ -295,7 +292,6 @@ function SymbolSuggestInput({
             event.preventDefault();
             const target = combined[highlight];
             if (open && target) {
-              setDraft(target.symbol);
               commit(target.symbol, true);
             } else {
               commit(draft, true);
@@ -355,8 +351,8 @@ function SymbolSuggestInput({
 
 const COLLAPSED_KEY = "planner-collapsed-accounts-v1";
 
-/** Fixed column layout (Account's Summary style). */
-const COL_WIDTHS = [176, 34, 110, 128, 90, 100, 126, 112, 144, 100, 124, 128, 210, 148];
+/** Fixed column layout (no Account column — accounts are group header rows). */
+const COL_WIDTHS = [34, 110, 128, 90, 100, 126, 112, 144, 100, 124, 128, 210, 148];
 
 export default function PlannerSheet({ accounts, onNotify }: Props) {
   const [state, setState] = useState<PlannerState | null>(null);
@@ -472,8 +468,7 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
       window.removeEventListener(PLANNER_REFRESH_EVENT, handleRefresh);
   }, [refreshActuals]);
 
-  // Market pull from the Market Price header icon: fetch fresh quotes for
-  // the symbols into the market cache and rebuild the table.
+  // Market pull from the Market Price header icon.
   const refreshMarketPrices = useCallback(async () => {
     setMarketRefreshing(true);
     try {
@@ -619,8 +614,7 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
     return String(raw ?? "");
   };
 
-  /* Account's Summary table chrome: navy-on-blue headers, golden editable
-     cells, green calculated footer, 12px text and full cell borders. */
+  /* Account's Summary / Consolidated table chrome. */
   const pane = "rounded-[7px] border border-[#bfcfc8] bg-white overflow-hidden shadow-sm";
   const th = "border border-slate-300 px-2 py-1 whitespace-nowrap bg-[#D9E1F2] text-[#1F4E79]";
   const thEditable = `${th} !bg-[#FFF2CC] !text-[#78350F] font-bold`;
@@ -628,7 +622,6 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
   const tdMoney = `${td} text-right tabular-nums`;
   const editableTd =
     "border border-slate-300 p-0 bg-[#FFF2CC] text-[#78350F] whitespace-nowrap";
-  const stickyLeft = "sticky left-0 z-[19] shadow-[3px_0_5px_-4px_#33415566]";
   const stickyRight = "sticky right-0 z-[19] shadow-[-3px_0_5px_-4px_#33415566]";
 
   if (loading && !state) {
@@ -677,13 +670,6 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
             </colgroup>
             <thead>
               <tr className="border-b border-slate-400">
-                <th
-                  rowSpan={2}
-                  data-field-kind="readonly"
-                  className={`${th} text-left font-bold sticky left-0 top-0 z-40`}
-                >
-                  <FieldHeader label="Account" kind="readonly" />
-                </th>
                 <th
                   rowSpan={2}
                   className={`${th} sticky top-0 z-30 text-center`}
@@ -788,128 +774,81 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
               {groups.map((group: PlannerAccountGroup) => {
                 const isCollapsed = !!collapsed[group.accountNumber];
                 const cashRemainingLow = group.cashRemaining < 0;
-                const rowSpan = isCollapsed
-                  ? 1
-                  : Math.max(group.rows.length, 1) + 2;
-                const accountCell = (
-                  <td
-                    key={`${group.accountNumber}-account`}
-                    rowSpan={rowSpan}
-                    data-field-kind="readonly"
-                    className={`${td} ${stickyLeft} bg-white align-top`}
-                  >
-                    <div className="flex flex-col gap-1">
-                      <div className="flex items-center gap-1 whitespace-nowrap">
-                        <button
-                          type="button"
-                          onClick={() => toggleAccount(group.accountNumber)}
-                          aria-expanded={!isCollapsed}
-                          aria-label={
-                            isCollapsed
-                              ? `Expand ${group.accountNumber}`
-                              : `Collapse ${group.accountNumber}`
-                          }
-                          title={isCollapsed ? "Expand" : "Collapse"}
-                          className="inline-flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded border border-emerald-700/30 bg-emerald-50 text-emerald-800 transition-colors hover:bg-emerald-100"
-                        >
-                          {isCollapsed ? (
-                            <ChevronRight size={12} strokeWidth={2.5} />
-                          ) : (
-                            <ChevronDown size={12} strokeWidth={2.5} />
-                          )}
-                        </button>
-                        <span className="whitespace-nowrap text-xs font-bold leading-tight text-emerald-950">
-                          {group.accountNumber}
-                        </span>
-                      </div>
-                      <span className="whitespace-nowrap text-[10px] text-slate-400">
-                        {group.rows.length}{" "}
-                        {group.rows.length === 1 ? "row" : "rows"}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => void addRow(group.accountNumber)}
-                        disabled={addingFor === group.accountNumber}
-                        title={`Add a planned row to ${group.accountNumber}`}
-                        className="inline-flex items-center gap-1 self-start whitespace-nowrap rounded border border-emerald-700 bg-emerald-700 px-1.5 py-0.5 text-[10px] font-semibold text-white transition-colors hover:bg-emerald-800 disabled:opacity-60"
-                      >
-                        {addingFor === group.accountNumber ? (
-                          <LoaderCircle className="w-3 h-3 animate-spin" />
-                        ) : (
-                          <Plus size={11} strokeWidth={2.5} />
-                        )}
-                        Row
-                      </button>
-                      {/* Account-level allocation summary (cash / budgeted /
-                          planned), kept with the account grouping. */}
-                      <div className="mt-1 flex flex-col gap-0.5 whitespace-nowrap border-t border-slate-200 pt-1 text-[10px] leading-tight text-slate-500">
-                        <span>
-                          Cash Balance:{" "}
-                          <strong className="text-slate-800">
-                            {money(group.cashAvailable)}
-                          </strong>
-                        </span>
-                        <span>
-                          Allocation:{" "}
-                          <strong className="text-slate-800">
-                            {money(group.budget)}
-                          </strong>
-                        </span>
-                        <span>
-                          Budgeted:{" "}
-                          <strong className="text-slate-800">
-                            {money(group.plannedTotal)}
-                          </strong>
-                        </span>
-                        <span>
-                          Planned Remaining:{" "}
-                          <strong
-                            className={
-                              group.remainingPercent < 0
-                                ? "text-red-700"
-                                : "text-emerald-700"
-                            }
-                          >
-                            {pct(group.remainingPercent)}
-                          </strong>
-                        </span>
-                      </div>
-                    </div>
-                  </td>
-                );
-
-                if (isCollapsed) {
-                  return (
-                    <tr
-                      key={group.accountNumber}
-                      className="h-6 bg-white transition-colors hover:bg-blue-50/40"
-                    >
-                      {accountCell}
-                      <td colSpan={12} className={`${td} italic text-slate-500`}>
-                        Collapsed — {group.rows.length}{" "}
-                        {group.rows.length === 1 ? " Planned row" : " Planned rows"} ·
-                        Planned {money(group.plannedTotal)} of{" "}
-                        {money(group.budget)} · Cash Balance{" "}
-                        {money(group.cashRemaining)}
-                      </td>
-                      <td className={`${td} ${stickyRight} bg-white`} />
-                    </tr>
-                  );
-                }
-
                 return (
                   <Fragment key={group.accountNumber}>
-                    {group.rows.length === 0 ? (
+                    {/* Account group header row — same pattern as the
+                        Consolidated View account rows. */}
+                    <tr className="h-6 bg-[#E7E6E6] text-[11px] font-semibold text-gray-800 border-y border-gray-300">
+                      <td colSpan={13} className="border border-gray-300 px-3 py-1">
+                        <div className="flex items-center justify-between gap-3">
+                          <button
+                            type="button"
+                            onClick={() => toggleAccount(group.accountNumber)}
+                            aria-expanded={!isCollapsed}
+                            className="inline-flex items-center gap-2 font-bold text-[#1F4E79] hover:text-blue-900"
+                          >
+                            {isCollapsed ? (
+                              <ChevronRight className="h-4 w-4" />
+                            ) : (
+                              <ChevronDown className="h-4 w-4" />
+                            )}
+                            <span>{group.accountNumber}</span>
+                            <span className="text-[10px] font-normal text-gray-500">
+                              ({group.rows.length}{" "}
+                              {group.rows.length === 1 ? "row" : "rows"})
+                            </span>
+                          </button>
+                          <div className="flex items-center gap-3 whitespace-nowrap text-[10px] font-normal text-gray-600">
+                            <span>
+                              Account - Cash{" "}
+                              <strong className="text-gray-800">
+                                {money(group.cashAvailable)}
+                              </strong>
+                            </span>
+                            <span>
+                              Allocated Cash{" "}
+                              <strong className="text-gray-800">
+                                {money(group.budget)}
+                              </strong>
+                            </span>
+                            <span>
+                              Budgeted{" "}
+                              <strong className="text-gray-800">
+                                {money(group.plannedTotal)}
+                              </strong>
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => void addRow(group.accountNumber)}
+                              disabled={addingFor === group.accountNumber}
+                              className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium text-emerald-700 transition hover:bg-emerald-50 hover:text-emerald-900 disabled:opacity-60"
+                            >
+                              {addingFor === group.accountNumber ? (
+                                <LoaderCircle className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <Plus size={12} strokeWidth={2.5} />
+                              )}
+                              Add Row to {group.accountNumber}
+                            </button>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+
+                    {!isCollapsed && group.rows.length === 0 && (
                       <tr className="h-6">
-                        {accountCell}
-                        <td colSpan={12} className={`${td} italic text-slate-500`}>
-                          No planned rows yet — press “Row” to start the
-                          allocation plan for this account.
+                        <td
+                          colSpan={13}
+                          className="border border-gray-300 bg-gray-50 px-4 py-3 text-center italic text-gray-400"
+                        >
+                          No planned rows for {group.accountNumber} — press
+                          “Add Row”.
                         </td>
-                        <td className={`${td} ${stickyRight} bg-white`} />
                       </tr>
-                    ) : (
-                      group.rows.map((row, rowIndex) => {
+                    )}
+
+                    {!isCollapsed &&
+                      group.rows.map((row) => {
                         const autoAlloc =
                           group.budget > 0
                             ? (row.amount / group.budget) * 100
@@ -919,7 +858,6 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
                             key={row.id}
                             className="h-6 bg-white transition-colors hover:bg-blue-50/40"
                           >
-                            {rowIndex === 0 && accountCell}
                             {/* Delete moved to the front of the row */}
                             <td className={`${td} !px-0 text-center`}>
                               <button
@@ -966,7 +904,6 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
                                 }
                               />
                             </td>
-                            {/* Amount is auto-calculated (% × cash allocation) */}
                             <td
                               data-field-kind="calculated"
                               className={`${tdMoney} font-semibold text-slate-800`}
@@ -1031,81 +968,91 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
                             <td
                               data-field-kind="readonly"
                               className={`${td} ${stickyRight} bg-white text-center tabular-nums text-slate-600`}
-                              title={row.updatedAt ? `Last edited at ${row.updatedAt}` : "No edits yet"}
+                              title={
+                                row.updatedAt
+                                  ? `Last edited at ${row.updatedAt}`
+                                  : "No edits yet"
+                              }
                             >
                               {formatUpdatedAt(row.updatedAt)}
                             </td>
                           </tr>
                         );
-                      })
+                      })}
+
+                    {!isCollapsed && (
+                      <tr className="h-6 bg-[#f6f8fa]">
+                        <td className={td} />
+                        {/* Cash Balance label merges 4 columns like the
+                            Total - Account Level - Cash Allocation row. */}
+                        <td
+                          colSpan={4}
+                          className={`${td} font-semibold italic text-slate-600`}
+                        >
+                          Cash Balance
+                        </td>
+                        <td
+                          className={`${tdMoney} font-semibold ${
+                            cashRemainingLow ? "text-red-700" : "text-slate-700"
+                          }`}
+                          title="Auto-calculated: Total Account Level Cash Allocation − Σ symbol amounts"
+                        >
+                          {money(group.cashRemaining)}
+                        </td>
+                        <td className={`${tdMoney} italic text-slate-600`}>
+                          {pct(group.remainingPercent)}
+                        </td>
+                        <td className={`${td} bg-[#eceff2]`} />
+                        <td className={`${td} bg-[#eceff2]`} />
+                        <td className={`${td} bg-[#eceff2]`} />
+                        <td className={`${td} bg-[#eceff2]`} />
+                        <td className={`${td} bg-[#eceff2]`} />
+                        <td className={`${td} ${stickyRight} bg-[#f6f8fa]`} />
+                      </tr>
                     )}
-                    <tr className="h-6 bg-[#f6f8fa]">
-                      <td className={td} />
-                      <td className={`${td} font-semibold italic text-slate-600`}>
-                        Cash Balance
-                      </td>
-                      <td className={td} />
-                      <td className={td} />
-                      <td className={td} />
-                      <td
-                        className={`${tdMoney} font-semibold ${
-                          cashRemainingLow ? "text-red-700" : "text-slate-700"
-                        }`}
-                        title="Auto-calculated: Total Account Level Cash Allocation − Σ symbol amounts"
-                      >
-                        {money(group.cashRemaining)}
-                      </td>
-                      <td className={`${tdMoney} italic text-slate-600`}>
-                        {pct(group.remainingPercent)}
-                      </td>
-                      <td className={`${td} bg-[#eceff2]`} />
-                      <td className={`${td} bg-[#eceff2]`} />
-                      <td className={`${td} bg-[#eceff2]`} />
-                      <td className={`${td} bg-[#eceff2]`} />
-                      <td className={`${td} bg-[#eceff2]`} />
-                      <td className={`${td} ${stickyRight} bg-[#f6f8fa]`} />
-                    </tr>
-                    <tr data-field-kind="calculated" className="h-6 bg-[#DCEFE5] font-bold">
-                      <td className={td} />
-                      {/* Label spans Symbol + Market Price + Shares + Share Price */}
-                      <td colSpan={4} className={`${td} text-emerald-950`}>
-                        Total - Account Level - Cash Allocation
-                      </td>
-                      <td
-                        data-field-kind="editable"
-                        className={editableTd}
-                        title="Editable. Cleared value falls back to the account cash balance from Account Details."
-                      >
-                        <PlannerEditCell
-                          type="number"
-                          align="right"
-                          value={String(group.budget ?? 0)}
-                          displayValue={money(group.budget)}
-                          inputClassName="font-bold text-emerald-950"
-                          onCommit={(next) =>
-                            void setBudget(group.accountNumber, next)
-                          }
-                        />
-                      </td>
-                      <td className={`${tdMoney} text-emerald-950`}>
-                        100.00%
-                      </td>
-                      <td className={`${td}`} />
-                      <td className={`${td}`} />
-                      <td className={`${td}`} />
-                      <td
-                        className={`${tdMoney} ${
-                          group.balanceTotal < 0
-                            ? "text-red-700"
-                            : "text-emerald-800"
-                        }`}
-                        title="Σ Plan Amount − Σ Actual Total Amount"
-                      >
-                        {money(group.balanceTotal)}
-                      </td>
-                      <td className={`${td}`} />
-                      <td className={`${td} ${stickyRight} bg-[#DCEFE5]`} />
-                    </tr>
+
+                    {!isCollapsed && (
+                      <tr data-field-kind="calculated" className="h-6 bg-[#DCEFE5] font-bold">
+                        <td className={td} />
+                        {/* Label spans Symbol + Market Price + ~ # of Shares + Share Price */}
+                        <td colSpan={4} className={`${td} text-emerald-950`}>
+                          Total - Account Level - Cash Allocation
+                        </td>
+                        <td
+                          data-field-kind="editable"
+                          className={editableTd}
+                          title="Editable. Cleared value falls back to the account cash balance from Account Details."
+                        >
+                          <PlannerEditCell
+                            type="number"
+                            align="right"
+                            value={String(group.budget ?? 0)}
+                            displayValue={money(group.budget)}
+                            onCommit={(next) =>
+                              void setBudget(group.accountNumber, next)
+                            }
+                          />
+                        </td>
+                        <td className={`${tdMoney} text-emerald-950`}>
+                          100.00%
+                        </td>
+                        <td className={`${td}`} />
+                        <td className={`${td}`} />
+                        <td className={`${td}`} />
+                        <td
+                          className={`${tdMoney} ${
+                            group.balanceTotal < 0
+                              ? "text-red-700"
+                              : "text-emerald-800"
+                          }`}
+                          title="Σ Plan Amount − Σ Actual Total Amount"
+                        >
+                          {money(group.balanceTotal)}
+                        </td>
+                        <td className={`${td}`} />
+                        <td className={`${td} ${stickyRight} bg-[#DCEFE5]`} />
+                      </tr>
+                    )}
                   </Fragment>
                 );
               })}
