@@ -8062,6 +8062,7 @@ const e = {
                 tt.utils.book_append_sheet(
                   r,
                   (function () {
+                    // Planner sheet — styled like the other workbook exports.
                     let rows = [
                       ["PLANNER"],
                       [
@@ -8081,13 +8082,50 @@ const e = {
                         "Updated Date",
                       ],
                     ];
+                    let meta = [];
+                    let bandStyle = {
+                      font: { name: tb, sz: 10, bold: !0, color: { rgb: tr } },
+                      fill: {
+                        patternType: "solid",
+                        fgColor: { rgb: "E7E6E6" },
+                      },
+                      alignment: { horizontal: "left", vertical: "center" },
+                      border: tw(th),
+                    };
+                    let cashStyle = (e) => ({
+                      font: { name: tb, sz: 10, italic: !0, color: { rgb: tf } },
+                      fill: {
+                        patternType: "solid",
+                        fgColor: { rgb: tg },
+                      },
+                      alignment: { horizontal: e, vertical: "center" },
+                      border: tw("CBD5E1"),
+                    });
+                    let totalStyle = (e) => ({
+                      font: { name: tb, sz: 10, bold: !0, color: { rgb: tf } },
+                      fill: {
+                        patternType: "solid",
+                        fgColor: { rgb: "DCEFE5" },
+                      },
+                      alignment: { horizontal: e, vertical: "center" },
+                      border: tw(th),
+                    });
                     for (let g of plData?.groups || []) {
-                      rows.push([`ACCOUNT — ${g.accountNumber}`]);
+                      meta.push("band");
+                      rows.push([
+                        `${g.accountNumber}  (${
+                          (g.rows || []).length
+                        } rows)`,
+                        `Account - Cash Value ${
+                          g.cashAvailable != null ? Number(g.cashAvailable).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : ""
+                        } · Allocation ${
+                          g.budget != null ? Number(g.budget).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : ""
+                        } · Allocated ${
+                          g.plannedTotal != null ? Number(g.plannedTotal).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : ""
+                        }`,
+                      ]);
                       for (let row of g.rows || []) {
-                        let balancePct =
-                          row.amount > 0
-                            ? (row.balanceAmount / row.amount) * 100
-                            : 0;
+                        meta.push("row");
                         rows.push([
                           g.accountNumber,
                           row.symbol || "",
@@ -8095,16 +8133,19 @@ const e = {
                           row.shares || 0,
                           row.sharePrice || 0,
                           row.amount || 0,
-                          `${(row.effectiveAllocation ?? 0).toFixed(2)}%`,
+                          (row.effectiveAllocation || 0) / 100,
                           row.sharesPurchased || 0,
                           row.actualSharePrice || 0,
                           row.actualTotalAmount || 0,
                           row.balanceAmount || 0,
-                          `${balancePct.toFixed(2)}%`,
+                          row.amount > 0
+                            ? row.balanceAmount / row.amount
+                            : 0,
                           row.comments || "",
                           row.updatedAt || "",
                         ]);
                       }
+                      meta.push("cash");
                       rows.push([
                         "",
                         `Cash Balance - Unallocated — ${g.accountNumber}`,
@@ -8112,8 +8153,9 @@ const e = {
                         "",
                         "",
                         g.cashRemaining ?? 0,
-                        `${(g.remainingPercent ?? 0).toFixed(2)}%`,
+                        (g.remainingPercent ?? 0) / 100,
                       ]);
+                      meta.push("total");
                       rows.push([
                         "",
                         `Total - Account Level - Cash Allocation — ${g.accountNumber}`,
@@ -8121,29 +8163,60 @@ const e = {
                         "",
                         "",
                         g.budget ?? 0,
-                        "100.00%",
+                        1,
                       ]);
                     }
                     let sheet = tt.utils.aoa_to_sheet(rows);
+                    let lastCol = 13;
                     sheet["!merges"] = [
-                      { s: { r: 0, c: 0 }, e: { r: 0, c: 13 } },
+                      { s: { r: 0, c: 0 }, e: { r: 0, c: lastCol } },
                     ];
-                    sheet["!cols"] = [
-                      { wch: 16 },
-                      { wch: 44 },
-                      { wch: 12 },
-                      { wch: 14 },
-                      { wch: 12 },
-                      { wch: 12 },
-                      { wch: 12 },
-                      { wch: 16 },
-                      { wch: 12 },
-                      { wch: 12 },
-                      { wch: 14 },
-                      { wch: 10 },
-                      { wch: 24 },
-                      { wch: 24 },
-                    ];
+                    sheet["!cols"] = tO(rows, 10, 42);
+                    sheet["!rows"] = rows.map(() => ({ hpt: 18 }));
+                    sheet["!freeze"] = { xSplit: 1, ySplit: 2 };
+                    // Title band + header styling, matching other sheets.
+                    t_(sheet, 0, 0, 0, lastCol, tA(tr));
+                    t_(sheet, 1, 1, 0, lastCol, tT(ts));
+                    meta.forEach((kind, idx) => {
+                      let rIdx = idx + 2;
+                      for (let c = 0; c <= lastCol; c += 1) {
+                        if (kind === "band") tN(sheet, rIdx, c, bandStyle);
+                        else if (kind === "cash")
+                          tN(sheet, rIdx, c, cashStyle(c >= 2 && c <= 11 ? "right" : "left"));
+                        else if (kind === "total")
+                          tN(sheet, rIdx, c, totalStyle(c >= 2 && c <= 11 ? "right" : "left"));
+                        else
+                          tN(
+                            sheet,
+                            rIdx,
+                            c,
+                            tC(c >= 2 && c <= 11 ? "right" : "left"),
+                          );
+                      }
+                      // Numeric formats: qty (ty), money (tx), percent (tv).
+                      for (let c of [3, 7]) {
+                        let cell = sheet[tS(rIdx, c)];
+                        if (cell) cell.z = ty;
+                      }
+                      for (let c of [2, 4, 5, 8, 9, 10]) {
+                        let cell = sheet[tS(rIdx, c)];
+                        if (cell) cell.z = tx;
+                      }
+                      for (let c of [6, 11]) {
+                        let cell = sheet[tS(rIdx, c)];
+                        if (cell) cell.z = tv;
+                      }
+                    });
+                    let nameWidth = Math.min(
+                      60,
+                      Math.max(
+                        28,
+                        ...rows.map((r) => String(r[1] ?? "").length + 2),
+                      ),
+                    );
+                    sheet["!cols"][1] = { wch: nameWidth };
+                    sheet["!cols"][0] = { wch: 18 };
+                    sheet["!autofilter"] = { ref: `A2:N${rows.length}` };
                     return sheet;
                   })(),
                   "Planner",
