@@ -1161,6 +1161,47 @@ export async function setSetting(key: string, value: string): Promise<string> {
   return value;
 }
 
+export type MarketPullStatus = {
+  ok: boolean;
+  attemptedAt: string;
+  live: string[];
+  cached: { symbol: string; error: string }[];
+  symbolCount: number;
+};
+
+/** Health of the most recent market-data pull (ok=true means fully live). */
+export async function getMarketPullStatus(): Promise<MarketPullStatus> {
+  await ensureDbSeeded();
+  const raw = await getSetting("market_pull_status_v1");
+  if (!raw) {
+    return {
+      ok: true,
+      attemptedAt: "",
+      live: [],
+      cached: [],
+      symbolCount: 0,
+    };
+  }
+  try {
+    const parsed = JSON.parse(raw) as MarketPullStatus;
+    return {
+      ok: parsed.ok !== false,
+      attemptedAt: String(parsed.attemptedAt ?? ""),
+      live: Array.isArray(parsed.live) ? parsed.live.map(String) : [],
+      cached: Array.isArray(parsed.cached) ? parsed.cached : [],
+      symbolCount: Number(parsed.symbolCount) || 0,
+    };
+  } catch {
+    return {
+      ok: true,
+      attemptedAt: String(raw),
+      live: [],
+      cached: [],
+      symbolCount: 0,
+    };
+  }
+}
+
 export async function refreshAllMarketPrices() {
   await ensureDbSeeded();
   const holdingsRows = await db.select().from(holdingsTable);
@@ -1172,9 +1213,22 @@ export async function refreshAllMarketPrices() {
     ]),
   );
 
+  const quotes: SymbolQuote[] = [];
   for (const sym of symbols) {
     const q = await fetchSymbolQuote(sym);
+    quotes.push(q);
     marketCacheStore[sym] = q.price;
+  }
+  // Persist the pull's health so the UI can warn when quotes failed and come
+  // from the local cache instead of showing them as silently live.
+  try {
+    const report = summarizeMarketRefresh(quotes);
+    await setSetting(
+      "market_pull_status_v1",
+      JSON.stringify({ ...report, ok: report.cached.length === 0, symbolCount: symbols.length }),
+    );
+  } catch (error) {
+    console.error("[market-pull] could not persist pull health:", error);
   }
   // Sector comes from Yahoo symbol-search metadata. Resolve in small batches so
   // a large portfolio does not burst the public endpoint.

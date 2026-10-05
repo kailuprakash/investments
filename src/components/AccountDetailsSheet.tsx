@@ -3,6 +3,11 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { FieldHeader } from "@/components/WorkbookUI";
 import {
+  highlightWorkbookRow,
+  selectorForHit,
+  type WorkbookHit,
+} from "@/lib/workbook-search";
+import {
   Plus,
   Pencil,
   Trash2,
@@ -42,6 +47,8 @@ interface AccountDetailsSheetProps {
   onNotify?: (msg: string, type?: "success" | "error" | "info") => void;
   onDataChanged?: () => void;
   refreshKey?: number;
+  jumpHit?: WorkbookHit | null;
+  onJumpHandled?: () => void;
 }
 
 function formatCurrency(val: number | null | undefined): string {
@@ -124,6 +131,8 @@ export default function AccountDetailsSheet({
   onNotify,
   onDataChanged,
   refreshKey,
+  jumpHit,
+  onJumpHandled,
 }: AccountDetailsSheetProps) {
   const [accountDetails, setAccountDetails] = useState<AccountDetail[]>([]);
   const [depositsByAccount, setDepositsByAccount] = useState<
@@ -266,6 +275,25 @@ export default function AccountDetailsSheet({
   useEffect(() => {
     fetchData(true);
   }, [refreshKey, fetchData]);
+
+  // Workbook search jump: scroll + highlight the matched account/deposit row
+  // once it's present in the DOM.
+  useEffect(() => {
+    if (!jumpHit || jumpHit.sheet !== "accountDetails") return;
+    let tries = 0;
+    const timer = window.setInterval(() => {
+      const node = document.querySelector(selectorForHit(jumpHit) || "");
+      tries += 1;
+      if (
+        highlightWorkbookRow(node instanceof HTMLElement ? node : null) ||
+        tries > 30
+      ) {
+        window.clearInterval(timer);
+        onJumpHandled?.();
+      }
+    }, 60);
+    return () => window.clearInterval(timer);
+  }, [jumpHit, onJumpHandled]);
 
   // Open Deposit Modal
   const handleOpenAddDeposit = (accountNum?: string) => {
@@ -893,6 +921,7 @@ export default function AccountDetailsSheet({
                   return (
                     <tr
                       key={acc.id}
+                      data-search-row={`ad-${acc.id}`}
                       onClick={() => setSelectedAccNum(acc.accountNumber)}
                       onDoubleClick={() =>
                         handleOpenEditAccountModal(acc.accountNumber)
@@ -1210,6 +1239,7 @@ export default function AccountDetailsSheet({
                           return (
                             <tr
                               key={dep.id}
+                              data-search-row={`dep-${dep.id}`}
                               className={`transition-colors hover:bg-blue-50/40 ${
                                 isFinalRow
                                   ? "font-semibold bg-white"

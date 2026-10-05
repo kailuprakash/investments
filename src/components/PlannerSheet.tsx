@@ -27,6 +27,12 @@ import type {
 import { FieldHeader } from "@/components/WorkbookUI";
 import ConfirmDialog from "@/components/ConfirmDialog";
 
+import {
+  highlightWorkbookRow,
+  selectorForHit,
+  type WorkbookHit,
+} from "@/lib/workbook-search";
+
 const PLANNER_REFRESH_EVENT = "planner:refresh-actuals";
 const PLANNER_REFRESH_STATUS_EVENT = "planner:refresh-status";
 
@@ -45,6 +51,8 @@ type AccountInfo = {
 interface Props {
   accounts: AccountInfo[];
   onNotify?: (msg: string, type?: "success" | "error" | "info") => void;
+  jumpHit?: WorkbookHit | null;
+  onJumpHandled?: () => void;
 }
 
 type EditableField =
@@ -538,7 +546,7 @@ function computeColumnWidths(groups: PlannerAccountGroup[]): number[] {
   return widths;
 }
 
-export default function PlannerSheet({ accounts, onNotify }: Props) {
+export default function PlannerSheet({ accounts, onNotify, jumpHit, onJumpHandled }: Props) {
   const [state, setState] = useState<PlannerState | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -621,6 +629,37 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Workbook search jump: expand the account that owns the hit, then
+  // scroll + highlight the planned row once it exists in the DOM.
+  useEffect(() => {
+    if (!jumpHit || jumpHit.sheet !== "planner") return;
+    if (jumpHit.accountNumber) {
+      setCollapsed((prev) => {
+        if (!prev[jumpHit.accountNumber!]) return prev;
+        const next = { ...prev, [jumpHit.accountNumber!]: false };
+        try {
+          window.localStorage.setItem(COLLAPSED_KEY, JSON.stringify(next));
+        } catch {
+          /* storage unavailable */
+        }
+        return next;
+      });
+    }
+    let tries = 0;
+    const timer = window.setInterval(() => {
+      const node = document.querySelector(selectorForHit(jumpHit) || "");
+      tries += 1;
+      if (
+        highlightWorkbookRow(node instanceof HTMLElement ? node : null) ||
+        tries > 30
+      ) {
+        window.clearInterval(timer);
+        onJumpHandled?.();
+      }
+    }, 60);
+    return () => window.clearInterval(timer);
+  }, [jumpHit, onJumpHandled]);
 
   // Company names for the Symbol tooltip: the watchlist covers most symbols;
   // for anything else, look the name up in the market search once (cached
@@ -1331,6 +1370,7 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
                         return (
                           <tr
                             key={row.id}
+                            data-search-row={`pl-${row.id}`}
                             className="h-6 bg-white transition-colors hover:bg-blue-50/40"
                           >
                             {/* Delete moved to the front of the row */}

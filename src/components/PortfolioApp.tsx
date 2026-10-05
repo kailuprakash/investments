@@ -8,6 +8,7 @@ import DailyTransactionsSheet from "@/components/DailyTransactionsSheet";
 import HoldingsPerformanceTable from "@/components/HoldingsPerformanceTable";
 import VisualAnalyticsDashboard from "@/components/VisualAnalyticsDashboard";
 import PlannerSheet from "@/components/PlannerSheet";
+import MarketHealthBanner from "@/components/MarketHealthBanner";
 import DensityToggle from "@/components/DensityToggle";
 import LiveClock from "@/components/LiveClock";
 import LogoutButton from "@/components/LogoutButton";
@@ -8781,6 +8782,7 @@ This replaces the current accounts, inventory, and transactions.`)
                 setJumpHit(hit);
               },
             }),
+            (0, t.jsx)(MarketHealthBanner, { onRetried: () => el(!0) }),
             es &&
               (0, t.jsxs)("div", {
                 role: es.type === "error" ? "alert" : "status",
@@ -8831,6 +8833,8 @@ This replaces the current accounts, inventory, and transactions.`)
                     ? (0, t.jsx)(PlannerSheet, {
                         accounts: e,
                         onNotify: ei,
+                        jumpHit,
+                        onJumpHandled: () => setJumpHit(null),
                       })
                   : "market" === g
                     ? (0, t.jsx)(eq, {
@@ -8854,6 +8858,8 @@ This replaces the current accounts, inventory, and transactions.`)
                           onNotify: ei,
                           onDataChanged: () => el(!0),
                           refreshKey: adRefreshKey,
+                          jumpHit,
+                          onJumpHandled: () => setJumpHit(null),
                         })
                       : "inventory" === g
                         ? (0, t.jsx)(ed, {

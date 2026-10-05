@@ -1,4 +1,10 @@
-export type WorkbookSheet = "future" | "inventory" | "master" | "analytics";
+export type WorkbookSheet =
+  | "future"
+  | "inventory"
+  | "master"
+  | "analytics"
+  | "planner"
+  | "accountDetails";
 
 export type WorkbookHit = {
   id: string;
@@ -11,6 +17,10 @@ export type WorkbookHit = {
   holdingId?: number;
   transactionId?: number;
   side?: "BUY" | "SELL";
+  /** Additional searchable body text (comments, notes, attributes). */
+  text?: string;
+  /** Row token used by data-search-row="..." markers for highlighting. */
+  rowId?: string;
 };
 
 type AccountLike = {
@@ -36,6 +46,8 @@ const SHEETS: Record<WorkbookSheet, string> = {
   future: "Daily Transactions",
   master: "Account's Summary",
   analytics: "Visual Analytics",
+  planner: "Planner",
+  accountDetails: "Account Details",
 };
 
 export function buildWorkbookIndex(
@@ -94,6 +106,117 @@ export function buildWorkbookIndex(
   return hits;
 }
 
+type PlannerExtras = {
+  groups?: Array<{
+    accountNumber?: string;
+    rows?: Array<{
+      id: number;
+      symbol?: string;
+      comments?: string;
+      amount?: number;
+    }>;
+  }> | null;
+  sheetComment?: string | null;
+};
+
+type AccountDetailsExtras = {
+  accounts?: Array<{
+    id: number;
+    accountNumber?: string;
+    financialInstitute?: string;
+    accountType?: string;
+    startDate?: string;
+    comments?: string;
+    taxPeriod?: string;
+  }> | null;
+  deposits?: Array<{
+    id: number;
+    accountNumber?: string;
+    dateInvested?: string;
+    amount?: number;
+    comments?: string;
+  }> | null;
+};
+
+/** Extra search coverage: planner rows/comments, account detail text,
+    deposit notes — merged on top of the symbol/account core index. */
+export function buildExtraHits(
+  planner?: PlannerExtras,
+  accountDetails?: AccountDetailsExtras,
+): WorkbookHit[] {
+  const hits: WorkbookHit[] = [];
+  for (const group of planner?.groups ?? []) {
+    const accountNumber = String(group.accountNumber ?? "").trim();
+    for (const row of group.rows ?? []) {
+      const symbol = String(row.symbol ?? "").trim().toUpperCase();
+      const comments = String(row.comments ?? "").trim();
+      if (!symbol && !comments) continue;
+      hits.push({
+        id: `planner:${row.id}`,
+        sheet: "planner",
+        sheetLabel: SHEETS.planner,
+        title: symbol || "(planned row)",
+        subtitle: `${accountNumber} · Planner`,
+        accountNumber,
+        symbol,
+        text: comments,
+        rowId: `pl-${row.id}`,
+      });
+    }
+  }
+  const sheetComment = String(planner?.sheetComment ?? "").trim();
+  if (sheetComment) {
+    hits.push({
+      id: "planner:sheet-comment",
+      sheet: "planner",
+      sheetLabel: SHEETS.planner,
+      title: "Planner comment",
+      subtitle: `Overall planner comment`,
+      text: sheetComment,
+    });
+  }
+  for (const account of accountDetails?.accounts ?? []) {
+    const accountNumber = String(account.accountNumber ?? "").trim();
+    if (!accountNumber) continue;
+    hits.push({
+      id: `accountdetail:${account.id}`,
+      sheet: "accountDetails",
+      sheetLabel: SHEETS.accountDetails,
+      title: accountNumber,
+      subtitle: `${account.financialInstitute || "Account"} · Account Details`,
+      accountNumber,
+      text: [
+        account.financialInstitute,
+        account.accountType,
+        account.startDate,
+        account.comments,
+        account.taxPeriod,
+      ]
+        .filter(Boolean)
+        .join(" · "),
+      rowId: `ad-${account.id}`,
+    });
+  }
+  for (const deposit of accountDetails?.deposits ?? []) {
+    const accountNumber = String(deposit.accountNumber ?? "").trim();
+    const comments = String(deposit.comments ?? "").trim();
+    if (!accountNumber && !comments) continue;
+    hits.push({
+      id: `deposit:${deposit.id}`,
+      sheet: "accountDetails",
+      sheetLabel: SHEETS.accountDetails,
+      title: accountNumber || "(deposit)",
+      subtitle: `$${Number(deposit.amount || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })} deposit${
+        deposit.dateInvested ? ` · ${deposit.dateInvested}` : ""
+      }`,
+      accountNumber,
+      text: comments,
+      rowId: `dep-${deposit.id}`,
+    });
+  }
+  return hits;
+}
+
 function scoreHit(hit: WorkbookHit, query: string): number {
   const q = query.trim().toLowerCase();
   if (!q) return 0;
@@ -107,6 +230,7 @@ function scoreHit(hit: WorkbookHit, query: string): number {
     hit.subtitle.toLowerCase().includes(q)
   )
     return 40;
+  if (hit.text && hit.text.toLowerCase().includes(q)) return 35;
   return 0;
 }
 
@@ -131,6 +255,7 @@ export function searchWorkbook(
 }
 
 export function selectorForHit(hit: WorkbookHit): string | null {
+  if (hit.rowId) return `[data-search-row="${hit.rowId}"]`;
   if (hit.holdingId) return `[data-holding-id="${hit.holdingId}"]`;
   if (hit.transactionId) return `[data-transaction-id="${hit.transactionId}"]`;
   if (hit.accountNumber)

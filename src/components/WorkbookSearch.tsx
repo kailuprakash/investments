@@ -2,7 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Search } from "lucide-react";
-import { searchWorkbook, type WorkbookHit } from "@/lib/workbook-search";
+import {
+  buildExtraHits,
+  searchWorkbook,
+  type WorkbookHit,
+} from "@/lib/workbook-search";
 
 export default function WorkbookSearch({
   hits,
@@ -14,9 +18,49 @@ export default function WorkbookSearch({
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
+  const [extraHits, setExtraHits] = useState<WorkbookHit[]>([]);
+  const extrasLoaded = useRef(false);
   const root = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLInputElement>(null);
-  const matches = useMemo(() => searchWorkbook(hits, query), [hits, query]);
+  const allHits = useMemo(() => [...hits, ...extraHits], [hits, extraHits]);
+  const matches = useMemo(() => searchWorkbook(allHits, query), [allHits, query]);
+
+  // Planner/comments/deposit notes load once, on first search focus, and
+  // stay cached — the core symbol/account hits arrive instantly from props.
+  useEffect(() => {
+    if (!open || extrasLoaded.current) return;
+    extrasLoaded.current = true;
+    void (async () => {
+      try {
+        const [plannerRes, detailsRes] = await Promise.all([
+          fetch("/api/planner", { cache: "no-store" }),
+          fetch("/api/account-details", { cache: "no-store" }),
+        ]);
+        const planner = plannerRes.ok ? await plannerRes.json() : null;
+        const details = detailsRes.ok ? await detailsRes.json() : null;
+        const depositsByAccount = details?.depositsByAccount as
+          | Record<string, Array<Record<string, unknown>>>
+          | undefined;
+        const deposits = depositsByAccount
+          ? (Object.values(depositsByAccount).flat() as {
+              id: number;
+              accountNumber?: string;
+              dateInvested?: string;
+              amount?: number;
+              comments?: string;
+            }[])
+          : null;
+        setExtraHits(
+          buildExtraHits(planner ?? undefined, {
+            accounts: details?.accountDetails ?? null,
+            deposits,
+          }),
+        );
+      } catch {
+        /* Extra coverage is a bonus — core hits keep working offline. */
+      }
+    })();
+  }, [open]);
 
   useEffect(() => {
     setActive(0);
@@ -114,7 +158,7 @@ export default function WorkbookSearch({
         >
           {matches.length === 0 ? (
             <p className="workbook-search-empty" role="status">
-              No symbols or accounts match “{query.trim()}”.
+              Nothing matches “{query.trim()}" in the workbook.
             </p>
           ) : (
             matches.map((hit, index) => (
