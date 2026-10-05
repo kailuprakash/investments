@@ -8,6 +8,7 @@ import DailyTransactionsSheet from "@/components/DailyTransactionsSheet";
 import HoldingsPerformanceTable from "@/components/HoldingsPerformanceTable";
 import VisualAnalyticsDashboard from "@/components/VisualAnalyticsDashboard";
 import PlannerSheet from "@/components/PlannerSheet";
+import ColorLegend from "@/components/ColorLegend";
 import DensityToggle from "@/components/DensityToggle";
 import LiveClock from "@/components/LiveClock";
 import LogoutButton from "@/components/LogoutButton";
@@ -8945,6 +8946,7 @@ This replaces the current accounts, inventory, and transactions.`)
                 }),
               ],
             }),
+            (0, t.jsx)(ColorLegend, {}),
             (0, t.jsx)(eF, {
               isOpen: N,
               onClose: () => {

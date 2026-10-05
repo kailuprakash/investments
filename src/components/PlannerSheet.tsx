@@ -374,6 +374,8 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
   const [nameOverrides, setNameOverrides] = useState<Record<string, string>>(
     {},
   );
+  const [editingSheetComment, setEditingSheetComment] = useState(false);
+  const [sheetCommentDraft, setSheetCommentDraft] = useState("");
   const nameFetchRef = useRef<Set<string>>(new Set());
   const savingRef = useRef(0);
 
@@ -712,19 +714,33 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
   const symbolOptions = state?.symbols ?? [];
   const tableWidth = COL_WIDTHS.reduce((sum, width) => sum + width, 0);
 
-  // Comments ticker: every planned row that carries a comment scrolls here.
-  const tickerItems: string[] = [];
-  for (const group of groups) {
-    for (const row of group.rows) {
-      if (row.symbol.trim() && row.comments.trim()) {
-        tickerItems.push(
-          `${group.accountNumber} › ${row.symbol}: ${row.comments}`,
-        );
-      }
+  // Overall sheet comment — one editable, auto-scrolling ticker for the
+  // whole planner sheet (not tied to any single symbol).
+  const sheetComment = state?.sheetComment ?? "";
+  const tickerFullText = sheetComment;
+  const tickerDuration = `${Math.max(18, sheetComment.length * 0.5)}s`;
+
+  const saveSheetComment = async () => {
+    const next = sheetCommentDraft.trim();
+    setEditingSheetComment(false);
+    if (next === sheetComment) return;
+    markSaving();
+    try {
+      const response = await fetch("/api/planner", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "set-sheet-comment", value: next }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body?.error || "Save failed");
+      setState(body);
+    } catch (error) {
+      fail(error instanceof Error ? error.message : "Save failed");
+      void load(true);
+    } finally {
+      doneSaving();
     }
-  }
-  const tickerFullText = tickerItems.join("  |  ");
-  const tickerDuration = `${Math.max(24, tickerItems.length * 10)}s`;
+  };
 
   return (
     <div className="space-y-2">
@@ -753,31 +769,86 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
 .planner-ticker:hover { animation-play-state: paused; }`}</style>
       <div
         className="overflow-hidden whitespace-nowrap rounded-[7px] border border-[#bfcfc8] bg-white px-2 py-1 text-[11px] text-slate-600 shadow-sm"
-        title={tickerFullText || undefined}
-        aria-label="Planner comments ticker"
+        title={editingSheetComment ? undefined : tickerFullText || undefined}
+        aria-label="Planner comment ticker"
       >
-        <div className="inline-flex min-w-full items-center">
+        <div className="flex min-w-full items-center gap-1.5">
           <MessageSquare
             size={12}
             aria-hidden="true"
-            className="mr-1.5 shrink-0 text-slate-400"
+            className="shrink-0 text-slate-400"
           />
-          {tickerItems.length === 0 ? (
-            <span className="italic text-slate-400">
-              Add a comment to a planned row to see it scroll here.
-            </span>
+          {editingSheetComment ? (
+            <input
+              autoFocus
+              type="text"
+              className="h-5 flex-1 rounded border border-emerald-600 bg-white px-1.5 text-[11px] outline-none ring-1 ring-emerald-500/40"
+              value={sheetCommentDraft}
+              placeholder="Planner comment…"
+              aria-label="Edit planner comment"
+              onChange={(event) => setSheetCommentDraft(event.target.value)}
+              onBlur={() => void saveSheetComment()}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") void saveSheetComment();
+                if (event.key === "Escape") {
+                  setEditingSheetComment(false);
+                }
+              }}
+            />
           ) : (
             <div
-              className="planner-ticker inline-flex items-center gap-10 will-change-transform"
-              style={{ animation: `plannerTickerScroll ${tickerDuration} linear infinite` }}
+              className="flex min-w-0 flex-1 cursor-text items-center"
+              onClick={() => {
+                setSheetCommentDraft(sheetComment);
+                setEditingSheetComment(true);
+              }}
             >
-              {[...tickerItems, ...tickerItems].map((text, index) => (
-                <span key={index} className="whitespace-nowrap">
-                  {text}
+              {sheetComment === "" ? (
+                <span className="italic text-slate-400">
+                  Add a comment for this planner sheet — it will scroll here.
                 </span>
-              ))}
+              ) : (
+                <div className="overflow-hidden whitespace-nowrap">
+                  <div
+                    className="planner-ticker inline-flex items-center gap-10 will-change-transform"
+                    style={{
+                      animation: `plannerTickerScroll ${tickerDuration} linear infinite`,
+                    }}
+                  >
+                    {[sheetComment, sheetComment].map((text, index) => (
+                      <span key={index} className="whitespace-nowrap">
+                        {text}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
+          <button
+            type="button"
+            onClick={() => {
+              if (editingSheetComment) {
+                void saveSheetComment();
+              } else {
+                setSheetCommentDraft(sheetComment);
+                setEditingSheetComment(true);
+              }
+            }}
+            aria-label={
+              editingSheetComment
+                ? "Save planner comment"
+                : "Edit planner comment"
+            }
+            title={
+              editingSheetComment
+                ? "Save comment (Enter)"
+                : "Edit planner comment"
+            }
+            className="shrink-0 rounded p-0.5 text-slate-400 transition-colors hover:text-emerald-700"
+          >
+            <Pencil size={12} />
+          </button>
         </div>
       </div>
 
@@ -792,11 +863,11 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
                 <col key={idx} style={{ width, minWidth: width, maxWidth: width }} />
               ))}
             </colgroup>
-            <thead>
+            <thead className="sticky top-0 z-40 bg-[#D9E1F2]">
               <tr className="border-b border-slate-400">
                 <th
                   rowSpan={2}
-                  className={`${th} sticky top-0 z-30 text-center`}
+                  className={`${th} text-center`}
                   aria-label="Expand or collapse all accounts"
                 >
                   <span
@@ -837,14 +908,14 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
                 <th
                   rowSpan={2}
                   data-field-kind="editable"
-                  className={`${thEditable} text-left sticky top-0 z-30`}
+                  className={`${thEditable} text-left`}
                 >
                   <FieldHeader label="Symbol" kind="editable" />
                 </th>
                 <th
                   rowSpan={2}
                   data-field-kind="calculated"
-                  className={`${th} text-right font-semibold sticky top-0 z-30`}
+                  className={`${th} text-right font-semibold`}
                 >
                   <span className="inline-flex items-center justify-end gap-1">
                     <FieldHeader label="Market Price" kind="calculated" />
@@ -873,58 +944,58 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
                 </th>
                 <th
                   colSpan={4}
-                  className={`${th} text-center font-bold sticky top-0 z-30`}
+                  className={`${th} text-center font-bold`}
                 >
                   Plan - Budget Allocation
                 </th>
                 <th
                   colSpan={3}
-                  className={`${th} text-center font-bold sticky top-0 z-30`}
+                  className={`${th} text-center font-bold`}
                 >
                   Actual
                 </th>
                 <th
                   rowSpan={2}
                   data-field-kind="calculated"
-                  className={`${th} text-center font-bold sticky top-0 z-30`}
+                  className={`${th} text-center font-bold`}
                 >
                   <FieldHeader label="Balance Amount" kind="calculated" />
                 </th>
                 <th
                   rowSpan={2}
                   data-field-kind="editable"
-                  className={`${thEditable} text-left sticky top-0 z-30`}
+                  className={`${thEditable} text-left`}
                 >
                   <FieldHeader label="Comments" kind="editable" />
                 </th>
                 <th
                   rowSpan={2}
                   data-field-kind="readonly"
-                  className={`${th} text-center font-bold sticky top-0 right-0 z-40 [background-clip:padding-box]`}
+                  className={`${th} text-center font-bold sticky right-0 z-[45] [background-clip:padding-box]`}
                 >
                   <FieldHeader label="Updated Date" kind="readonly" />
                 </th>
               </tr>
               <tr className="border-b border-slate-400">
-                <th data-field-kind="calculated" className={`${th} text-right font-semibold sticky top-[28px] z-30`} title="Auto-calculated: trunc(Amount ÷ Share Price)">
+                <th data-field-kind="calculated" className={`${th} text-right font-semibold`} title="Auto-calculated: trunc(Amount ÷ Share Price)">
                   <FieldHeader label="~ # of Shares" kind="calculated" />
                 </th>
-                <th data-field-kind="editable" className={`${thEditable} text-right sticky top-[28px] z-30`}>
+                <th data-field-kind="editable" className={`${thEditable} text-right`}>
                   <FieldHeader label="Share Price" kind="editable" />
                 </th>
-                <th data-field-kind="calculated" className={`${th} text-right font-semibold sticky top-[28px] z-30`}>
+                <th data-field-kind="calculated" className={`${th} text-right font-semibold`}>
                   <FieldHeader label="Amount" kind="calculated" />
                 </th>
-                <th data-field-kind="editable" className={`${thEditable} text-right sticky top-[28px] z-30`}>
+                <th data-field-kind="editable" className={`${thEditable} text-right`}>
                   <FieldHeader label="% Allocation" kind="editable" />
                 </th>
-                <th data-field-kind="calculated" className={`${th} text-right font-semibold sticky top-[28px] z-30`}>
+                <th data-field-kind="calculated" className={`${th} text-right font-semibold`}>
                   <FieldHeader label="Shares Purchased" kind="calculated" />
                 </th>
-                <th data-field-kind="calculated" className={`${th} text-right font-semibold sticky top-[28px] z-30`}>
+                <th data-field-kind="calculated" className={`${th} text-right font-semibold`}>
                   <FieldHeader label="Share Price" kind="calculated" />
                 </th>
-                <th data-field-kind="calculated" className={`${th} text-right font-semibold sticky top-[28px] z-30`}>
+                <th data-field-kind="calculated" className={`${th} text-right font-semibold`}>
                   <FieldHeader label="Total Amount" kind="calculated" />
                 </th>
               </tr>
@@ -1068,7 +1139,16 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
                             >
                               {row.shares ? qty(row.shares) : ""}
                             </td>
-                            <td data-field-kind="editable" className={editableTd}>
+                            <td
+                              data-field-kind="editable"
+                              className={`${editableTd} ${
+                                row.sharePrice > 0 &&
+                                row.currentMarketPrice > 0 &&
+                                row.sharePrice < row.currentMarketPrice
+                                  ? "!bg-[#C6EFCE]"
+                                  : ""
+                              }`}
+                            >
                               <PlannerEditCell
                                 type="number"
                                 align="right"
@@ -1080,7 +1160,7 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
                                   row.sharePrice > 0 &&
                                   row.currentMarketPrice > 0 &&
                                   row.sharePrice < row.currentMarketPrice
-                                    ? "font-bold text-emerald-700"
+                                    ? "font-bold text-[#006100]"
                                     : undefined
                                 }
                                 title={
@@ -1247,28 +1327,6 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
               })}
             </tbody>
           </table>
-        </div>
-        {/* Color legend */}
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-[#d5dde2] bg-[#fbfcfd] px-3 py-1.5 text-[10px] text-slate-500">
-          <span className="font-bold text-slate-600">Legend:</span>
-          <span className="inline-flex items-center gap-1.5">
-            <span className="h-3 w-3 rounded-sm border border-slate-300 bg-[#FFF2CC]" />
-            Editable field
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <span className="font-bold text-emerald-700">$34.00</span>
-            Share Price below Market Price — buying point reached
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <span className="font-semibold text-emerald-800">$10.00</span>
-            Positive balance ·{" "}
-            <span className="font-semibold text-red-700">($10.00)</span> negative
-            balance
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <span className="h-3 w-3 rounded-sm border border-slate-300 bg-[#DCEFE5]" />
-            Total - Account Level - Cash Allocation row
-          </span>
         </div>
       </section>
 

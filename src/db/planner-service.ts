@@ -3,7 +3,9 @@ import {
   buildPortfolioState,
   fallbackSectorForSymbol,
   fetchSymbolQuote,
+  getSetting,
   refreshAllMarketPrices,
+  setSetting,
 } from "@/db/portfolio-service";
 
 const round2 = (value: number) =>
@@ -71,10 +73,14 @@ export type PlannerAccountGroup = {
   cashRemaining: number;
 };
 
+const SHEET_COMMENT_KEY = "planner_sheet_comment_v1";
+
 export type PlannerState = {
   groups: PlannerAccountGroup[];
   /** Distinct symbols (holdings, watchlist, market cache) for suggestions. */
   symbols: string[];
+  /** One overall comment for the whole planner sheet (ticker, editable). */
+  sheetComment: string;
 };
 
 let ensurePromise: Promise<void> | null = null;
@@ -314,7 +320,21 @@ export async function getPlannerState(): Promise<PlannerState> {
     buildGroup(raw?.account_number ?? budgetRawName.get(orphan) ?? orphan, undefined);
   }
 
-  return { groups, symbols };
+  const sheetComment = (await getSetting(SHEET_COMMENT_KEY).catch(() => "")) ?? "";
+  return { groups, symbols, sheetComment };
+}
+
+/** Save the single overall comment for the planner sheet. */
+export async function setPlannerSheetComment(data: {
+  value?: unknown;
+}): Promise<PlannerState> {
+  await setSetting(
+    SHEET_COMMENT_KEY,
+    String(data?.value ?? "")
+      .trim()
+      .slice(0, 2000),
+  );
+  return getPlannerState();
 }
 
 /** Edit the "Total - Account Level - Cash Allocation" budget for an account.

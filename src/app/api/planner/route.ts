@@ -7,6 +7,7 @@ import {
   getPlannerState,
   refreshPlannerMarketPrices,
   setPlannerAccountBudget,
+  setPlannerSheetComment,
 } from "@/db/planner-service";
 
 export async function GET(req: NextRequest) {
@@ -62,6 +63,12 @@ export async function PATCH(req: NextRequest) {
 
   try {
     const body = await req.json().catch(() => ({}));
+    if (body?.action === "set-sheet-comment") {
+      const planner = await setPlannerSheetComment({ value: body?.value });
+      return NextResponse.json(planner, {
+        headers: { "Cache-Control": "no-store" },
+      });
+    }
     if (body?.action === "set-budget") {
       const planner = await setPlannerAccountBudget({
         accountNumber: body?.accountNumber,
