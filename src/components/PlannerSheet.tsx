@@ -889,6 +889,13 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
     "border border-slate-300 p-0 bg-[#FFF2CC] text-[#78350F] whitespace-nowrap";
   const stickyRight = "sticky right-0 z-[19] shadow-[-3px_0_5px_-4px_#33415566] [background-clip:padding-box]";
 
+  const groups = useMemo(() => state?.groups ?? [], [state?.groups]);
+  const symbolOptions = state?.symbols ?? [];
+  // NOTE: hooks must come before any early return (the loading branch below),
+  // otherwise the hook count changes between renders and crashes the page.
+  const COL_WIDTHS = useMemo(() => computeColumnWidths(groups), [groups]);
+  const tableWidth = COL_WIDTHS.reduce((sum, width) => sum + width, 0);
+
   if (loading && !state) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-gray-500">
@@ -899,11 +906,6 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
       </div>
     );
   }
-
-  const groups = state?.groups ?? [];
-  const symbolOptions = state?.symbols ?? [];
-  const COL_WIDTHS = useMemo(() => computeColumnWidths(groups), [groups]);
-  const tableWidth = COL_WIDTHS.reduce((sum, width) => sum + width, 0);
 
   // Overall sheet comment — one editable, auto-scrolling ticker for the
   // whole planner sheet (not tied to any single symbol).
@@ -1009,7 +1011,8 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
             <>
               Remove <strong>{deleteTarget.symbol || "this row"}</strong> (
               {qty(deleteTarget.shares)} shares) from{" "}
-              <strong>{deleteTarget.accountNumber}</strong>'s planner?
+              <strong>{deleteTarget.accountNumber}</strong>
+              {"'s planner?"}
             </>
           )
         }
