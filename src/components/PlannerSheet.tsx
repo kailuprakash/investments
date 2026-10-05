@@ -25,6 +25,7 @@ import type {
   PlannerState,
 } from "@/db/planner-service";
 import { FieldHeader } from "@/components/WorkbookUI";
+import ConfirmDialog from "@/components/ConfirmDialog";
 
 const PLANNER_REFRESH_EVENT = "planner:refresh-actuals";
 const PLANNER_REFRESH_STATUS_EVENT = "planner:refresh-status";
@@ -100,6 +101,35 @@ function sanitizeNumeric(raw: string): string {
   return (neg ? "-" : "") + out;
 }
 
+/** Push the focus to the next planner-editable input (Tab commits on blur). */
+function movePeFocus(event: { currentTarget: unknown; shiftKey?: boolean }) {
+  const from = event.currentTarget as HTMLInputElement;
+  window.setTimeout(() => {
+    const cells = Array.from(
+      document.querySelectorAll<HTMLInputElement>('input[data-pe="1"]'),
+    );
+    const index = cells.indexOf(from);
+    if (index === -1) return;
+    const next = cells[index + (event.shiftKey ? -1 : 1)];
+    next?.focus();
+    if (next) next.select?.();
+  }, 75);
+}
+
+const ACTION_CHIP_STYLES: Record<string, string> = {
+  hold: "border-amber-300 bg-amber-100 text-amber-800",
+  buy: "border-emerald-300 bg-emerald-100 text-emerald-800",
+  "get out": "border-red-300 bg-red-100 text-red-700",
+  accumulate: "border-blue-300 bg-blue-100 text-blue-800",
+  "don't enter": "border-gray-300 bg-gray-200 text-gray-600",
+};
+function actionChipClass(value: string): string {
+  const key = value.trim().toLowerCase();
+  const style = ACTION_CHIP_STYLES[key];
+  if (!value.trim()) return "";
+  return `!rounded border ${style ?? "border-slate-300 bg-slate-100 text-slate-700"} !text-center !font-semibold px-1`;
+}
+
 /* ------------------------- editable primitives ------------------------- */
 
 const inputBase =
@@ -145,6 +175,7 @@ function PlannerEditCell({
       title={
         title ?? (displayValue && !editing ? displayValue : undefined)
       }
+      data-pe="1"
       onFocus={() => {
         setDraft(value);
         setEditing(true);
@@ -160,6 +191,12 @@ function PlannerEditCell({
       }}
       onKeyDown={(event) => {
         if (event.key === "Enter") (event.target as HTMLInputElement).blur();
+        if (event.key === "Tab") {
+          event.preventDefault();
+          (event.target as HTMLInputElement).blur();
+          movePeFocus(event);
+          return;
+        }
         if (event.key === "Escape") {
           setDraft(value);
           setEditing(false);
@@ -274,6 +311,7 @@ function SymbolSuggestInput({
         autoComplete="off"
         spellCheck={false}
         className={`${inputBase} text-left font-semibold uppercase whitespace-nowrap`}
+        data-pe="1"
         value={editing ? draft : value}
         placeholder="Symbol"
         title={!editing && tooltip ? tooltip : undefined}
@@ -306,6 +344,10 @@ function SymbolSuggestInput({
             } else {
               commit(draft, true);
             }
+          } else if (event.key === "Tab") {
+            event.preventDefault();
+            commit(draft, true);
+            movePeFocus(event);
           } else if (event.key === "Escape") {
             setDraft(value);
             setOpen(false);
@@ -376,10 +418,11 @@ function PlannerActionCell({
   return (
     <div className="relative">
       <input
+        data-pe="1"
         list={listId}
         type="text"
         autoComplete="off"
-        className={`${inputBase} text-left ${value ? "italic" : "text-slate-400"}`}
+        className={`${inputBase} text-left ${value ? "italic" : "text-slate-400"} ${actionChipClass(value)}`}
         value={editing ? draft : value}
         placeholder="Action…"
         title={
@@ -398,6 +441,12 @@ function PlannerActionCell({
         }}
         onKeyDown={(event) => {
           if (event.key === "Enter") (event.target as HTMLInputElement).blur();
+          if (event.key === "Tab") {
+            event.preventDefault();
+            (event.target as HTMLInputElement).blur();
+            movePeFocus(event);
+            return;
+          }
           if (event.key === "Escape") {
             setDraft(value);
             setEditing(false);
@@ -418,8 +467,76 @@ function PlannerActionCell({
 
 const COLLAPSED_KEY = "planner-collapsed-accounts-v1";
 
-/** Fixed column layout (no Account column — accounts are group header rows). */
-const COL_WIDTHS = [34, 110, 128, 90, 100, 126, 112, 144, 100, 124, 116, 128, 210, 148];
+/** Column #10 is Comments — width is fixed; every other column auto-sizes
+    to its widest displayed value (headers included). */
+const COMMENTS_COL_INDEX = 12;
+const COMMENTS_COL_WIDTH = 210;
+const ACTION_COL_WIDTH = 34;
+
+const pxForText = (chars: number) => Math.ceil(chars * 7 + 22);
+const moneyText = (value: number) => money(value).length;
+
+function computeColumnWidths(groups: PlannerAccountGroup[]): number[] {
+  const col = (header: string, values: number[], minPx: number, maxPx: number) => {
+    const px = Math.max(pxForText(header.length), ...values, minPx);
+    return Math.min(px, maxPx);
+  };
+  const symbolValues: number[] = [];
+  const marketValues: number[] = [];
+  const sharesValues: number[] = [];
+  const priceValues: number[] = [];
+  const amountValues: number[] = [];
+  const allocValues: number[] = [];
+  const purchasedValues: number[] = [];
+  const actualPriceValues: number[] = [];
+  const actualAmountValues: number[] = [];
+  const actionValues: number[] = [];
+  const balanceValues: number[] = [];
+  const updatedValues: number[] = [pxForText(21)];
+
+  for (const group of groups) {
+    for (const row of group.rows) {
+      symbolValues.push(pxForText(row.symbol.length + 1));
+      marketValues.push(pxForText(moneyText(row.currentMarketPrice || 0)));
+      sharesValues.push(pxForText(qty(row.shares).length));
+      priceValues.push(pxForText(moneyText(row.sharePrice || 0)));
+      amountValues.push(pxForText(moneyText(row.amount || 0)));
+      const allocText =
+        row.allocationPercent !== null
+          ? pct(row.allocationPercent).length
+          : pct(row.effectiveAllocation).length + 7;
+      allocValues.push(pxForText(allocText));
+      purchasedValues.push(pxForText(qty(row.sharesPurchased || 0).length));
+      actualPriceValues.push(pxForText(moneyText(row.actualSharePrice || 0)));
+      actualAmountValues.push(pxForText(moneyText(row.actualTotalAmount || 0)));
+      actionValues.push(pxForText(Math.max(8, row.action.trim().length)));
+      balanceValues.push(
+        pxForText(
+          moneyText(row.balanceAmount || 0) +
+            (row.amount > 0 ? pct((row.balanceAmount / row.amount) * 100).length + 3 : 0),
+        ),
+      );
+    }
+  }
+
+  const widths = [
+    ACTION_COL_WIDTH,
+    col("Symbol", symbolValues, 100, 150),
+    col("Market Price", marketValues, 112, 160),
+    col("~ # of Shares", sharesValues, 96, 120),
+    col("Price/share", priceValues, 96, 140),
+    col("Amount", amountValues, 104, 170),
+    col("% Allocation", allocValues, 100, 150),
+    col("Purchased", purchasedValues, 88, 118),
+    col("Price/share", actualPriceValues, 96, 130),
+    col("Total Amount", actualAmountValues, 104, 160),
+    col("Action", actionValues, 100, 180),
+    col("Balance Amount", balanceValues, 118, 200),
+  ];
+  widths[COMMENTS_COL_INDEX] = COMMENTS_COL_WIDTH;
+  widths.push(pxForText(21));
+  return widths;
+}
 
 export default function PlannerSheet({ accounts, onNotify }: Props) {
   const [state, setState] = useState<PlannerState | null>(null);
@@ -427,7 +544,6 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
   const [refreshing, setRefreshing] = useState(false);
   const [marketRefreshing, setMarketRefreshing] = useState(false);
   const [addingFor, setAddingFor] = useState<string | null>(null);
-  const [status, setStatus] = useState<"" | "saving" | "saved">("");
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [nameOverrides, setNameOverrides] = useState<Record<string, string>>(
     {},
@@ -476,8 +592,9 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
 
   const fail = useCallback(
     (msg: string) => {
+      // All feedback goes through the workbook toast (one place, all tabs).
       if (onNotify) onNotify(msg, "error");
-      else window.alert(msg);
+      else console.error(msg);
     },
     [onNotify],
   );
@@ -626,16 +743,12 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
     }
   }, [fail]);
 
+  // Saves are silent: outcomes appear inline and failures go to the toast.
   const markSaving = () => {
     savingRef.current += 1;
-    setStatus("saving");
   };
   const doneSaving = () => {
     savingRef.current = Math.max(0, savingRef.current - 1);
-    if (savingRef.current === 0) {
-      setStatus("saved");
-      window.setTimeout(() => setStatus(""), 2500);
-    }
   };
 
   const commit = async (rowId: number, field: EditableField, raw: string) => {
@@ -717,12 +830,30 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
     }
   };
 
-  const deleteRow = async (rowId: number, symbol: string) => {
-    const label = symbol ? `"${symbol}"` : "this row";
-    if (!window.confirm(`Remove ${label} from the planner?`)) return;
-    markSaving();
+  const [deleteTarget, setDeleteTarget] = useState<{
+    id: number;
+    symbol: string;
+    accountNumber: string;
+    shares: number;
+  } | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+
+  const askDeleteRow = (row: PlannerRow, accountNumber: string) => {
+    setDeleteTarget({
+      id: row.id,
+      symbol: row.symbol,
+      accountNumber,
+      shares: row.shares,
+    });
+  };
+
+  const deleteRow = async () => {
+    const target = deleteTarget;
+    setDeleteTarget(null);
+    if (!target) return;
+    setDeleteBusy(true);
     try {
-      const response = await fetch(`/api/planner?id=${rowId}`, {
+      const response = await fetch(`/api/planner?id=${target.id}`, {
         method: "DELETE",
       });
       const body = await response.json();
@@ -732,7 +863,7 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
       fail(error instanceof Error ? error.message : "Delete failed");
       void load(true);
     } finally {
-      doneSaving();
+      setDeleteBusy(false);
     }
   };
 
@@ -771,6 +902,7 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
 
   const groups = state?.groups ?? [];
   const symbolOptions = state?.symbols ?? [];
+  const COL_WIDTHS = useMemo(() => computeColumnWidths(groups), [groups]);
   const tableWidth = COL_WIDTHS.reduce((sum, width) => sum + width, 0);
 
   // Overall sheet comment — one editable, auto-scrolling ticker for the
@@ -810,21 +942,7 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
 
   return (
     <div className="space-y-2">
-      {(status !== "" || refreshing || marketRefreshing) && (
-        <div className="flex justify-end pr-1 text-[10px] font-semibold">
-          {refreshing || marketRefreshing ? (
-            <span className="inline-flex items-center gap-1 text-slate-500">
-              <LoaderCircle className="w-3 h-3 animate-spin" /> Refreshing…
-            </span>
-          ) : status === "saving" ? (
-            <span className="inline-flex items-center gap-1 text-slate-500">
-              <LoaderCircle className="w-3 h-3 animate-spin" /> Saving…
-            </span>
-          ) : (
-            <span className="text-emerald-700">All changes saved</span>
-          )}
-        </div>
-      )}
+
 
       {/* Auto-scrolling comments ticker across the whole planner sheet.
           Pauses on hover; hover also shows the complete text. */}
@@ -882,6 +1000,25 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
           </button>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title="Delete planned row?"
+        message={
+          deleteTarget && (
+            <>
+              Remove <strong>{deleteTarget.symbol || "this row"}</strong> (
+              {qty(deleteTarget.shares)} shares) from{" "}
+              <strong>{deleteTarget.accountNumber}</strong>'s planner?
+            </>
+          )
+        }
+        detail="Only this planned row is removed — holdings, cash, and other rows are not changed."
+        confirmLabel="Delete row"
+        busy={deleteBusy}
+        onConfirm={() => void deleteRow()}
+        onCancel={() => setDeleteTarget(null)}
+      />
 
       {/* Planner comment editor popup — free-flow text with explicit save. */}
       {commentEditorOpen && (
@@ -1199,7 +1336,7 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
                                 type="button"
                                 aria-label={`Delete planner row ${row.symbol || row.id}`}
                                 title="Delete row"
-                                onClick={() => void deleteRow(row.id, row.symbol)}
+                                onClick={() => askDeleteRow(row, group.accountNumber)}
                                 className="p-1 text-slate-400 transition-colors hover:text-red-600"
                               >
                                 <Trash2 size={13} />

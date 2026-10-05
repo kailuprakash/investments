@@ -2,6 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import { Pencil, Trash2, LoaderCircle } from "lucide-react";
+import ConfirmDialog from "@/components/ConfirmDialog";
 
 export type FieldKind = "editable" | "readonly" | "calculated";
 
@@ -130,16 +131,12 @@ export function DeleteHoldingButton({
   onDelete: (id: number) => Promise<void>;
 }) {
   const [busy, setBusy] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function remove() {
-    if (
-      busy ||
-      !window.confirm(
-        `Delete ${holding.symbol} from ${holding.accountNumber}?\n\nOnly this holding row will be removed. Cash balance, transactions, and historical snapshots will not be changed.`,
-      )
-    )
-      return;
+    setConfirming(false);
+    if (busy) return;
     setBusy(true);
     setError(null);
     try {
@@ -163,7 +160,7 @@ export function DeleteHoldingButton({
         disabled={busy}
         onClick={(event) => {
           event.stopPropagation();
-          void remove();
+          setConfirming(true);
         }}
         aria-label={`${busy ? "Deleting" : "Delete"} ${holding.symbol} holding from ${holding.accountNumber}`}
         aria-busy={busy}
@@ -175,6 +172,21 @@ export function DeleteHoldingButton({
           <Trash2 size={15} aria-hidden="true" />
         )}
       </button>
+      <ConfirmDialog
+        open={confirming}
+        title={`Delete holding ${holding.symbol}?`}
+        message={
+          <>
+            Delete <strong>{holding.symbol}</strong> from{" "}
+            <strong>{holding.accountNumber}</strong>?
+          </>
+        }
+        detail="Only this holding row is removed — cash balance, transactions, and historical snapshots are not changed."
+        confirmLabel="Delete holding"
+        busy={busy}
+        onConfirm={() => void remove()}
+        onCancel={() => setConfirming(false)}
+      />
       {error && (
         <span className="holding-delete-error" role="alert">
           {error}
