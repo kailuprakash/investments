@@ -1139,42 +1139,50 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
                             >
                               {row.shares ? qty(row.shares) : ""}
                             </td>
-                            <td
-                              data-field-kind="editable"
-                              className={`${editableTd} ${
-                                row.sharePrice > 0 &&
-                                row.currentMarketPrice > 0 &&
-                                row.sharePrice < row.currentMarketPrice
-                                  ? "!bg-[#C6EFCE]"
-                                  : ""
-                              }`}
-                            >
-                              <PlannerEditCell
-                                type="number"
-                                align="right"
-                                value={rowNumeric(row, "sharePrice")}
-                                displayValue={
-                                  row.sharePrice ? money(row.sharePrice) : ""
-                                }
-                                inputClassName={
-                                  row.sharePrice > 0 &&
-                                  row.currentMarketPrice > 0 &&
-                                  row.sharePrice < row.currentMarketPrice
-                                    ? "font-bold text-[#006100]"
-                                    : undefined
-                                }
-                                title={
-                                  row.sharePrice > 0 &&
-                                  row.currentMarketPrice > 0 &&
-                                  row.sharePrice < row.currentMarketPrice
-                                    ? `Below Market Price (${money(row.currentMarketPrice)}) — buying point reached`
-                                    : undefined
-                                }
+                            {(() => {
+                              const hasPrices =
+                                row.sharePrice > 0 && row.currentMarketPrice > 0;
+                              const aboveEntry =
+                                hasPrices &&
+                                row.currentMarketPrice > row.sharePrice;
+                              const reached =
+                                hasPrices &&
+                                row.currentMarketPrice <= row.sharePrice;
+                              return (
+                                <td
+                                  data-field-kind="editable"
+                                  className={`${editableTd} ${
+                                    aboveEntry
+                                      ? "!bg-[#FCE4D6]"
+                                      : reached
+                                        ? "!bg-white"
+                                        : ""
+                                  }`}
+                                >
+                                  <PlannerEditCell
+                                    type="number"
+                                    align="right"
+                                    value={rowNumeric(row, "sharePrice")}
+                                    displayValue={
+                                      row.sharePrice ? money(row.sharePrice) : ""
+                                    }
+                                    inputClassName={
+                                      reached ? "font-bold text-emerald-700" : undefined
+                                    }
+                                    title={
+                                      aboveEntry
+                                        ? `Market Price (${money(row.currentMarketPrice)}) still above Entry Point — waiting`
+                                        : reached
+                                          ? `Market Price (${money(row.currentMarketPrice)}) at or below Entry Point — buying point reached`
+                                          : undefined
+                                    }
                                 onCommit={(next) =>
                                   void commit(row.id, "sharePrice", num(next))
                                 }
                               />
-                            </td>
+                                </td>
+                              );
+                            })()}
                             <td
                               data-field-kind="calculated"
                               className={`${tdMoney} font-semibold text-slate-800`}
