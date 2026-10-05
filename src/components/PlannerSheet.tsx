@@ -374,8 +374,9 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
   const [nameOverrides, setNameOverrides] = useState<Record<string, string>>(
     {},
   );
-  const [editingSheetComment, setEditingSheetComment] = useState(false);
+  const [commentEditorOpen, setCommentEditorOpen] = useState(false);
   const [sheetCommentDraft, setSheetCommentDraft] = useState("");
+  const [commentSaving, setCommentSaving] = useState(false);
   const nameFetchRef = useRef<Set<string>>(new Set());
   const savingRef = useRef(0);
 
@@ -720,11 +721,17 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
   const tickerFullText = sheetComment;
   const tickerDuration = `${Math.max(18, sheetComment.length * 0.5)}s`;
 
+  const openCommentEditor = () => {
+    setSheetCommentDraft(sheetComment);
+    setCommentEditorOpen(true);
+  };
+
   const saveSheetComment = async () => {
     const next = sheetCommentDraft.trim();
-    setEditingSheetComment(false);
+    setCommentEditorOpen(false);
     if (next === sheetComment) return;
     markSaving();
+    setCommentSaving(true);
     try {
       const response = await fetch("/api/planner", {
         method: "PATCH",
@@ -738,6 +745,7 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
       fail(error instanceof Error ? error.message : "Save failed");
       void load(true);
     } finally {
+      setCommentSaving(false);
       doneSaving();
     }
   };
@@ -769,7 +777,7 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
 .planner-ticker:hover { animation-play-state: paused; }`}</style>
       <div
         className="overflow-hidden whitespace-nowrap rounded-[7px] border border-[#bfcfc8] bg-white px-2 py-1 text-[11px] text-slate-600 shadow-sm"
-        title={editingSheetComment ? undefined : tickerFullText || undefined}
+        title={tickerFullText || undefined}
         aria-label="Planner comment ticker"
       >
         <div className="flex min-w-full items-center gap-1.5">
@@ -778,79 +786,111 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
             aria-hidden="true"
             className="shrink-0 text-slate-400"
           />
-          {editingSheetComment ? (
-            <input
-              autoFocus
-              type="text"
-              className="h-5 flex-1 rounded border border-emerald-600 bg-white px-1.5 text-[11px] outline-none ring-1 ring-emerald-500/40"
-              value={sheetCommentDraft}
-              placeholder="Planner comment…"
-              aria-label="Edit planner comment"
-              onChange={(event) => setSheetCommentDraft(event.target.value)}
-              onBlur={() => void saveSheetComment()}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") void saveSheetComment();
-                if (event.key === "Escape") {
-                  setEditingSheetComment(false);
-                }
-              }}
-            />
-          ) : (
-            <div
-              className="flex min-w-0 flex-1 cursor-text items-center"
-              onClick={() => {
-                setSheetCommentDraft(sheetComment);
-                setEditingSheetComment(true);
-              }}
-            >
-              {sheetComment === "" ? (
-                <span className="italic text-slate-400">
-                  Add a comment for this planner sheet — it will scroll here.
-                </span>
-              ) : (
-                <div className="overflow-hidden whitespace-nowrap">
-                  <div
-                    className="planner-ticker inline-flex items-center gap-10 will-change-transform"
-                    style={{
-                      animation: `plannerTickerScroll ${tickerDuration} linear infinite`,
-                    }}
-                  >
-                    {[sheetComment, sheetComment].map((text, index) => (
+          <div
+            className="flex min-w-0 flex-1 cursor-text items-center"
+            onClick={openCommentEditor}
+          >
+            {sheetComment === "" ? (
+              <span className="italic text-slate-400">
+                Add a comment for this planner sheet — it will scroll here.
+              </span>
+            ) : (
+              <div className="overflow-hidden whitespace-nowrap">
+                <div
+                  className="planner-ticker inline-flex items-center gap-10 will-change-transform"
+                  style={{
+                    animation: `plannerTickerScroll ${tickerDuration} linear infinite`,
+                  }}
+                >
+                  {[sheetComment.replace(/\s*\n\s*/g, "  ·  "), sheetComment.replace(/\s*\n\s*/g, "  ·  ")].map(
+                    (text, index) => (
                       <span key={index} className="whitespace-nowrap">
                         {text}
                       </span>
-                    ))}
-                  </div>
+                    ),
+                  )}
                 </div>
-              )}
-            </div>
-          )}
+              </div>
+            )}
+          </div>
           <button
             type="button"
-            onClick={() => {
-              if (editingSheetComment) {
-                void saveSheetComment();
-              } else {
-                setSheetCommentDraft(sheetComment);
-                setEditingSheetComment(true);
-              }
-            }}
-            aria-label={
-              editingSheetComment
-                ? "Save planner comment"
-                : "Edit planner comment"
-            }
-            title={
-              editingSheetComment
-                ? "Save comment (Enter)"
-                : "Edit planner comment"
-            }
+            onClick={openCommentEditor}
+            aria-label="Edit planner comment"
+            title="Edit planner comment"
             className="shrink-0 rounded p-0.5 text-slate-400 transition-colors hover:text-emerald-700"
           >
             <Pencil size={12} />
           </button>
         </div>
       </div>
+
+      {/* Planner comment editor popup — free-flow text with explicit save. */}
+      {commentEditorOpen && (
+        <div
+          className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-900/45 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Planner comment"
+          onClick={() => setCommentEditorOpen(false)}
+        >
+          <div
+            className="w-full max-w-xl rounded-lg border border-slate-300 bg-white p-4 shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <h3 className="text-[13px] font-bold text-emerald-950">
+                Planner Comment
+              </h3>
+              <span className="text-[10px] text-slate-400">
+                Shown as a scrolling ribbon above this sheet.
+              </span>
+            </div>
+            <textarea
+              autoFocus
+              rows={7}
+              maxLength={2000}
+              className="w-full resize-none rounded border border-slate-300 px-2 py-1.5 text-[12px] leading-5 outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-500/40"
+              placeholder="Write your planner comment here… (free-flow, multiple lines are fine)"
+              value={sheetCommentDraft}
+              onChange={(event) => setSheetCommentDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+                  void saveSheetComment();
+                }
+                if (event.key === "Escape") {
+                  setCommentEditorOpen(false);
+                }
+              }}
+            />
+            <div className="mt-1 flex items-center justify-between text-[10px] text-slate-400">
+              <span>Ctrl/Cmd + Enter to save · Click outside to close</span>
+              <span>{sheetCommentDraft.length}/2000</span>
+            </div>
+            <div className="mt-3 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setCommentEditorOpen(false)}
+                disabled={commentSaving}
+                className="inline-flex min-h-[29px] items-center rounded border border-slate-300 px-3 py-1 text-[11px] font-semibold text-slate-600 transition hover:bg-slate-50 disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void saveSheetComment()}
+                disabled={commentSaving}
+                className="inline-flex min-h-[29px] items-center gap-1 rounded border border-emerald-700 bg-emerald-700 px-3 py-1 text-[11px] font-semibold text-white transition hover:bg-emerald-800 disabled:opacity-60"
+              >
+                {commentSaving && (
+                  <LoaderCircle className="w-3.5 h-3.5 animate-spin" />
+                )}
+                Save Comment
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <section className={pane}>
         <div className="h-[calc(100dvh-125px)] min-h-[320px] overflow-auto">
