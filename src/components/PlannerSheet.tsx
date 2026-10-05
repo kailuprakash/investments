@@ -13,6 +13,7 @@ import {
   ChevronRight,
   ChevronUp,
   LoaderCircle,
+  MessageSquare,
   Pencil,
   Plus,
   RefreshCw,
@@ -370,6 +371,10 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
   const [addingFor, setAddingFor] = useState<string | null>(null);
   const [status, setStatus] = useState<"" | "saving" | "saved">("");
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [nameOverrides, setNameOverrides] = useState<Record<string, string>>(
+    {},
+  );
+  const nameFetchRef = useRef<Set<string>>(new Set());
   const savingRef = useRef(0);
 
   // Remember per-account expand/collapse between visits.
@@ -438,6 +443,51 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Company names for the Symbol tooltip: the watchlist covers most symbols;
+  // for anything else, look the name up in the market search once (cached
+  // in component state so the same symbol is never queried twice).
+  useEffect(() => {
+    const missing = new Set<string>();
+    for (const group of state?.groups ?? []) {
+      for (const row of group.rows) {
+        const symbol = row.symbol.trim().toUpperCase();
+        if (symbol && row.symbolName.trim() === "" && !nameOverrides[symbol]) {
+          missing.add(symbol);
+        }
+      }
+    }
+    for (const symbol of missing) {
+      if (nameFetchRef.current.has(symbol)) continue;
+      nameFetchRef.current.add(symbol);
+      void (async () => {
+        try {
+          const response = await fetch(
+            `/api/market-search?q=${encodeURIComponent(symbol)}`,
+          );
+          const body = response.ok ? await response.json() : null;
+          const suggestions: unknown = body?.suggestions;
+          const hit = Array.isArray(suggestions)
+            ? suggestions.find(
+                (entry) =>
+                  String((entry as { symbol?: unknown })?.symbol ?? "")
+                    .trim()
+                    .toUpperCase() === symbol,
+              )
+            : undefined;
+          const name = String(
+            (hit as { name?: unknown })?.name ?? "",
+          ).trim();
+          if (name) {
+            setNameOverrides((prev) => ({ ...prev, [symbol]: name }));
+          }
+        } catch {
+          /* keep the plain symbol as the tooltip fallback */
+        }
+      })();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state]);
 
   // Actual columns re-sync automatically whenever the Consolidated View -
   // Account Level (holdings/cash) changes — no manual refresh needed.
@@ -662,6 +712,20 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
   const symbolOptions = state?.symbols ?? [];
   const tableWidth = COL_WIDTHS.reduce((sum, width) => sum + width, 0);
 
+  // Comments ticker: every planned row that carries a comment scrolls here.
+  const tickerItems: string[] = [];
+  for (const group of groups) {
+    for (const row of group.rows) {
+      if (row.symbol.trim() && row.comments.trim()) {
+        tickerItems.push(
+          `${group.accountNumber} › ${row.symbol}: ${row.comments}`,
+        );
+      }
+    }
+  }
+  const tickerFullText = tickerItems.join("  |  ");
+  const tickerDuration = `${Math.max(24, tickerItems.length * 10)}s`;
+
   return (
     <div className="space-y-2">
       {(status !== "" || refreshing || marketRefreshing) && (
@@ -679,6 +743,43 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
           )}
         </div>
       )}
+
+      {/* Auto-scrolling comments ticker across the whole planner sheet.
+          Pauses on hover; hover also shows the complete text. */}
+      <style>{`@keyframes plannerTickerScroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.planner-ticker:hover { animation-play-state: paused; }`}</style>
+      <div
+        className="overflow-hidden whitespace-nowrap rounded-[7px] border border-[#bfcfc8] bg-white px-2 py-1 text-[11px] text-slate-600 shadow-sm"
+        title={tickerFullText || undefined}
+        aria-label="Planner comments ticker"
+      >
+        <div className="inline-flex min-w-full items-center">
+          <MessageSquare
+            size={12}
+            aria-hidden="true"
+            className="mr-1.5 shrink-0 text-slate-400"
+          />
+          {tickerItems.length === 0 ? (
+            <span className="italic text-slate-400">
+              Add a comment to a planned row to see it scroll here.
+            </span>
+          ) : (
+            <div
+              className="planner-ticker inline-flex items-center gap-10 will-change-transform"
+              style={{ animation: `plannerTickerScroll ${tickerDuration} linear infinite` }}
+            >
+              {[...tickerItems, ...tickerItems].map((text, index) => (
+                <span key={index} className="whitespace-nowrap">
+                  {text}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
 
       <section className={pane}>
         <div className="h-[calc(100dvh-125px)] min-h-[320px] overflow-auto">
@@ -936,13 +1037,20 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
                               <SymbolSuggestInput
                                 value={row.symbol}
                                 options={symbolOptions}
-                                tooltip={
-                                  row.symbol
-                                    ? `${row.symbolName || row.symbol}${
-                                        row.sector ? ` · ${row.sector}` : ""
-                                      }`
-                                    : undefined
-                                }
+                                tooltip={(() => {
+                                  const displayName =
+                                    nameOverrides[
+                                      row.symbol.trim().toUpperCase()
+                                    ] || row.symbolName.trim();
+                                  if (displayName) {
+                                    return `${displayName}${
+                                      row.sector ? ` · ${row.sector}` : ""
+                                    }`;
+                                  }
+                                  return row.sector
+                                    ? `${row.symbol} · ${row.sector}`
+                                    : undefined;
+                                })()}
                                 onCommit={(next) =>
                                   void commit(row.id, "symbol", next)
                                 }

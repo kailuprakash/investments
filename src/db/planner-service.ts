@@ -100,8 +100,11 @@ async function ensurePlannerTable(): Promise<void> {
         ADD COLUMN IF NOT EXISTS updated_at TEXT NOT NULL DEFAULT '';
       CREATE TABLE IF NOT EXISTS portfolio_planner_account (
         account_number TEXT PRIMARY KEY,
-        total_override DOUBLE PRECISION
+        total_override DOUBLE PRECISION,
+        comments TEXT NOT NULL DEFAULT ''
       );
+      ALTER TABLE portfolio_planner_account
+        ADD COLUMN IF NOT EXISTS comments TEXT NOT NULL DEFAULT '';
     `)
     .then(() => undefined)
     .catch((error: unknown) => {
@@ -141,8 +144,8 @@ export async function getPlannerState(): Promise<PlannerState> {
        ORDER BY account_number ASC, order_index ASC, id ASC`,
       ),
       buildPortfolioState(),
-      pool.query<{ account_number: string; total_override: number | string | null }>(
-        `SELECT account_number, total_override FROM portfolio_planner_account`,
+      pool.query<{ account_number: string; total_override: number | string | null; comments: string | null }>(
+        `SELECT account_number, total_override, comments FROM portfolio_planner_account`,
       ),
       pool.query<{ symbol: string }>(
         `SELECT DISTINCT symbol FROM portfolio_holdings
@@ -327,8 +330,11 @@ export async function setPlannerAccountBudget(data: {
   const raw = data?.value;
   const blank = raw === null || raw === undefined || String(raw).trim() === "";
   if (blank) {
+    // Clear the override but never wipe out the account's comments.
     await pool.query(
-      `DELETE FROM portfolio_planner_account WHERE account_number = $1`,
+      `INSERT INTO portfolio_planner_account (account_number, total_override, comments)
+       VALUES ($1, NULL, '')
+       ON CONFLICT (account_number) DO UPDATE SET total_override = NULL`,
       [accountNumber],
     );
     return getPlannerState();

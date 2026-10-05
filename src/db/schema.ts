@@ -162,6 +162,7 @@ export const plannerTable = pgTable("portfolio_planner", {
 export const plannerAccountTable = pgTable("portfolio_planner_account", {
   accountNumber: text("account_number").primaryKey(),
   totalOverride: doublePrecision("total_override"),
+  comments: text("comments").notNull().default(""),
 });
 
 /** Security metadata only — password values are never stored in this table. */
