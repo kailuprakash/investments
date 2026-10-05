@@ -1,6 +1,7 @@
 import { pool } from "@/db";
 import {
   buildPortfolioState,
+  fallbackSectorForSymbol,
   fetchSymbolQuote,
   refreshAllMarketPrices,
 } from "@/db/portfolio-service";
@@ -45,6 +46,10 @@ export type PlannerRow = {
   updatedAt: string;
   /** Read-only display: allocationPercent × budget when % is set, else Total. */
   amount: number;
+  /** Company name from the watchlist ("" = unknown). */
+  symbolName: string;
+  /** Sector from the market cache, falling back to the quote dictionary. */
+  sector: string;
 };
 
 export type PlannerAccountGroup = {
@@ -164,17 +169,28 @@ export async function getPlannerState(): Promise<PlannerState> {
     .filter(Boolean)
     .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 
-  const cacheResult = await pool.query<{ symbol: string; price: number }>(
-    `SELECT symbol, price FROM market_cache`,
-  );
+  const cacheResult = await pool.query<{
+    symbol: string;
+    price: number;
+    sector: string | null;
+  }>(`SELECT symbol, price, sector FROM market_cache`);
   const marketPriceBySymbol = new Map<string, number>();
+  const sectorBySymbol = new Map<string, string>();
   for (const row of cacheResult.rows) {
     const price = Number(row.price) || 0;
     const sym = normSym(row.symbol);
     if (!marketPriceBySymbol.has(sym) || price > 0) {
       marketPriceBySymbol.set(sym, price);
     }
+    const cachedSector = String(row.sector ?? "").trim();
+    if (cachedSector) sectorBySymbol.set(sym, cachedSector);
   }
+  const watchlistResult = await pool.query<{ symbol: string; name: string }>(
+    `SELECT symbol, name FROM portfolio_watchlist`,
+  );
+  const nameBySymbol = new Map<string, string>(
+    watchlistResult.rows.map((row) => [normSym(row.symbol), row.name]),
+  );
 
   const accountsByNorm = new Map<string, DbPortfolioAccount>();
   for (const account of portfolio.accounts) {
@@ -262,6 +278,10 @@ export async function getPlannerState(): Promise<PlannerState> {
         balanceAmount: round2(amount - actualTotalAmount),
         updatedAt: String(row.updated_at ?? ""),
         amount,
+        symbolName: nameBySymbol.get(symbol) ?? "",
+        sector:
+          sectorBySymbol.get(symbol) ??
+          (symbol ? fallbackSectorForSymbol(symbol) : ""),
       };
     });
 

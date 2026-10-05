@@ -201,7 +201,7 @@ const FALLBACK_SECTORS: Record<string, string> = {
   OPK: "Healthcare",
 };
 
-function fallbackSectorForSymbol(symbolRaw: string): string {
+export function fallbackSectorForSymbol(symbolRaw: string): string {
   const symbol = symbolRaw.trim().toUpperCase();
   if (LEVERAGED_ETF_SYMBOLS.has(symbol)) return "Leveraged ETF";
   if (FUND_SYMBOLS.has(symbol) || DEFAULT_QUOTES[symbol]?.quoteType === "ETF")

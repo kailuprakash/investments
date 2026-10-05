@@ -112,6 +112,7 @@ function PlannerEditCell({
   type = "text",
   className = "",
   inputClassName = "",
+  title,
 }: {
   value: string;
   displayValue?: string;
@@ -121,6 +122,7 @@ function PlannerEditCell({
   type?: "text" | "number" | "date";
   className?: string;
   inputClassName?: string;
+  title?: string;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
@@ -138,7 +140,9 @@ function PlannerEditCell({
       } ${className} ${inputClassName}`}
       value={shown}
       placeholder={placeholder ?? displayValue ?? ""}
-      title={displayValue && !editing ? displayValue : undefined}
+      title={
+        title ?? (displayValue && !editing ? displayValue : undefined)
+      }
       onFocus={() => {
         setDraft(value);
         setEditing(true);
@@ -169,10 +173,12 @@ function SymbolSuggestInput({
   value,
   options,
   onCommit,
+  tooltip,
 }: {
   value: string;
   options: string[];
   onCommit: (next: string) => void;
+  tooltip?: string;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
@@ -268,6 +274,7 @@ function SymbolSuggestInput({
         className={`${inputBase} text-left font-semibold uppercase whitespace-nowrap`}
         value={editing ? draft : value}
         placeholder="Symbol"
+        title={!editing && tooltip ? tooltip : undefined}
         onFocus={() => {
           setDraft(value);
           setEditing(true);
@@ -632,7 +639,7 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
 
   /* Account's Summary / Consolidated table chrome. */
   const pane = "rounded-[7px] border border-[#bfcfc8] bg-white overflow-hidden shadow-sm";
-  const th = "border border-slate-300 px-2 py-1 whitespace-nowrap bg-[#D9E1F2] text-[#1F4E79]";
+  const th = "border border-slate-300 px-2 py-1 h-7 whitespace-nowrap bg-[#D9E1F2] text-[#1F4E79]";
   const thEditable = `${th} !bg-[#FFF2CC] !text-[#78350F] font-bold`;
   const td = "border border-slate-300 px-2 py-1 whitespace-nowrap";
   const tdMoney = `${td} text-right tabular-nums`;
@@ -798,25 +805,25 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
                 </th>
               </tr>
               <tr className="border-b border-slate-400">
-                <th data-field-kind="calculated" className={`${th} text-right font-semibold sticky top-[26px] z-30`} title="Auto-calculated: trunc(Amount ÷ Share Price)">
+                <th data-field-kind="calculated" className={`${th} text-right font-semibold sticky top-[28px] z-30`} title="Auto-calculated: trunc(Amount ÷ Share Price)">
                   <FieldHeader label="~ # of Shares" kind="calculated" />
                 </th>
-                <th data-field-kind="editable" className={`${thEditable} text-right sticky top-[26px] z-30`}>
+                <th data-field-kind="editable" className={`${thEditable} text-right sticky top-[28px] z-30`}>
                   <FieldHeader label="Share Price" kind="editable" />
                 </th>
-                <th data-field-kind="calculated" className={`${th} text-right font-semibold sticky top-[26px] z-30`}>
+                <th data-field-kind="calculated" className={`${th} text-right font-semibold sticky top-[28px] z-30`}>
                   <FieldHeader label="Amount" kind="calculated" />
                 </th>
-                <th data-field-kind="editable" className={`${thEditable} text-right sticky top-[26px] z-30`}>
+                <th data-field-kind="editable" className={`${thEditable} text-right sticky top-[28px] z-30`}>
                   <FieldHeader label="% Allocation" kind="editable" />
                 </th>
-                <th data-field-kind="calculated" className={`${th} text-right font-semibold sticky top-[26px] z-30`}>
+                <th data-field-kind="calculated" className={`${th} text-right font-semibold sticky top-[28px] z-30`}>
                   <FieldHeader label="Shares Purchased" kind="calculated" />
                 </th>
-                <th data-field-kind="calculated" className={`${th} text-right font-semibold sticky top-[26px] z-30`}>
+                <th data-field-kind="calculated" className={`${th} text-right font-semibold sticky top-[28px] z-30`}>
                   <FieldHeader label="Share Price" kind="calculated" />
                 </th>
-                <th data-field-kind="calculated" className={`${th} text-right font-semibold sticky top-[26px] z-30`}>
+                <th data-field-kind="calculated" className={`${th} text-right font-semibold sticky top-[28px] z-30`}>
                   <FieldHeader label="Total Amount" kind="calculated" />
                 </th>
               </tr>
@@ -929,6 +936,13 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
                               <SymbolSuggestInput
                                 value={row.symbol}
                                 options={symbolOptions}
+                                tooltip={
+                                  row.symbol
+                                    ? `${row.symbolName || row.symbol}${
+                                        row.sector ? ` · ${row.sector}` : ""
+                                      }`
+                                    : undefined
+                                }
                                 onCommit={(next) =>
                                   void commit(row.id, "symbol", next)
                                 }
@@ -953,6 +967,20 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
                                 value={rowNumeric(row, "sharePrice")}
                                 displayValue={
                                   row.sharePrice ? money(row.sharePrice) : ""
+                                }
+                                inputClassName={
+                                  row.sharePrice > 0 &&
+                                  row.currentMarketPrice > 0 &&
+                                  row.sharePrice < row.currentMarketPrice
+                                    ? "font-bold text-emerald-700"
+                                    : undefined
+                                }
+                                title={
+                                  row.sharePrice > 0 &&
+                                  row.currentMarketPrice > 0 &&
+                                  row.sharePrice < row.currentMarketPrice
+                                    ? `Below Market Price (${money(row.currentMarketPrice)}) — buying point reached`
+                                    : undefined
                                 }
                                 onCommit={(next) =>
                                   void commit(row.id, "sharePrice", num(next))
@@ -1111,6 +1139,28 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
               })}
             </tbody>
           </table>
+        </div>
+        {/* Color legend */}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-[#d5dde2] bg-[#fbfcfd] px-3 py-1.5 text-[10px] text-slate-500">
+          <span className="font-bold text-slate-600">Legend:</span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-3 w-3 rounded-sm border border-slate-300 bg-[#FFF2CC]" />
+            Editable field
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="font-bold text-emerald-700">$34.00</span>
+            Share Price below Market Price — buying point reached
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="font-semibold text-emerald-800">$10.00</span>
+            Positive balance ·{" "}
+            <span className="font-semibold text-red-700">($10.00)</span> negative
+            balance
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-3 w-3 rounded-sm border border-slate-300 bg-[#DCEFE5]" />
+            Total - Account Level - Cash Allocation row
+          </span>
         </div>
       </section>
 
