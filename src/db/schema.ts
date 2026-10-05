@@ -156,6 +156,7 @@ export const plannerTable = pgTable("portfolio_planner", {
   comments: text("comments").notNull().default(""),
   orderIndex: integer("order_index").notNull().default(0),
   updatedAt: text("updated_at").notNull().default(""),
+  action: text("action").notNull().default(""),
 });
 
 /** Planner: per-account editable total "Account Level - Cash Allocation". */

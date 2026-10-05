@@ -48,6 +48,8 @@ export type PlannerRow = {
   updatedAt: string;
   /** Read-only display: allocationPercent × budget when % is set, else Total. */
   amount: number;
+  /** Trading action chosen for this planned row ("", or a dropdown value). */
+  action: string;
   /** Company name from the watchlist ("" = unknown). */
   symbolName: string;
   /** Sector from the market cache, falling back to the quote dictionary. */
@@ -75,12 +77,24 @@ export type PlannerAccountGroup = {
 
 const SHEET_COMMENT_KEY = "planner_sheet_comment_v1";
 
+/** Seed actions; users can add their own unique values on top (they grow
+    the dropdown automatically as soon as a custom value is saved). */
+const DEFAULT_PLANNER_ACTIONS = [
+  "Hold",
+  "Buy",
+  "Get Out",
+  "Accumulate",
+  "Don't Enter",
+];
+
 export type PlannerState = {
   groups: PlannerAccountGroup[];
   /** Distinct symbols (holdings, watchlist, market cache) for suggestions. */
   symbols: string[];
   /** One overall comment for the whole planner sheet (ticker, editable). */
   sheetComment: string;
+  /** Dropdown values for the Action column: seeds ∪ distinct custom values. */
+  actions: string[];
 };
 
 let ensurePromise: Promise<void> | null = null;
@@ -100,10 +114,13 @@ async function ensurePlannerTable(): Promise<void> {
         as_of_date TEXT NOT NULL DEFAULT '',
         comments TEXT NOT NULL DEFAULT '',
         order_index INTEGER NOT NULL DEFAULT 0,
-        updated_at TEXT NOT NULL DEFAULT ''
+        updated_at TEXT NOT NULL DEFAULT '',
+        action TEXT NOT NULL DEFAULT ''
       );
       ALTER TABLE portfolio_planner
         ADD COLUMN IF NOT EXISTS updated_at TEXT NOT NULL DEFAULT '';
+      ALTER TABLE portfolio_planner
+        ADD COLUMN IF NOT EXISTS action TEXT NOT NULL DEFAULT '';
       CREATE TABLE IF NOT EXISTS portfolio_planner_account (
         account_number TEXT PRIMARY KEY,
         total_override DOUBLE PRECISION,
@@ -133,6 +150,7 @@ type PlannerDbRow = {
   comments: string | null;
   order_index: number;
   updated_at: string | null;
+  action: string | null;
 };
 
 type DbPortfolioAccount = Awaited<
@@ -145,7 +163,7 @@ export async function getPlannerState(): Promise<PlannerState> {
     [
       pool.query<PlannerDbRow>(
         `SELECT id, account_number, symbol, shares, share_price, total,
-              allocation_percent, as_of_date, comments, order_index, updated_at
+              allocation_percent, as_of_date, comments, order_index, updated_at, action
        FROM portfolio_planner
        ORDER BY account_number ASC, order_index ASC, id ASC`,
       ),
@@ -287,6 +305,7 @@ export async function getPlannerState(): Promise<PlannerState> {
         balanceAmount: round2(amount - actualTotalAmount),
         updatedAt: String(row.updated_at ?? ""),
         amount,
+        action: String(row.action ?? ""),
         symbolName: nameBySymbol.get(symbol) ?? "",
         sector:
           sectorBySymbol.get(symbol) ??
@@ -320,8 +339,18 @@ export async function getPlannerState(): Promise<PlannerState> {
     buildGroup(raw?.account_number ?? budgetRawName.get(orphan) ?? orphan, undefined);
   }
 
+  const actionSet = new Map<string, string>();
+  for (const action of DEFAULT_PLANNER_ACTIONS) {
+    actionSet.set(action.toLowerCase(), action);
+  }
+  for (const row of rowsResult.rows) {
+    const action = String(row.action ?? "").trim();
+    if (action && !actionSet.has(action.toLowerCase())) {
+      actionSet.set(action.toLowerCase(), action);
+    }
+  }
   const sheetComment = (await getSetting(SHEET_COMMENT_KEY).catch(() => "")) ?? "";
-  return { groups, symbols, sheetComment };
+  return { groups, symbols, sheetComment, actions: [...actionSet.values()] };
 }
 
 /** Save the single overall comment for the planner sheet. */
@@ -406,7 +435,8 @@ type PlannerField =
   | "total"
   | "allocationPercent"
   | "asOfDate"
-  | "comments";
+  | "comments"
+  | "action";
 
 const TEXT_FIELDS: PlannerField[] = ["symbol", "asOfDate", "comments"];
 const MONEY_FIELDS: PlannerField[] = ["shares", "sharePrice", "total"];
@@ -419,6 +449,7 @@ const COLUMN_BY_FIELD: Record<PlannerField, string> = {
   allocationPercent: "allocation_percent",
   asOfDate: "as_of_date",
   comments: "comments",
+  action: "action",
 };
 
 /** Effective allocation budget for an account: planner override ?? live cash. */
@@ -489,6 +520,10 @@ export async function editPlannerRow(data: {
     value = String(value ?? "")
       .trim()
       .slice(0, 500);
+  } else if (field === "action") {
+    value = String(value ?? "")
+      .trim()
+      .slice(0, 40);
   } else if (MONEY_FIELDS.includes(field)) {
     const parsed = Number(value);
     value = Number.isFinite(parsed) ? round2(parsed) : 0;

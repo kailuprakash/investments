@@ -12,16 +12,16 @@ export type FieldKind = "editable" | "readonly" | "calculated";
  */
 const CALCULATED_TOOLTIPS: Record<string, string> = {
   Amount: "Auto-calculated: % Allocation × Total Account Level - Cash Allocation",
-  "~ # of Shares": "Auto-calculated: trunc(Amount ÷ Share Price)",
+  "~ # of Shares": "Auto-calculated: trunc(Amount ÷ Price/share)",
   "Balance Amount": "Auto-calculated: Plan Amount − Actual Total Amount",
-  "Shares Purchased":
+  Purchased:
     "Auto-calculated live from Consolidated View - Account Level (holding quantity for this account)",
   "Total Amount":
-    "Auto-calculated from Consolidated View - Account Level (holding quantity × average price)",
+    "Auto-calculated from Consolidated View - Account Level (holding quantity × average Price/share)",
   "Market Price":
     "Pulled live from market data (Yahoo Finance); refresh via the column header icon",
-  "Share Price":
-    "Calculated column — value is derived from the workbook, not entered by hand (editing lives in the Plan section)",
+  "Price/share":
+    "Calculated column — value comes from the Consolidated View (editing lives in the Plan section)",
   "Invest Amount": "Auto-calculated: Quantity × Avg Price",
   "Market Value": "Auto-calculated: Quantity × Market Price/Share",
   "Gain/Loss": "Auto-calculated: Market Value − Invest Amount (amount and %)",

@@ -419,7 +419,9 @@ CREATE TABLE IF NOT EXISTS portfolio_planner (
   allocation_percent DOUBLE PRECISION,
   as_of_date TEXT NOT NULL DEFAULT '',
   comments TEXT NOT NULL DEFAULT '',
-  order_index INTEGER NOT NULL DEFAULT 0
+  order_index INTEGER NOT NULL DEFAULT 0,
+  updated_at TEXT NOT NULL DEFAULT '',
+  action TEXT NOT NULL DEFAULT ''
 );
 -- INSERT INTO portfolio_planner (account_number, symbol, shares, share_price, total, allocation_percent, as_of_date, comments, order_index) VALUES ('<account_number>', '<symbol>', <shares>, <share_price>, <total>, <allocation_percent_or_NULL>, '<YYYY-MM-DD>', '<comments>', <order_index>);
 -- UPDATE portfolio_planner SET symbol = '<symbol>', shares = <shares>, share_price = <share_price>, total = <total>, allocation_percent = <allocation_percent_or_NULL>, as_of_date = '<YYYY-MM-DD>', comments = '<comments>' WHERE id = <planner_row_id>;
@@ -427,8 +429,10 @@ CREATE TABLE IF NOT EXISTS portfolio_planner (
 -- PLANNER ACCOUNT BUDGET (editable "Total - Account Level - Cash Allocation")
 CREATE TABLE IF NOT EXISTS portfolio_planner_account (
   account_number TEXT PRIMARY KEY,
-  total_override DOUBLE PRECISION
+  total_override DOUBLE PRECISION,
+  comments TEXT NOT NULL DEFAULT ''
 );
 -- Clear the override (NULL/absent row) to fall back to the live account cash balance.
 ALTER TABLE portfolio_planner ADD COLUMN IF NOT EXISTS updated_at TEXT NOT NULL DEFAULT '';
+ALTER TABLE portfolio_planner ADD COLUMN IF NOT EXISTS action TEXT NOT NULL DEFAULT '';
 ALTER TABLE portfolio_planner_account ADD COLUMN IF NOT EXISTS comments TEXT NOT NULL DEFAULT '';

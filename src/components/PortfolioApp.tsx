@@ -8075,12 +8075,13 @@ const e = {
                         "Symbol",
                         "Market Price",
                         "~ # of Shares",
-                        "Share Price",
+                        "Price/share",
                         "Amount",
                         "% Allocation",
-                        "Shares Purchased",
-                        "Share Price",
+                        "Purchased",
+                        "Price/share",
                         "Total Amount",
+                        "Action",
                         "Balance Amount",
                         "Balance %",
                         "Comments",
@@ -8142,6 +8143,7 @@ const e = {
                           row.sharesPurchased || 0,
                           row.actualSharePrice || 0,
                           row.actualTotalAmount || 0,
+                          row.action || "",
                           row.balanceAmount || 0,
                           row.amount > 0
                             ? row.balanceAmount / row.amount
@@ -8172,7 +8174,7 @@ const e = {
                       ]);
                     }
                     let sheet = tt.utils.aoa_to_sheet(rows);
-                    let lastCol = 13;
+                    let lastCol = 14;
                     sheet["!merges"] = [
                       { s: { r: 0, c: 0 }, e: { r: 0, c: lastCol } },
                     ];
@@ -8195,7 +8197,7 @@ const e = {
                             sheet,
                             rIdx,
                             c,
-                            tC(c >= 2 && c <= 11 ? "right" : "left"),
+                            tC(c >= 2 && c <= 12 ? "right" : "left"),
                           );
                       }
                       // Numeric formats: qty (ty), money (tx), percent (tv).
@@ -8203,11 +8205,11 @@ const e = {
                         let cell = sheet[tS(rIdx, c)];
                         if (cell) cell.z = ty;
                       }
-                      for (let c of [2, 4, 5, 8, 9, 10]) {
+                      for (let c of [2, 4, 5, 8, 9, 11]) {
                         let cell = sheet[tS(rIdx, c)];
                         if (cell) cell.z = tx;
                       }
-                      for (let c of [6, 11]) {
+                      for (let c of [6, 12]) {
                         let cell = sheet[tS(rIdx, c)];
                         if (cell) cell.z = tv;
                       }

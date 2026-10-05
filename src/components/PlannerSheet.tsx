@@ -51,7 +51,8 @@ type EditableField =
   | "sharePrice"
   | "allocationPercent"
   | "asOfDate"
-  | "comments";
+  | "comments"
+  | "action";
 
 const money = (value: number) =>
   new Intl.NumberFormat("en-US", {
@@ -356,12 +357,69 @@ function SymbolSuggestInput({
   );
 }
 
+/** Action dropdown: chooses from seeded + custom values, or types a new one
+    (a fresh unique value then joins the dropdown automatically). */
+function PlannerActionCell({
+  rowId,
+  value,
+  options,
+  onCommit,
+}: {
+  rowId: number;
+  value: string;
+  options: string[];
+  onCommit: (next: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const listId = `planner-actions-${rowId}`;
+  return (
+    <div className="relative">
+      <input
+        list={listId}
+        type="text"
+        autoComplete="off"
+        className={`${inputBase} text-left ${value ? "italic" : "text-slate-400"}`}
+        value={editing ? draft : value}
+        placeholder="Action…"
+        title={
+          value
+            ? `Action: ${value}`
+            : "Choose Hold · Buy · Get Out · Accumulate · Don't Enter — or type a new action"
+        }
+        onFocus={() => {
+          setDraft(value);
+          setEditing(true);
+        }}
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={() => {
+          setEditing(false);
+          if (draft.trim() !== value) onCommit(draft.trim());
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") (event.target as HTMLInputElement).blur();
+          if (event.key === "Escape") {
+            setDraft(value);
+            setEditing(false);
+            (event.target as HTMLInputElement).blur();
+          }
+        }}
+      />
+      <datalist id={listId}>
+        {options.map((option) => (
+          <option key={option} value={option} />
+        ))}
+      </datalist>
+    </div>
+  );
+}
+
 /* ------------------------------ main sheet ------------------------------ */
 
 const COLLAPSED_KEY = "planner-collapsed-accounts-v1";
 
 /** Fixed column layout (no Account column — accounts are group header rows). */
-const COL_WIDTHS = [34, 110, 128, 90, 100, 126, 112, 144, 100, 124, 128, 210, 148];
+const COL_WIDTHS = [34, 110, 128, 90, 100, 126, 112, 144, 100, 124, 116, 128, 210, 148];
 
 export default function PlannerSheet({ accounts, onNotify }: Props) {
   const [state, setState] = useState<PlannerState | null>(null);
@@ -989,7 +1047,7 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
                   Plan - Budget Allocation
                 </th>
                 <th
-                  colSpan={3}
+                  colSpan={4}
                   className={`${th} text-center font-bold`}
                 >
                   Actual
@@ -1021,7 +1079,7 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
                   <FieldHeader label="~ # of Shares" kind="calculated" />
                 </th>
                 <th data-field-kind="editable" className={`${thEditable} text-right`}>
-                  <FieldHeader label="Share Price" kind="editable" />
+                  <FieldHeader label="Price/share" kind="editable" />
                 </th>
                 <th data-field-kind="calculated" className={`${th} text-right font-semibold`}>
                   <FieldHeader label="Amount" kind="calculated" />
@@ -1030,13 +1088,16 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
                   <FieldHeader label="% Allocation" kind="editable" />
                 </th>
                 <th data-field-kind="calculated" className={`${th} text-right font-semibold`}>
-                  <FieldHeader label="Shares Purchased" kind="calculated" />
+                  <FieldHeader label="Purchased" kind="calculated" />
                 </th>
                 <th data-field-kind="calculated" className={`${th} text-right font-semibold`}>
-                  <FieldHeader label="Share Price" kind="calculated" />
+                  <FieldHeader label="Price/share" kind="calculated" />
                 </th>
                 <th data-field-kind="calculated" className={`${th} text-right font-semibold`}>
                   <FieldHeader label="Total Amount" kind="calculated" />
+                </th>
+                <th data-field-kind="editable" className={`${thEditable} text-left`}>
+                  <FieldHeader label="Action" kind="editable" />
                 </th>
               </tr>
             </thead>
@@ -1049,7 +1110,7 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
                     {/* Account group header row — same pattern as the
                         Consolidated View account rows. */}
                     <tr className="h-6 bg-[#E7E6E6] text-[11px] font-semibold text-gray-800 border-y border-gray-300">
-                      <td colSpan={13} className="border border-gray-300 px-3 py-1">
+                      <td colSpan={14} className="border border-gray-300 px-3 py-1">
   <div className="flex items-center gap-3">
                             <button
                               type="button"
@@ -1108,7 +1169,7 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
                     {!isCollapsed && group.rows.length === 0 && (
                       <tr className="h-6">
                         <td
-                          colSpan={13}
+                          colSpan={14}
                           className="border border-gray-300 bg-gray-50 px-4 py-3 text-center italic text-gray-400"
                         >
                           No planned rows for {group.accountNumber} — press
@@ -1264,6 +1325,16 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
                                 ? money(row.actualTotalAmount)
                                 : "—"}
                             </td>
+                            <td data-field-kind="editable" className={editableTd}>
+                              <PlannerActionCell
+                                rowId={row.id}
+                                value={row.action}
+                                options={state?.actions ?? []}
+                                onCommit={(next) =>
+                                  void commit(row.id, "action", next)
+                                }
+                              />
+                            </td>
                             <td
                               data-field-kind="calculated"
                               className={`${tdMoney} font-semibold ${
@@ -1326,7 +1397,7 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
                         </td>
                         {/* Empty cells after % Allocation merge into one span;
                             only Updated Date stays pinned to the right. */}
-                        <td colSpan={5} className={`${td} bg-[#f6f8fa]`} />
+                        <td colSpan={6} className={`${td} bg-[#f6f8fa]`} />
                         <td className={`${td} ${stickyRight} bg-[#f6f8fa]`} />
                       </tr>
                     )}
@@ -1366,7 +1437,7 @@ export default function PlannerSheet({ accounts, onNotify }: Props) {
                         </td>
                         {/* No total Balance Amount; empty cells merge into one
                             span; only Updated Date stays pinned to the right. */}
-                        <td colSpan={5} className={`${td}`} />
+                        <td colSpan={6} className={`${td}`} />
                         <td className={`${td} ${stickyRight} bg-[#DCEFE5]`} />
                       </tr>
                     )}
