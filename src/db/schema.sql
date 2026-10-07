@@ -1,0 +1,344 @@
+-- ============================================================================
+-- Investment Portfolio Tracker: PostgreSQL DDL and bootstrap DML
+-- ============================================================================
+-- Source of truth: src/db/schema.ts, src/db/portfolio-service.ts, and
+-- src/db/seed-data.json. This file is intentionally self-contained so it can
+-- be run manually with:
+--   psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f src/db/schema.sql
+--
+-- The default execution is NON-DESTRUCTIVE: creates missing tables/indexes and
+-- inserts only missing starter rows. Existing user data is not overwritten.
+--
+-- For a clean local rebuild, uncomment the reset block immediately below, then
+-- execute this file. The reset permanently deletes every portfolio record.
+-- ============================================================================
+
+-- OPTIONAL DESTRUCTIVE RESET (uncomment only when you want a blank database)
+-- DROP TABLE IF EXISTS portfolio_login_attempts CASCADE;
+-- DROP TABLE IF EXISTS market_cache CASCADE;
+-- DROP TABLE IF EXISTS portfolio_settings CASCADE;
+-- DROP TABLE IF EXISTS portfolio_deposit_details CASCADE;
+-- DROP TABLE IF EXISTS portfolio_account_details CASCADE;
+-- DROP TABLE IF EXISTS portfolio_transaction_history CASCADE;
+-- DROP TABLE IF EXISTS portfolio_weekly_history CASCADE;
+-- DROP TABLE IF EXISTS portfolio_watchlist CASCADE;
+-- DROP TABLE IF EXISTS portfolio_future_investments CASCADE;
+-- DROP TABLE IF EXISTS portfolio_holdings CASCADE;
+-- DROP TABLE IF EXISTS portfolio_accounts CASCADE;
+
+BEGIN;
+
+-- ---------------------------------------------------------------------------
+-- DDL: Application tables (intentionally no foreign keys; matches Drizzle
+-- schema and supports imports/migrations with independently saved sheets).
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS portfolio_accounts (
+  id SERIAL PRIMARY KEY,
+  s_no INTEGER NOT NULL DEFAULT 1,
+  account_number TEXT NOT NULL,
+  account_name TEXT NOT NULL,
+  cash_available DOUBLE PRECISION NOT NULL DEFAULT 0,
+  comments TEXT NOT NULL DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS portfolio_holdings (
+  id SERIAL PRIMARY KEY,
+  account_number TEXT NOT NULL,
+  symbol TEXT NOT NULL,
+  quantity DOUBLE PRECISION NOT NULL DEFAULT 0,
+  purchase_price DOUBLE PRECISION NOT NULL DEFAULT 0,
+  invest_amount DOUBLE PRECISION NOT NULL DEFAULT 0,
+  current_price DOUBLE PRECISION NOT NULL DEFAULT 0,
+  overall_current_price DOUBLE PRECISION NOT NULL DEFAULT 0,
+  comments TEXT NOT NULL DEFAULT '',
+  highlight TEXT NOT NULL DEFAULT '',
+  profit_loss_amt DOUBLE PRECISION NOT NULL DEFAULT 0,
+  gain_loss_percent DOUBLE PRECISION NOT NULL DEFAULT 0,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS portfolio_future_investments (
+  id SERIAL PRIMARY KEY,
+  account_number TEXT NOT NULL,
+  date_time TEXT NOT NULL,
+  action TEXT NOT NULL,
+  symbol TEXT NOT NULL,
+  quantity DOUBLE PRECISION NOT NULL DEFAULT 0,
+  price_per_share DOUBLE PRECISION NOT NULL DEFAULT 0,
+  total_amount DOUBLE PRECISION NOT NULL DEFAULT 0,
+  current_price DOUBLE PRECISION NOT NULL DEFAULT 0,
+  average_cost DOUBLE PRECISION NOT NULL DEFAULT 0,
+  cost_basis_per_share DOUBLE PRECISION NOT NULL DEFAULT 0,
+  difference_amount DOUBLE PRECISION NOT NULL DEFAULT 0,
+  difference_percent DOUBLE PRECISION NOT NULL DEFAULT 0,
+  comments TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'EXECUTED',
+  remaining_quantity DOUBLE PRECISION NOT NULL DEFAULT 0,
+  source_transaction_id INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS portfolio_watchlist (
+  symbol TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  exchange TEXT NOT NULL DEFAULT 'NASDAQ',
+  quote_type TEXT NOT NULL DEFAULT 'Equity',
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS portfolio_weekly_history (
+  id SERIAL PRIMARY KEY,
+  account_number TEXT NOT NULL,
+  snapshot_week TEXT NOT NULL,
+  investment_current_value DOUBLE PRECISION NOT NULL DEFAULT 0,
+  gain_loss_amount DOUBLE PRECISION NOT NULL DEFAULT 0,
+  gain_loss_percent DOUBLE PRECISION NOT NULL DEFAULT 0,
+  captured_at TEXT NOT NULL,
+  source TEXT NOT NULL DEFAULT 'SATURDAY_9PM_ET'
+);
+
+CREATE TABLE IF NOT EXISTS portfolio_transaction_history (
+  id SERIAL PRIMARY KEY,
+  account_number TEXT NOT NULL,
+  snapshot_week TEXT NOT NULL,
+  buy_value DOUBLE PRECISION NOT NULL DEFAULT 0,
+  sell_value DOUBLE PRECISION NOT NULL DEFAULT 0,
+  net_cash_flow DOUBLE PRECISION NOT NULL DEFAULT 0,
+  realized_gain_loss DOUBLE PRECISION NOT NULL DEFAULT 0,
+  buy_count INTEGER NOT NULL DEFAULT 0,
+  sell_count INTEGER NOT NULL DEFAULT 0,
+  captured_at TEXT NOT NULL,
+  source TEXT NOT NULL DEFAULT 'SATURDAY_9PM_ET'
+);
+
+CREATE TABLE IF NOT EXISTS market_cache (
+  symbol TEXT PRIMARY KEY,
+  price DOUBLE PRECISION NOT NULL DEFAULT 0,
+  previous_close DOUBLE PRECISION NOT NULL DEFAULT 0,
+  change_amount DOUBLE PRECISION NOT NULL DEFAULT 0,
+  change_percent DOUBLE PRECISION NOT NULL DEFAULT 0,
+  currency TEXT NOT NULL DEFAULT 'USD',
+  last_updated TEXT NOT NULL,
+  source TEXT NOT NULL DEFAULT 'cached',
+  error TEXT NOT NULL DEFAULT '',
+  last_live_at TEXT NOT NULL DEFAULT '',
+  sector TEXT NOT NULL DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS portfolio_account_details (
+  id SERIAL PRIMARY KEY,
+  financial_institute TEXT NOT NULL DEFAULT 'CS',
+  active_status TEXT NOT NULL DEFAULT 'Active',
+  account_type TEXT NOT NULL DEFAULT 'Trading Account',
+  account_number TEXT NOT NULL UNIQUE,
+  start_date TEXT NOT NULL DEFAULT '',
+  comments TEXT NOT NULL DEFAULT '',
+  tax_period TEXT NOT NULL DEFAULT 'Yearly Tax on Profit in US.',
+  order_index INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS portfolio_deposit_details (
+  id SERIAL PRIMARY KEY,
+  account_number TEXT NOT NULL,
+  date_invested TEXT NOT NULL,
+  amount DOUBLE PRECISION NOT NULL DEFAULT 0,
+  comments TEXT NOT NULL DEFAULT '',
+  order_index INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS portfolio_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at TEXT NOT NULL DEFAULT ''
+);
+
+-- Security metadata for invalid-login auditing and temporary IP lockouts.
+-- Password values are never written to this table.
+CREATE TABLE IF NOT EXISTS portfolio_login_attempts (
+  id SERIAL PRIMARY KEY,
+  ip_address TEXT NOT NULL,
+  attempted_at TEXT NOT NULL,
+  event TEXT NOT NULL DEFAULT 'LOGIN_FAILURE',
+  user_agent TEXT NOT NULL DEFAULT '',
+  client_details TEXT NOT NULL DEFAULT '',
+  alerted BOOLEAN NOT NULL DEFAULT FALSE
+);
+
+-- DDL: indexes/compatibility columns used by weekly snapshots and quote cache.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_weekly_history_account_week
+  ON portfolio_weekly_history (account_number, snapshot_week);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_transaction_history_account_week
+  ON portfolio_transaction_history (account_number, snapshot_week);
+CREATE INDEX IF NOT EXISTS idx_portfolio_login_attempts_ip_time
+  ON portfolio_login_attempts (ip_address, attempted_at);
+ALTER TABLE market_cache ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'cached';
+ALTER TABLE market_cache ADD COLUMN IF NOT EXISTS error TEXT NOT NULL DEFAULT '';
+ALTER TABLE market_cache ADD COLUMN IF NOT EXISTS last_live_at TEXT NOT NULL DEFAULT '';
+ALTER TABLE market_cache ADD COLUMN IF NOT EXISTS sector TEXT NOT NULL DEFAULT '';
+
+-- ---------------------------------------------------------------------------
+-- DML: Default setting and complete application starter dataset.
+-- Every insert is idempotent; re-running this script will not overwrite data.
+-- ---------------------------------------------------------------------------
+INSERT INTO portfolio_settings (key, value, updated_at)
+VALUES ('auto_refresh_interval', '300', to_char(CURRENT_TIMESTAMP AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
+ON CONFLICT (key) DO NOTHING;
+
+-- Password setup stores a salted scrypt hash (never a plaintext password) in
+-- portfolio_settings under portfolio_auth_password_v1. The server also stores a
+-- signing secret under portfolio_auth_session_secret_v1; both are created only
+-- through POST /api/auth during first-time setup.
+
+
+INSERT INTO portfolio_accounts (s_no, account_number, account_name, cash_available, comments)
+SELECT s_no, account_number, account_name, cash_available, comments
+FROM (VALUES
+  (7, 'ME-Roth 82T11', 'ME-Roth 82T11', 15238.56, '')
+) AS seed (s_no, account_number, account_name, cash_available, comments)
+WHERE NOT EXISTS (
+  SELECT 1 FROM portfolio_accounts AS existing
+  WHERE existing.account_number = seed.account_number
+);
+
+INSERT INTO portfolio_holdings (account_number, symbol, quantity, purchase_price, invest_amount, current_price, overall_current_price, comments, highlight, profit_loss_amt, gain_loss_percent, updated_at)
+SELECT account_number, symbol, quantity, purchase_price, invest_amount, current_price, overall_current_price, comments, highlight, profit_loss_amt, gain_loss_percent, updated_at
+FROM (VALUES
+  ('RH 8031', 'SOXL', 4, 0, 0, 114.82, 459.28, '', '', 459.28, 0, '2026-09-17T03:18:00.154Z'),
+  ('RH 8031', 'SNDG', 1, 5.31, 5.31, 9.15, 9.15, '', '', 3.84, 72.32, '2026-09-17T03:00:46.551Z'),
+  ('RH 8031', 'MSFT', 5, 414.84, 2074.2, 497.75, 2488.75, '', '', 414.55, 19.99, '2026-09-17T03:17:46.434Z'),
+  ('RH 8031', 'GGLL', 5, 120, 600, 102.5, 512.5, '', '', -87.5, -14.58, '2026-09-17T03:00:46.601Z'),
+  ('ME-Roth 82T11', 'SOXL', 5, 108.1, 540.5, 114.82, 574.1, '', '', 33.6, 6.22, '2026-09-17T03:00:46.563Z')
+) AS seed (account_number, symbol, quantity, purchase_price, invest_amount, current_price, overall_current_price, comments, highlight, profit_loss_amt, gain_loss_percent, updated_at)
+WHERE NOT EXISTS (
+  SELECT 1 FROM portfolio_holdings AS existing
+  WHERE existing.account_number = seed.account_number AND existing.symbol = seed.symbol AND existing.purchase_price = seed.purchase_price AND existing.quantity = seed.quantity
+);
+
+INSERT INTO portfolio_future_investments (account_number, date_time, action, symbol, quantity, price_per_share, total_amount, current_price, average_cost, cost_basis_per_share, difference_amount, difference_percent, comments, status, remaining_quantity, source_transaction_id)
+SELECT account_number, date_time, action, symbol, quantity, price_per_share, total_amount, current_price, average_cost, cost_basis_per_share, difference_amount, difference_percent, comments, status, remaining_quantity, source_transaction_id
+FROM (VALUES
+  ('RH 8031', '2026-09-16T16:19:32.754Z', 'SELL', 'MSFT', 5, 400, 2000, 497.75, 493.95, 493.95, -469.75, -19.02, '', 'EXECUTED', 0, NULL::INTEGER),
+  ('RH 8031', '2026-09-16T16:13:47.650Z', 'SELL', 'SOXL', 3, 107, 321, 114.82, 108.17, 108.17, -3.51, -1.08, '', 'EXECUTED', 0, NULL::INTEGER),
+  ('ME-Roth 82T11', '2026-09-16T16:05:53.556Z', 'BUY', 'SOXL', 5, 108.1, 540.5, 114.82, 0, 108.1, 33.60, 6.22, '', 'EXECUTED', 5, NULL::INTEGER),
+  ('RH 8031', '2026-09-16T16:05:42.496Z', 'BUY', 'SNDG', 1, 5.31, 5.31, 9.15, 0, 5.31, 3.84, 72.32, '', 'EXECUTED', 1, NULL::INTEGER),
+  ('RH 8031', '2026-09-16T16:05:16.471Z', 'BUY', 'SOXL', 2, 108.11, 216.22, 114.82, 0, 108.11, 13.42, 6.21, '', 'EXECUTED', 2, NULL::INTEGER),
+  ('RH 8031', '2026-09-16T16:05:06.611Z', 'BUY', 'SOXL', 5, 107.94, 539.7, 114.82, 0, 107.94, 34.40, 6.37, '', 'EXECUTED', 5, NULL::INTEGER)
+) AS seed (account_number, date_time, action, symbol, quantity, price_per_share, total_amount, current_price, average_cost, cost_basis_per_share, difference_amount, difference_percent, comments, status, remaining_quantity, source_transaction_id)
+WHERE NOT EXISTS (
+  SELECT 1 FROM portfolio_future_investments AS existing
+  WHERE existing.account_number = seed.account_number AND existing.date_time = seed.date_time AND existing.action = seed.action AND existing.symbol = seed.symbol AND existing.quantity = seed.quantity AND existing.price_per_share = seed.price_per_share
+);
+
+INSERT INTO portfolio_watchlist (symbol, name, exchange, quote_type, created_at)
+VALUES
+  ('AMDL', 'GraniteShares 2x Long AMD Daily', 'NASDAQ', 'ETF', '2026-09-16T14:19:02.428Z')
+ON CONFLICT (symbol) DO NOTHING;
+
+INSERT INTO portfolio_weekly_history (account_number, snapshot_week, investment_current_value, gain_loss_amount, gain_loss_percent, captured_at, source)
+VALUES
+  ('ME-Roth 82T11', '2026-08-29', 0, 0, 0, '2026-09-16T10:55:19.000Z', 'SIMULATED_3_WEEK_HISTORY'),
+  ('RH 8031', '2026-08-29', 0, 0, 0, '2026-09-16T10:53:20.000Z', 'SIMULATED_3_WEEK_HISTORY')
+ON CONFLICT (account_number, snapshot_week) DO NOTHING;
+
+INSERT INTO portfolio_transaction_history (account_number, snapshot_week, buy_value, sell_value, net_cash_flow, realized_gain_loss, buy_count, sell_count, captured_at, source)
+VALUES
+  ('ME-Roth 82T11', '2026-08-29', 302.68, 0, -302.68, 0, 1, 0, '2026-09-17T02:59:54.805Z', 'SIMULATED_3_WEEK_TRANSACTION_HISTORY'),
+  ('RH 8031', '2026-08-29', 762.29, 1564.79, 802.5, 0, 2, 1, '2026-09-17T02:59:54.805Z', 'SIMULATED_3_WEEK_TRANSACTION_HISTORY')
+ON CONFLICT (account_number, snapshot_week) DO NOTHING;
+
+INSERT INTO market_cache (symbol, price, previous_close, change_amount, change_percent, currency, last_updated, source, error, last_live_at)
+VALUES
+  ('APP', 330.2600, 331.4600, -1.2000, -0.3600, 'USD', '2026-09-16T16:22:33.658Z', 'cached', '', '')
+ON CONFLICT (symbol) DO NOTHING;
+
+INSERT INTO portfolio_account_details (financial_institute, active_status, account_type, account_number, start_date, comments, tax_period, order_index)
+VALUES
+  ('ME', 'Active', 'Roth IRA', 'ME-Roth 82T11', 'Jan-24', '', 'Tax Free Growth in US.', 7)
+ON CONFLICT (account_number) DO NOTHING;
+
+INSERT INTO portfolio_deposit_details (account_number, date_invested, amount, comments, order_index)
+SELECT account_number, date_invested, amount, comments, order_index
+FROM (VALUES
+  ('ME-Roth 82T11', '1/15/2024', 200000.0, 'Roth Conversion Deposit', 13)
+) AS seed (account_number, date_invested, amount, comments, order_index)
+WHERE NOT EXISTS (
+  SELECT 1 FROM portfolio_deposit_details AS existing
+  WHERE existing.account_number = seed.account_number AND existing.date_invested = seed.date_invested AND existing.amount = seed.amount AND existing.order_index = seed.order_index
+);
+
+COMMIT;
+
+-- ============================================================================
+-- OPERATIONAL DML REFERENCE (do not run this section as-is)
+-- ============================================================================
+-- Replace <...> values before manually executing one of these statements.
+-- They mirror the mutation flows in src/db/portfolio-service.ts.
+--
+-- ACCOUNT
+-- INSERT INTO portfolio_accounts (s_no, account_number, account_name, cash_available, comments)
+-- VALUES (<sort_order>, '<account_number>', '<account_name>', <cash_available>, '<comments>');
+-- UPDATE portfolio_accounts SET account_name = '<account_name>', cash_available = <cash_available>, comments = '<comments>'
+-- WHERE id = <account_id>;
+-- DELETE FROM portfolio_accounts WHERE id = <account_id>;
+--
+-- HOLDING
+-- INSERT INTO portfolio_holdings (account_number, symbol, quantity, purchase_price, invest_amount, current_price, overall_current_price, comments, highlight, profit_loss_amt, gain_loss_percent, updated_at)
+-- VALUES ('<account_number>', '<symbol>', <quantity>, <purchase_price>, <quantity * purchase_price>, <current_price>, <quantity * current_price>, '<comments>', '<highlight>', <profit_loss>, <gain_loss_percent>, '<ISO-8601 timestamp>');
+-- UPDATE portfolio_holdings SET quantity = <quantity>, purchase_price = <purchase_price>, invest_amount = <invest_amount>, current_price = <current_price>, overall_current_price = <overall_current_price>, comments = '<comments>', highlight = '<highlight>', profit_loss_amt = <profit_loss>, gain_loss_percent = <gain_loss_percent>, updated_at = '<ISO-8601 timestamp>' WHERE id = <holding_id>;
+-- DELETE FROM portfolio_holdings WHERE id = <holding_id>;
+--
+-- DAILY TRANSACTION
+-- INSERT INTO portfolio_future_investments (account_number, date_time, action, symbol, quantity, price_per_share, total_amount, current_price, average_cost, cost_basis_per_share, difference_amount, difference_percent, comments, status, remaining_quantity, source_transaction_id)
+-- VALUES ('<account_number>', '<ISO-8601 timestamp>', 'BUY or SELL', '<symbol>', <quantity>, <price_per_share>, <total_amount>, <current_price>, <average_cost>, <cost_basis_per_share>, <difference_amount>, <difference_percent>, '<comments>', 'EXECUTED', <remaining_quantity>, NULL);
+-- UPDATE portfolio_future_investments SET quantity = <quantity>, price_per_share = <price_per_share>, total_amount = <total_amount>, current_price = <current_price>, comments = '<comments>', status = '<status>', remaining_quantity = <remaining_quantity> WHERE id = <transaction_id>;
+-- DELETE FROM portfolio_future_investments WHERE id = <transaction_id>;
+--
+-- WATCHLIST / SETTINGS / MARKET CACHE (application uses UPSERTs)
+-- INSERT INTO portfolio_watchlist (symbol, name, exchange, quote_type, created_at) VALUES ('<symbol>', '<name>', '<exchange>', '<quote_type>', '<ISO-8601 timestamp>') ON CONFLICT (symbol) DO NOTHING;
+-- DELETE FROM portfolio_watchlist WHERE symbol = '<symbol>';
+-- INSERT INTO portfolio_settings (key, value, updated_at) VALUES ('<key>', '<value>', '<ISO-8601 timestamp>') ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at;
+-- INSERT INTO market_cache (symbol, price, previous_close, change_amount, change_percent, currency, last_updated, source, error, last_live_at, sector) VALUES ('<symbol>', <price>, <previous_close>, <change_amount>, <change_percent>, 'USD', '<ISO-8601 timestamp>', 'live or cached', '<error_or_empty>', '<ISO-8601 timestamp_or_empty>', '<market_sector>') ON CONFLICT (symbol) DO UPDATE SET price = EXCLUDED.price, previous_close = EXCLUDED.previous_close, change_amount = EXCLUDED.change_amount, change_percent = EXCLUDED.change_percent, last_updated = EXCLUDED.last_updated, source = EXCLUDED.source, error = EXCLUDED.error, last_live_at = EXCLUDED.last_live_at, sector = EXCLUDED.sector;
+--
+-- ACCOUNT DETAIL / DEPOSIT
+-- INSERT INTO portfolio_account_details (financial_institute, active_status, account_type, account_number, start_date, comments, tax_period, order_index) VALUES ('<institution>', 'Active', '<account_type>', '<account_number>', '<start_date>', '<comments>', '<tax_period>', <order_index>);
+-- UPDATE portfolio_account_details SET financial_institute = '<institution>', active_status = '<active_status>', account_type = '<account_type>', account_number = '<account_number>', start_date = '<start_date>', comments = '<comments>', tax_period = '<tax_period>', order_index = <order_index> WHERE id = <account_detail_id>;
+-- DELETE FROM portfolio_account_details WHERE id = <account_detail_id>;
+-- INSERT INTO portfolio_deposit_details (account_number, date_invested, amount, comments, order_index) VALUES ('<account_number>', '<date_invested>', <amount>, '<comments>', <order_index>);
+-- UPDATE portfolio_deposit_details SET date_invested = '<date_invested>', amount = <amount>, comments = '<comments>', order_index = <order_index> WHERE id = <deposit_id>;
+-- DELETE FROM portfolio_deposit_details WHERE id = <deposit_id>;
+--
+-- WEEKLY SNAPSHOT UPSERTS
+-- INSERT INTO portfolio_weekly_history (account_number, snapshot_week, investment_current_value, gain_loss_amount, gain_loss_percent, captured_at, source) VALUES ('<account_number>', '<YYYY-MM-DD>', <current_value>, <gain_loss_amount>, <gain_loss_percent>, '<ISO-8601 timestamp>', 'SATURDAY_9PM_ET') ON CONFLICT (account_number, snapshot_week) DO UPDATE SET investment_current_value = EXCLUDED.investment_current_value, gain_loss_amount = EXCLUDED.gain_loss_amount, gain_loss_percent = EXCLUDED.gain_loss_percent, captured_at = EXCLUDED.captured_at, source = EXCLUDED.source;
+-- INSERT INTO portfolio_transaction_history (account_number, snapshot_week, buy_value, sell_value, net_cash_flow, realized_gain_loss, buy_count, sell_count, captured_at, source) VALUES ('<account_number>', '<YYYY-MM-DD>', <buy_value>, <sell_value>, <net_cash_flow>, <realized_gain_loss>, <buy_count>, <sell_count>, '<ISO-8601 timestamp>', 'SATURDAY_9PM_ET') ON CONFLICT (account_number, snapshot_week) DO UPDATE SET buy_value = EXCLUDED.buy_value, sell_value = EXCLUDED.sell_value, net_cash_flow = EXCLUDED.net_cash_flow, realized_gain_loss = EXCLUDED.realized_gain_loss, buy_count = EXCLUDED.buy_count, sell_count = EXCLUDED.sell_count, captured_at = EXCLUDED.captured_at, source = EXCLUDED.source;
+--
+-- LOGIN SECURITY AUDIT
+-- SELECT ip_address, attempted_at, event, alerted FROM portfolio_login_attempts ORDER BY attempted_at DESC;
+-- DELETE FROM portfolio_login_attempts WHERE ip_address = '<public_ip_address>';
+-- Passwords are never stored in portfolio_login_attempts.
+-- PLANNER (allocation planning sheet, one row per account/symbol plan)
+CREATE TABLE IF NOT EXISTS portfolio_planner (
+  id SERIAL PRIMARY KEY,
+  account_number TEXT NOT NULL,
+  symbol TEXT NOT NULL DEFAULT '',
+  shares DOUBLE PRECISION NOT NULL DEFAULT 0,
+  share_price DOUBLE PRECISION NOT NULL DEFAULT 0,
+  total DOUBLE PRECISION NOT NULL DEFAULT 0,
+  allocation_percent DOUBLE PRECISION,
+  as_of_date TEXT NOT NULL DEFAULT '',
+  comments TEXT NOT NULL DEFAULT '',
+  order_index INTEGER NOT NULL DEFAULT 0,
+  updated_at TEXT NOT NULL DEFAULT '',
+  action TEXT NOT NULL DEFAULT ''
+);
+-- INSERT INTO portfolio_planner (account_number, symbol, shares, share_price, total, allocation_percent, as_of_date, comments, order_index) VALUES ('<account_number>', '<symbol>', <shares>, <share_price>, <total>, <allocation_percent_or_NULL>, '<YYYY-MM-DD>', '<comments>', <order_index>);
+-- UPDATE portfolio_planner SET symbol = '<symbol>', shares = <shares>, share_price = <share_price>, total = <total>, allocation_percent = <allocation_percent_or_NULL>, as_of_date = '<YYYY-MM-DD>', comments = '<comments>' WHERE id = <planner_row_id>;
+-- DELETE FROM portfolio_planner WHERE id = <planner_row_id>;
+-- PLANNER ACCOUNT BUDGET (editable "Total - Account Level - Cash Allocation")
+CREATE TABLE IF NOT EXISTS portfolio_planner_account (
+  account_number TEXT PRIMARY KEY,
+  total_override DOUBLE PRECISION,
+  comments TEXT NOT NULL DEFAULT ''
+);
+-- Clear the override (NULL/absent row) to fall back to the live account cash balance.
+ALTER TABLE portfolio_planner ADD COLUMN IF NOT EXISTS updated_at TEXT NOT NULL DEFAULT '';
+ALTER TABLE portfolio_planner ADD COLUMN IF NOT EXISTS action TEXT NOT NULL DEFAULT '';
+ALTER TABLE portfolio_planner_account ADD COLUMN IF NOT EXISTS comments TEXT NOT NULL DEFAULT '';
