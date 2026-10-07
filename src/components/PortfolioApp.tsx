@@ -922,7 +922,15 @@ const e = {
       }
     };
 
-    let safeAccounts = Array.isArray(e) ? e : [];
+    // Account's Summary lists ACTIVE accounts only — inactive accounts (per
+    // Account Details "Active Status") are excluded from rows and totals.
+    let safeAccounts = (Array.isArray(e) ? e : []).filter(
+      (acc) =>
+        !(
+          acc?.isInactive ||
+          String(acc?.activeStatus || "").toUpperCase() === "INACTIVE"
+        ),
+    );
     let safeTotal = gt || {
       accountOverallMoney: 0,
       cashAvailable: 0,
@@ -1155,11 +1163,11 @@ const e = {
                               n({
                                 cellId: `A${a}`,
                                 label: "Row S.No",
-                                value: String(item.sNo),
-                                formula: String(item.sNo),
+                                value: String(rowIdx + 1),
+                                formula: String(rowIdx + 1),
                               }),
                              className: `summary-sno-column border border-slate-300 px-2 py-1 text-center font-mono whitespace-nowrap ${isInactive ? "text-slate-400" : ""} ${i(`A${a}`) ? l : ""}`,
-                             children: item.sNo,
+                             children: rowIdx + 1,
                           }),
                           (0, t.jsxs)("td", {
                             "data-field-kind": "readonly",
@@ -7142,6 +7150,18 @@ const e = {
                 tt.utils.book_append_sheet(
                   r,
                   (function (e) {
+                    // Exclude inactive accounts from the exported summary.
+                    e = {
+                      ...e,
+                      accounts: (e.accounts || []).filter(
+                        (acc) =>
+                          !(
+                            acc?.isInactive ||
+                            String(acc?.activeStatus || "").toUpperCase() ===
+                              "INACTIVE"
+                          ),
+                      ),
+                    };
                     let t = [
                         ["ACCOUNT'S SUMMARY"],
                         [
@@ -7155,8 +7175,8 @@ const e = {
                           "Gain/Loss",
                           "Comments",
                         ],
-                        ...e.accounts.map((e) => [
-                          e.sNo,
+                        ...e.accounts.map((e, idx) => [
+                          idx + 1,
                           e.accountNumber,
                           e.accountName,
                           e.accountOverallMoney,

@@ -234,6 +234,39 @@ function normalizeAccountKey(value: string | null | undefined): string {
     .replace(/[\s_-]+/g, "");
 }
 
+/**
+ * Normalized account keys whose Account Details "Active Status" is Inactive.
+ * Inactive accounts are excluded from the Account's Summary (rows + totals)
+ * and from both history tables (Account Value / Daily Transactions History).
+ */
+export async function getInactiveAccountKeys(): Promise<Set<string>> {
+  const rows = await db
+    .select({
+      accountNumber: accountDetailsTable.accountNumber,
+      activeStatus: accountDetailsTable.activeStatus,
+    })
+    .from(accountDetailsTable);
+  const keys = new Set<string>();
+  for (const row of rows) {
+    if (String(row.activeStatus || "").trim().toUpperCase() === "INACTIVE") {
+      keys.add(normalizeAccountKey(row.accountNumber));
+    }
+  }
+  return keys;
+}
+
+/** Drop rows that belong to an inactive account. */
+export function excludeInactiveAccounts<T extends { accountNumber: string }>(
+  rows: T[] | null | undefined,
+  inactiveKeys: Set<string>,
+): T[] {
+  if (!Array.isArray(rows)) return [];
+  if (inactiveKeys.size === 0) return rows;
+  return rows.filter(
+    (row) => !inactiveKeys.has(normalizeAccountKey(row.accountNumber)),
+  );
+}
+
 export function parseDateForSort(val: string | null | undefined): number {
   if (!val) return 0;
   const str = String(val).trim();
@@ -1063,14 +1096,18 @@ export async function buildPortfolioState() {
     };
   });
 
+  // Account's Summary totals only include ACTIVE accounts. Inactive accounts
+  // remain in `accounts` (other sheets still need them for lookups) but are
+  // excluded from the summary rows and these grand totals.
+  const activeAccounts = accounts.filter((a) => !a.isInactive);
   const totalCash = round2(
-    accounts.reduce((sum, a) => sum + a.cashAvailable, 0),
+    activeAccounts.reduce((sum, a) => sum + a.cashAvailable, 0),
   );
   const totalInvested = round2(
-    accounts.reduce((sum, a) => sum + a.amountInvested, 0),
+    activeAccounts.reduce((sum, a) => sum + a.amountInvested, 0),
   );
   const totalCurrent = round2(
-    accounts.reduce((sum, a) => sum + a.investmentCurrent, 0),
+    activeAccounts.reduce((sum, a) => sum + a.investmentCurrent, 0),
   );
   const totalOverall = round2(totalCash + totalCurrent);
   const totalGainLoss = round2(totalCurrent - totalInvested);

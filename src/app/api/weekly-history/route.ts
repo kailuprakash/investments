@@ -7,6 +7,8 @@ import {
   captureDueSnapshots,
   getSnapshotStatus,
   buildLivePeriodSnapshot,
+  getInactiveAccountKeys,
+  excludeInactiveAccounts,
 } from "@/db/portfolio-service";
 import { desc, asc } from "drizzle-orm";
 
@@ -25,10 +27,14 @@ export async function GET(req: NextRequest) {
       console.error("[weekly-history] lazy capture failed:", error);
       return null;
     });
-    const history = await db
-      .select()
-      .from(weeklyHistoryTable)
-      .orderBy(desc(weeklyHistoryTable.snapshotWeek), asc(weeklyHistoryTable.accountNumber));
+    const inactiveKeys = await getInactiveAccountKeys();
+    const history = excludeInactiveAccounts(
+      await db
+        .select()
+        .from(weeklyHistoryTable)
+        .orderBy(desc(weeklyHistoryTable.snapshotWeek), asc(weeklyHistoryTable.accountNumber)),
+      inactiveKeys,
+    );
     // Live, un-persisted values for the current (still-open) week/month so the
     // page always shows a fresh current-period column at load time.
     const live = await buildLivePeriodSnapshot().catch((error: unknown) => {
@@ -37,7 +43,7 @@ export async function GET(req: NextRequest) {
     });
     return NextResponse.json({
       history,
-      live: live ? { capturedAt: live.capturedAt, weekEnding: live.weekEnding, monthKey: live.monthKey, nextSnapshotAt: live.nextSnapshotAt, weekly: live.weekly } : null,
+      live: live ? { capturedAt: live.capturedAt, weekEnding: live.weekEnding, monthKey: live.monthKey, nextSnapshotAt: live.nextSnapshotAt, weekly: excludeInactiveAccounts(live.weekly, inactiveKeys) } : null,
       snapshot: capture,
       status: await getSnapshotStatus().catch(() => null),
     });
@@ -67,10 +73,14 @@ export async function POST(req: NextRequest) {
       force,
       lookbackWeeks: Number(body?.lookbackWeeks) || undefined,
     });
-    const history = await db
-      .select()
-      .from(weeklyHistoryTable)
-      .orderBy(desc(weeklyHistoryTable.snapshotWeek), asc(weeklyHistoryTable.accountNumber));
+    const inactiveKeys = await getInactiveAccountKeys();
+    const history = excludeInactiveAccounts(
+      await db
+        .select()
+        .from(weeklyHistoryTable)
+        .orderBy(desc(weeklyHistoryTable.snapshotWeek), asc(weeklyHistoryTable.accountNumber)),
+      inactiveKeys,
+    );
 
     return NextResponse.json({
       capture,

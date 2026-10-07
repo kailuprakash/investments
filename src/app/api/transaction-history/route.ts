@@ -7,6 +7,8 @@ import {
   captureDueSnapshots,
   getSnapshotStatus,
   buildLivePeriodSnapshot,
+  getInactiveAccountKeys,
+  excludeInactiveAccounts,
   buildLiveMonthTransactionTotals,
 } from "@/db/portfolio-service";
 import { desc, asc } from "drizzle-orm";
@@ -34,10 +36,14 @@ export async function GET(req: NextRequest) {
       console.error("[transaction-history] reconciliation failed:", error);
       return null;
     });
-    const history = await db
-      .select()
-      .from(transactionHistoryTable)
-      .orderBy(desc(transactionHistoryTable.snapshotWeek), asc(transactionHistoryTable.accountNumber));
+    const inactiveKeys = await getInactiveAccountKeys();
+    const history = excludeInactiveAccounts(
+      await db
+        .select()
+        .from(transactionHistoryTable)
+        .orderBy(desc(transactionHistoryTable.snapshotWeek), asc(transactionHistoryTable.accountNumber)),
+      inactiveKeys,
+    );
     // Fresh current-period totals computed at load time (never persisted).
     const [live, liveMonth] = await Promise.all([
       buildLivePeriodSnapshot().catch((error: unknown) => {
@@ -57,8 +63,10 @@ export async function GET(req: NextRequest) {
             weekEnding: live.weekEnding,
             monthKey: live.monthKey,
             nextSnapshotAt: live.nextSnapshotAt,
-            transactions: live.transactions,
-            monthTransactions: liveMonth,
+            transactions: excludeInactiveAccounts(live.transactions, inactiveKeys),
+            monthTransactions: liveMonth
+              ? excludeInactiveAccounts(liveMonth, inactiveKeys)
+              : null,
           }
         : null,
       snapshot: capture,
@@ -87,10 +95,14 @@ export async function POST(req: NextRequest) {
       lookbackWeeks: Number(body?.lookbackWeeks) || undefined,
       bypassThrottle: true,
     });
-    const history = await db
-      .select()
-      .from(transactionHistoryTable)
-      .orderBy(desc(transactionHistoryTable.snapshotWeek), asc(transactionHistoryTable.accountNumber));
+    const inactiveKeys = await getInactiveAccountKeys();
+    const history = excludeInactiveAccounts(
+      await db
+        .select()
+        .from(transactionHistoryTable)
+        .orderBy(desc(transactionHistoryTable.snapshotWeek), asc(transactionHistoryTable.accountNumber)),
+      inactiveKeys,
+    );
 
     return NextResponse.json({ capture, history, status: await getSnapshotStatus() });
   } catch (error) {
