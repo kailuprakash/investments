@@ -17,6 +17,7 @@ import {
   captureDueSnapshots,
   buildPortfolioState,
   deleteHolding,
+  deleteFutureTransaction,
   TransactionEditError,
 } from "@/db/portfolio-service";
 
@@ -49,6 +50,38 @@ export async function GET(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   const unauthorised = await requirePortfolioAuth(req);
   if (unauthorised) return unauthorised;
+
+  const transactionIdParam = req.nextUrl.searchParams.get("transactionId");
+  if (transactionIdParam !== null) {
+    const transactionId = Number(transactionIdParam);
+    if (
+      !Number.isSafeInteger(transactionId) ||
+      transactionId <= 0 ||
+      transactionId > 2147483647
+    ) {
+      return NextResponse.json(
+        { error: "A valid transaction ID is required" },
+        { status: 400 },
+      );
+    }
+    try {
+      const result = await deleteFutureTransaction(transactionId);
+      return NextResponse.json(result, {
+        headers: { "Cache-Control": "no-store" },
+      });
+    } catch (error) {
+      console.error("DELETE /api/portfolio (transaction) error:", error);
+      return NextResponse.json(
+        {
+          error:
+            error instanceof Error
+              ? error.message
+              : "Unable to delete the transaction. Please try again.",
+        },
+        { status: error instanceof TransactionEditError ? error.status : 500 },
+      );
+    }
+  }
 
   const id = Number(req.nextUrl.searchParams.get("holdingId"));
   if (!Number.isSafeInteger(id) || id <= 0 || id > 2147483647) {

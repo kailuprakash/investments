@@ -845,3 +845,31 @@
     display: none;
   }
 }
+
+
+/* ---- Row delete action (Buy transactions) ---------------------------- */
+.transaction-actions-cell {
+  text-align: center;
+}
+.transaction-delete-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 22px;
+  border-radius: 4px;
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  color: #b91c1c;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.transaction-delete-button:hover {
+  background: #b91c1c;
+  border-color: #b91c1c;
+  color: #fff;
+}
+.transaction-delete-button:focus-visible {
+  outline: 2px solid #b91c1c;
+  outline-offset: 1px;
+}

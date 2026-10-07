@@ -1907,6 +1907,187 @@ export async function editFutureTransaction(data: {
   );
   return buildPortfolioState();
 }
+/**
+ * Delete a single daily transaction (Buy or Sell) and reverse every effect it
+ * had on the workbook: account cash, the consolidated holding quantity /
+ * invested amount / average price, and – for sells – the remaining quantity of
+ * the linked purchase lot.
+ *
+ * A Buy whose shares have already been (partly) sold cannot be deleted, as
+ * that would make the linked sell rows reference shares that never existed.
+ */
+export async function deleteFutureTransaction(id: number) {
+  if (!Number.isSafeInteger(Number(id)) || Number(id) <= 0)
+    throw new TransactionEditError("A valid transaction ID is required");
+  await ensureDbSeeded();
+
+  const norm = (s: string) =>
+    String(s || "")
+      .trim()
+      .toUpperCase()
+      .replace(/^[0-9]+\.\s*/, "")
+      .replace(/[\s_-]+/g, "");
+
+  const removed = await db.transaction(async (txDb) => {
+    const [tx] = await txDb
+      .select()
+      .from(futureInvestmentsTable)
+      .where(eq(futureInvestmentsTable.id, Number(id)))
+      .for("update");
+    if (!tx) throw new TransactionEditError("Transaction not found", 404);
+
+    const isSell = String(tx.action).toUpperCase() === "SELL";
+    const qty = Number(tx.quantity) || 0;
+    const pps = Number(tx.pricePerShare) || 0;
+    const totalAmount = round2(tx.totalAmount || qty * pps);
+    const accountNumber = String(tx.accountNumber).trim();
+    const symbol = String(tx.symbol).trim().toUpperCase();
+
+    if (!isSell) {
+      const alreadySold = Math.max(
+        0,
+        round2(qty - (Number(tx.remainingQuantity) || 0)),
+      );
+      if (alreadySold > 0.00000001) {
+        throw new TransactionEditError(
+          `This purchase cannot be deleted because ${alreadySold} of its shares have already been sold. Delete the linked sell transaction first.`,
+        );
+      }
+      const linkedSells = await txDb
+        .select({ id: futureInvestmentsTable.id })
+        .from(futureInvestmentsTable)
+        .where(eq(futureInvestmentsTable.sourceTransactionId, tx.id));
+      if (linkedSells.length > 0) {
+        throw new TransactionEditError(
+          "This purchase has linked sell transactions. Delete those sells first.",
+        );
+      }
+    }
+
+    // 1. Restore the linked purchase lot when removing a sell.
+    if (isSell && tx.sourceTransactionId) {
+      const [source] = await txDb
+        .select()
+        .from(futureInvestmentsTable)
+        .where(eq(futureInvestmentsTable.id, tx.sourceTransactionId))
+        .for("update");
+      if (source) {
+        const restored = Math.min(
+          Number(source.quantity) || 0,
+          round2((Number(source.remainingQuantity) || 0) + qty),
+        );
+        await txDb
+          .update(futureInvestmentsTable)
+          .set({ remainingQuantity: restored })
+          .where(eq(futureInvestmentsTable.id, source.id));
+      }
+    }
+
+    // 2. Reverse the cash movement.
+    const allAccounts = await txDb.select().from(accountsTable);
+    const targetAcc = allAccounts.find(
+      (a) => norm(a.accountNumber) === norm(accountNumber),
+    );
+    if (targetAcc) {
+      const cashDelta = isSell ? -totalAmount : totalAmount;
+      await txDb
+        .update(accountsTable)
+        .set({ cashAvailable: round2(targetAcc.cashAvailable + cashDelta) })
+        .where(eq(accountsTable.id, targetAcc.id));
+    }
+
+    // 3. Reverse the consolidated holding (quantity / invested / avg price).
+    const allHoldings = await txDb.select().from(holdingsTable);
+    const holding = allHoldings.find(
+      (h) =>
+        norm(h.accountNumber) === norm(accountNumber) &&
+        h.symbol.trim().toUpperCase() === symbol,
+    );
+    const avgCostForSell =
+      Number(tx.averageCost) || Number(tx.costBasisPerShare) || pps;
+
+    if (holding) {
+      const priorInvest =
+        holding.investAmount > 0
+          ? holding.investAmount
+          : round2(holding.quantity * holding.purchasePrice);
+      const newQty = isSell
+        ? round2(holding.quantity + qty)
+        : Math.max(0, round2(holding.quantity - qty));
+      const newInvest = isSell
+        ? round2(priorInvest + round2(qty * avgCostForSell))
+        : Math.max(0, round2(priorInvest - totalAmount));
+
+      if (newQty <= 0) {
+        await txDb.delete(holdingsTable).where(eq(holdingsTable.id, holding.id));
+      } else {
+        const newAvg = round2(newInvest / newQty);
+        const marketPrice = holding.currentPrice || tx.currentPrice || 0;
+        const newOverall = round2(newQty * marketPrice);
+        const newPL = round2(newOverall - newInvest);
+        await txDb
+          .update(holdingsTable)
+          .set({
+            quantity: newQty,
+            purchasePrice: newAvg,
+            investAmount: newInvest,
+            overallCurrentPrice: newOverall,
+            profitLossAmt: newPL,
+            gainLossPercent: newInvest > 0 ? round2((newPL / newInvest) * 100) : 0,
+            updatedAt: new Date().toISOString(),
+          })
+          .where(eq(holdingsTable.id, holding.id));
+      }
+    } else if (isSell && qty > 0) {
+      // Deleting a sell for a position that is fully closed re-creates it.
+      const addedAmount = round2(qty * avgCostForSell);
+      const marketPrice = Number(tx.currentPrice) || pps;
+      const newOverall = round2(qty * marketPrice);
+      const newPL = round2(newOverall - addedAmount);
+      await txDb.insert(holdingsTable).values({
+        accountNumber,
+        symbol,
+        quantity: qty,
+        purchasePrice: avgCostForSell,
+        investAmount: addedAmount,
+        currentPrice: marketPrice,
+        overallCurrentPrice: newOverall,
+        comments: "",
+        highlight: "",
+        profitLossAmt: newPL,
+        gainLossPercent: addedAmount > 0 ? round2((newPL / addedAmount) * 100) : 0,
+        updatedAt: new Date().toISOString(),
+      });
+    }
+
+    // 4. Finally remove the transaction row itself.
+    await txDb
+      .delete(futureInvestmentsTable)
+      .where(eq(futureInvestmentsTable.id, tx.id));
+
+    return {
+      id: tx.id,
+      action: String(tx.action).toUpperCase(),
+      symbol,
+      accountNumber,
+      quantity: qty,
+      totalAmount,
+    };
+  });
+
+  // Weekly Buy/Sell totals are reconstructable – rebuild after the removal.
+  await captureDueSnapshots({ force: true, bypassThrottle: true }).catch(
+    (error) => {
+      console.error(
+        "[deleteFutureTransaction] transaction history rebuild failed:",
+        error,
+      );
+    },
+  );
+
+  return { deleted: removed, portfolio: await buildPortfolioState() };
+}
+
 /** Remove exactly one consolidated holding. This is NOT a sell operation:
  * cash, trade lots, deposits, and historical snapshots remain untouched. */
 export async function deleteHolding(id: number) {

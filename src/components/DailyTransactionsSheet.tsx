@@ -23,8 +23,10 @@ import {
   Plus,
   RotateCcw,
   SlidersHorizontal,
+  Trash2,
   X,
 } from "lucide-react";
+import ConfirmDialog from "@/components/ConfirmDialog";
 import { FieldHeader, GainLossValue } from "@/components/WorkbookUI";
 import {
   DEFAULT_TRADE_COLUMNS,
@@ -59,6 +61,8 @@ interface Props {
   onSelectCell: (cell: SelectedCell) => void;
   onOpenAddModal: (side: TradeSide, accountNumber?: string) => void;
   onSaveInlineField: (id: number, patch: TradeEdit) => Promise<void>;
+  /** Delete a buy transaction and reverse its inventory / cash effects. */
+  onDeleteTransaction?: (row: DailyTransaction) => Promise<void>;
   jumpHit?: WorkbookHit | null;
   onJumpHandled?: () => void;
   /** Active sub-tab: All (consolidated), Buy, or Sell. */
@@ -490,6 +494,7 @@ export default function DailyTransactionsSheet({
   onSelectCell,
   onOpenAddModal,
   onSaveInlineField,
+  onDeleteTransaction,
   jumpHit,
   onJumpHandled,
   activeOrderTypeTab = "BUY",
@@ -977,6 +982,67 @@ export default function DailyTransactionsSheet({
     setDragColumn(null);
   }
 
+  // ---------------------------------------------------------------------
+  //   Delete a Buy transaction (All tab + Buy & Sell tab)
+  // ---------------------------------------------------------------------
+  const [pendingDelete, setPendingDelete] = useState<DailyTransaction | null>(
+    null,
+  );
+  const [deleting, setDeleting] = useState(false);
+  const canDelete = typeof onDeleteTransaction === "function";
+  const isBuyRow = (row: DailyTransaction) =>
+    row.action.toUpperCase() !== "SELL";
+
+  async function confirmDelete() {
+    if (!pendingDelete || !onDeleteTransaction) return;
+    setDeleting(true);
+    try {
+      await onDeleteTransaction(pendingDelete);
+      setPendingDelete(null);
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  function renderDeleteCell(row: DailyTransaction) {
+    return (
+      <td
+        key="rowActions"
+        data-field="rowActions"
+        data-field-kind="readonly"
+        data-align="center"
+        className="transaction-cell transaction-actions-cell"
+      >
+        {isBuyRow(row) ? (
+          <button
+            type="button"
+            className="transaction-delete-button"
+            onClick={(event) => {
+              event.stopPropagation();
+              setPendingDelete(row);
+            }}
+            title={`Delete buy of ${row.symbol}`}
+            aria-label={`Delete buy transaction #${row.id} for ${row.symbol}`}
+          >
+            <Trash2 size={13} aria-hidden="true" />
+          </button>
+        ) : (
+          <span className="transaction-secondary">—</span>
+        )}
+      </td>
+    );
+  }
+
+  function renderDeleteHeader() {
+    return (
+      <th scope="col" data-field="rowActions" data-field-kind="readonly">
+        <div className="transaction-column-heading">
+          <FieldHeader label="Actions" kind="readonly" />
+        </div>
+      </th>
+    );
+  }
+
   function renderCell(row: DailyTransaction, column: TradeColumn) {
     const values = calculateTransactionValues(row);
     const isSell = row.action.toUpperCase() === "SELL";
@@ -1235,6 +1301,7 @@ export default function DailyTransactionsSheet({
               {ALL_COLUMNS.map((col) => (
                 <col key={col.id} style={{ width: col.width }} />
               ))}
+              {canDelete && <col style={{ width: 72 }} />}
             </colgroup>
             <thead>
               <tr>
@@ -1281,12 +1348,16 @@ export default function DailyTransactionsSheet({
                     </th>
                   );
                 })}
+                {canDelete && renderDeleteHeader()}
               </tr>
             </thead>
             <tbody>
               {allRows.length === 0 ? (
                 <tr>
-                  <td className="transaction-empty" colSpan={ALL_COLUMNS.length}>
+                  <td
+                    className="transaction-empty"
+                    colSpan={ALL_COLUMNS.length + (canDelete ? 1 : 0)}
+                  >
                     No transactions match the selected filters.
                   </td>
                 </tr>
@@ -1352,6 +1423,7 @@ export default function DailyTransactionsSheet({
                         renderCell(row, col as TradeColumn)
                       ),
                     )}
+                    {canDelete && renderDeleteCell(row)}
                   </tr>
                 ))
               )}
@@ -1476,6 +1548,7 @@ export default function DailyTransactionsSheet({
               {visible.map((col) => (
                 <col key={col.id} style={{ width: col.width }} />
               ))}
+              {canDelete && buy && <col style={{ width: 72 }} />}
             </colgroup>
             <thead>
               <tr>
@@ -1536,12 +1609,16 @@ export default function DailyTransactionsSheet({
                     </th>
                   );
                 })}
+                {canDelete && buy && renderDeleteHeader()}
               </tr>
             </thead>
             <tbody>
               {groups.length === 0 ? (
                 <tr>
-                  <td className="transaction-empty" colSpan={visible.length}>
+                  <td
+                    className="transaction-empty"
+                    colSpan={visible.length + (canDelete && buy ? 1 : 0)}
+                  >
                     No {label.toLowerCase()} transactions
                     {sideAccountFilter !== null
                       ? " for the selected accounts"
@@ -1559,7 +1636,10 @@ export default function DailyTransactionsSheet({
                         className="transaction-account-group"
                         data-account={accountNumber}
                       >
-                        <th colSpan={visible.length} scope="rowgroup">
+                        <th
+                          colSpan={visible.length + (canDelete && buy ? 1 : 0)}
+                          scope="rowgroup"
+                        >
                           <div className="transaction-account-group-inner">
                             <button
                               type="button"
@@ -1605,6 +1685,7 @@ export default function DailyTransactionsSheet({
                             className="transaction-data-row"
                           >
                             {visible.map((col) => renderCell(row, col))}
+                            {canDelete && buy && renderDeleteCell(row)}
                           </tr>
                         ))}
                     </Fragment>
@@ -1835,6 +1916,40 @@ export default function DailyTransactionsSheet({
           {renderTable("SELL")}
         </div>
       )}
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title="Delete buy transaction"
+        confirmLabel={deleting ? "Deleting…" : "Delete transaction"}
+        busy={deleting}
+        message={
+          pendingDelete ? (
+            <>
+              Delete the buy of{" "}
+              <strong>
+                {quantity(pendingDelete.quantity)} {pendingDelete.symbol}
+              </strong>{" "}
+              at {money(pendingDelete.pricePerShare)} /share in account{" "}
+              <strong>{pendingDelete.accountNumber}</strong>?
+            </>
+          ) : (
+            ""
+          )
+        }
+        detail={
+          pendingDelete
+            ? `Consolidated View quantity and average price will be adjusted, and ${money(
+                pendingDelete.quantity * pendingDelete.pricePerShare,
+              )} is returned to the account cash balance.`
+            : undefined
+        }
+        onConfirm={() => {
+          void confirmDelete();
+        }}
+        onCancel={() => {
+          if (!deleting) setPendingDelete(null);
+        }}
+      />
     </section>
   );
 }

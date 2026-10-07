@@ -8923,6 +8923,26 @@ This replaces the current accounts, inventory, and transactions.`)
                                 jumpHit,
                                 onJumpHandled: () => setJumpHit(null),
                                 onSaveInlineField: eu,
+                                onDeleteTransaction: async (row) => {
+                                  const response = await fetch(
+                                    `/api/portfolio?transactionId=${row.id}`,
+                                    { method: "DELETE" },
+                                  );
+                                  const result = await response.json();
+                                  if (!response.ok)
+                                    throw new Error(
+                                      result.error ||
+                                        "Unable to delete transaction",
+                                    );
+                                  a(result.portfolio.accounts || []);
+                                  s(result.portfolio.grandTotal || {});
+                                  i(result.portfolio.futureInvestments || []);
+                                  c(new Date().toISOString());
+                                  w(null);
+                                  ei(
+                                    `Buy transaction #${row.id} (${row.symbol}) deleted. Consolidated quantity, average price, and cash reconciled!`,
+                                  );
+                                },
                                 activeOrderTypeTab:
                                   "buy" === g || "sell" === g
                                     ? "BUY"
