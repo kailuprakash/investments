@@ -28,6 +28,8 @@ export type PlannerRow = {
   symbol: string;
   shares: number;
   sharePrice: number;
+  /** Editable target (exit) price for the planned symbol; 0 = not set. */
+  targetPrice: number;
   total: number;
   /** Stored override; null means the % is derived from Total / cash. */
   allocationPercent: number | null;
@@ -109,6 +111,7 @@ async function ensurePlannerTable(): Promise<void> {
         symbol TEXT NOT NULL DEFAULT '',
         shares DOUBLE PRECISION NOT NULL DEFAULT 0,
         share_price DOUBLE PRECISION NOT NULL DEFAULT 0,
+        target_price DOUBLE PRECISION NOT NULL DEFAULT 0,
         total DOUBLE PRECISION NOT NULL DEFAULT 0,
         allocation_percent DOUBLE PRECISION,
         as_of_date TEXT NOT NULL DEFAULT '',
@@ -121,6 +124,8 @@ async function ensurePlannerTable(): Promise<void> {
         ADD COLUMN IF NOT EXISTS updated_at TEXT NOT NULL DEFAULT '';
       ALTER TABLE portfolio_planner
         ADD COLUMN IF NOT EXISTS action TEXT NOT NULL DEFAULT '';
+      ALTER TABLE portfolio_planner
+        ADD COLUMN IF NOT EXISTS target_price DOUBLE PRECISION NOT NULL DEFAULT 0;
       CREATE TABLE IF NOT EXISTS portfolio_planner_account (
         account_number TEXT PRIMARY KEY,
         total_override DOUBLE PRECISION,
@@ -144,6 +149,7 @@ type PlannerDbRow = {
   symbol: string;
   shares: number | string;
   share_price: number | string;
+  target_price: number | string | null;
   total: number | string;
   allocation_percent: number | string | null;
   as_of_date: string | null;
@@ -162,7 +168,7 @@ export async function getPlannerState(): Promise<PlannerState> {
   const [rowsResult, portfolio, budgetResult, symbolResult] = await Promise.all(
     [
       pool.query<PlannerDbRow>(
-        `SELECT id, account_number, symbol, shares, share_price, total,
+        `SELECT id, account_number, symbol, shares, share_price, target_price, total,
               allocation_percent, as_of_date, comments, order_index, updated_at, action
        FROM portfolio_planner
        ORDER BY account_number ASC, order_index ASC, id ASC`,
@@ -292,6 +298,7 @@ export async function getPlannerState(): Promise<PlannerState> {
         symbol: row.symbol,
         shares: sharesView,
         sharePrice: sharePriceView,
+        targetPrice: round2(Number(row.target_price) || 0),
         total,
         allocationPercent: storedAlloc,
         asOfDate: String(row.as_of_date ?? ""),
@@ -432,6 +439,7 @@ type PlannerField =
   | "symbol"
   | "shares"
   | "sharePrice"
+  | "targetPrice"
   | "total"
   | "allocationPercent"
   | "asOfDate"
@@ -439,12 +447,18 @@ type PlannerField =
   | "action";
 
 const TEXT_FIELDS: PlannerField[] = ["symbol", "asOfDate", "comments"];
-const MONEY_FIELDS: PlannerField[] = ["shares", "sharePrice", "total"];
+const MONEY_FIELDS: PlannerField[] = [
+  "shares",
+  "sharePrice",
+  "targetPrice",
+  "total",
+];
 
 const COLUMN_BY_FIELD: Record<PlannerField, string> = {
   symbol: "symbol",
   shares: "shares",
   sharePrice: "share_price",
+  targetPrice: "target_price",
   total: "total",
   allocationPercent: "allocation_percent",
   asOfDate: "as_of_date",

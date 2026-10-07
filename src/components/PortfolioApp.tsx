@@ -8075,12 +8075,13 @@ const e = {
                         "Account",
                         "Symbol",
                         "Market Price",
+                        "Buy Price",
                         "~ # of Shares",
-                        "Price/share",
+                        "Target Price",
                         "Amount",
                         "% Allocation",
                         "Purchased",
-                        "Price/share",
+                        "Buy Price",
                         "Total Amount",
                         "Action",
                         "Balance Amount",
@@ -8137,8 +8138,9 @@ const e = {
                           g.accountNumber,
                           row.symbol || "",
                           row.currentMarketPrice || 0,
-                          row.shares || 0,
                           row.sharePrice || 0,
+                          row.shares || 0,
+                          row.targetPrice || 0,
                           row.amount || 0,
                           (row.effectiveAllocation || 0) / 100,
                           row.sharesPurchased || 0,
@@ -8160,6 +8162,7 @@ const e = {
                         "",
                         "",
                         "",
+                        "",
                         g.cashRemaining ?? 0,
                         (g.remainingPercent ?? 0) / 100,
                       ]);
@@ -8170,12 +8173,13 @@ const e = {
                         "",
                         "",
                         "",
+                        "",
                         g.budget ?? 0,
                         1,
                       ]);
                     }
                     let sheet = tt.utils.aoa_to_sheet(rows);
-                    let lastCol = 14;
+                    let lastCol = 15;
                     sheet["!merges"] = [
                       { s: { r: 0, c: 0 }, e: { r: 0, c: lastCol } },
                     ];
@@ -8190,27 +8194,27 @@ const e = {
                       for (let c = 0; c <= lastCol; c += 1) {
                         if (kind === "band") tN(sheet, rIdx, c, bandStyle);
                         else if (kind === "cash")
-                          tN(sheet, rIdx, c, cashStyle(c >= 2 && c <= 11 ? "right" : "left"));
+                          tN(sheet, rIdx, c, cashStyle(c >= 2 && c <= 12 ? "right" : "left"));
                         else if (kind === "total")
-                          tN(sheet, rIdx, c, totalStyle(c >= 2 && c <= 11 ? "right" : "left"));
+                          tN(sheet, rIdx, c, totalStyle(c >= 2 && c <= 12 ? "right" : "left"));
                         else
                           tN(
                             sheet,
                             rIdx,
                             c,
-                            tC(c >= 2 && c <= 12 ? "right" : "left"),
+                            tC(c >= 2 && c <= 13 ? "right" : "left"),
                           );
                       }
                       // Numeric formats: qty (ty), money (tx), percent (tv).
-                      for (let c of [3, 7]) {
+                      for (let c of [4, 8]) {
                         let cell = sheet[tS(rIdx, c)];
                         if (cell) cell.z = ty;
                       }
-                      for (let c of [2, 4, 5, 8, 9, 11]) {
+                      for (let c of [2, 3, 5, 6, 9, 10, 12]) {
                         let cell = sheet[tS(rIdx, c)];
                         if (cell) cell.z = tx;
                       }
-                      for (let c of [6, 12]) {
+                      for (let c of [7, 13]) {
                         let cell = sheet[tS(rIdx, c)];
                         if (cell) cell.z = tv;
                       }
@@ -8224,7 +8228,7 @@ const e = {
                     );
                     sheet["!cols"][1] = { wch: nameWidth };
                     sheet["!cols"][0] = { wch: 18 };
-                    sheet["!autofilter"] = { ref: `A2:N${rows.length}` };
+                    sheet["!autofilter"] = { ref: `A2:P${rows.length}` };
                     return sheet;
                   })(),
                   "Planner",

@@ -58,6 +58,7 @@ interface Props {
 type EditableField =
   | "symbol"
   | "sharePrice"
+  | "targetPrice"
   | "allocationPercent"
   | "asOfDate"
   | "comments"
@@ -477,7 +478,7 @@ const COLLAPSED_KEY = "planner-collapsed-accounts-v1";
 
 /** Column #10 is Comments — width is fixed; every other column auto-sizes
     to its widest displayed value (headers included). */
-const COMMENTS_COL_INDEX = 12;
+const COMMENTS_COL_INDEX = 13;
 const COMMENTS_COL_WIDTH = 210;
 const ACTION_COL_WIDTH = 34;
 
@@ -493,6 +494,7 @@ function computeColumnWidths(groups: PlannerAccountGroup[]): number[] {
   const marketValues: number[] = [];
   const sharesValues: number[] = [];
   const priceValues: number[] = [];
+  const targetValues: number[] = [];
   const amountValues: number[] = [];
   const allocValues: number[] = [];
   const purchasedValues: number[] = [];
@@ -508,6 +510,7 @@ function computeColumnWidths(groups: PlannerAccountGroup[]): number[] {
       marketValues.push(pxForText(moneyText(row.currentMarketPrice || 0)));
       sharesValues.push(pxForText(qty(row.shares).length));
       priceValues.push(pxForText(moneyText(row.sharePrice || 0)));
+      targetValues.push(pxForText(moneyText(row.targetPrice || 0)));
       amountValues.push(pxForText(moneyText(row.amount || 0)));
       const allocText =
         row.allocationPercent !== null
@@ -531,12 +534,13 @@ function computeColumnWidths(groups: PlannerAccountGroup[]): number[] {
     ACTION_COL_WIDTH,
     col("Symbol", symbolValues, 100, 150),
     col("Market Price", marketValues, 112, 160),
+    col("Buy Price", priceValues, 96, 140),
     col("~ # of Shares", sharesValues, 96, 120),
-    col("Price/share", priceValues, 96, 140),
+    col("Target Price", targetValues, 100, 150),
     col("Amount", amountValues, 104, 170),
     col("% Allocation", allocValues, 100, 150),
     col("Purchased", purchasedValues, 88, 118),
-    col("Price/share", actualPriceValues, 96, 130),
+    col("Buy Price", actualPriceValues, 96, 130),
     col("Total Amount", actualAmountValues, 104, 160),
     col("Action", actionValues, 100, 180),
     col("Balance Amount", balanceValues, 118, 200),
@@ -1220,7 +1224,7 @@ export default function PlannerSheet({ accounts, onNotify, jumpHit, onJumpHandle
                   </span>
                 </th>
                 <th
-                  colSpan={4}
+                  colSpan={5}
                   className={`${th} text-center font-bold`}
                 >
                   Plan - Budget Allocation
@@ -1254,11 +1258,26 @@ export default function PlannerSheet({ accounts, onNotify, jumpHit, onJumpHandle
                 </th>
               </tr>
               <tr className="border-b border-slate-400">
-                <th data-field-kind="calculated" className={`${th} text-right font-semibold`} title="Auto-calculated: trunc(Amount ÷ Share Price)">
+                <th data-field-kind="editable" className={`${thEditable} text-right`}>
+                  <FieldHeader
+                    label="Buy Price"
+                    kind="editable"
+                    tooltip="Editable — the price you plan to buy this symbol at (entry point). Drives ~ # of Shares = trunc(Amount ÷ Buy Price)."
+                  />
+                </th>
+                <th data-field-kind="calculated" className={`${th} text-right font-semibold`} title="Auto-calculated: trunc(Amount ÷ Buy Price)">
                   <FieldHeader label="~ # of Shares" kind="calculated" />
                 </th>
-                <th data-field-kind="editable" className={`${thEditable} text-right`}>
-                  <FieldHeader label="Price/share" kind="editable" />
+                <th
+                  data-field-kind="editable"
+                  className={`${thEditable} text-right`}
+                  title="Editable — the price you plan to exit at. Compared live against Market Price to flag when the target is hit."
+                >
+                  <FieldHeader
+                    label="Target Price"
+                    kind="editable"
+                    tooltip="Editable — planned exit/target price per share for this symbol. When Market Price reaches or exceeds it the cell turns green; potential gain = (Target Price − Buy Price) × ~ # of Shares."
+                  />
                 </th>
                 <th data-field-kind="calculated" className={`${th} text-right font-semibold`}>
                   <FieldHeader label="Amount" kind="calculated" />
@@ -1270,7 +1289,11 @@ export default function PlannerSheet({ accounts, onNotify, jumpHit, onJumpHandle
                   <FieldHeader label="Purchased" kind="calculated" />
                 </th>
                 <th data-field-kind="calculated" className={`${th} text-right font-semibold`}>
-                  <FieldHeader label="Price/share" kind="calculated" />
+                  <FieldHeader
+                    label="Buy Price"
+                    kind="calculated"
+                    tooltip="Calculated column — average purchase price from the Consolidated View (editing lives in the Plan section)"
+                  />
                 </th>
                 <th data-field-kind="calculated" className={`${th} text-right font-semibold`}>
                   <FieldHeader label="Total Amount" kind="calculated" />
@@ -1289,7 +1312,7 @@ export default function PlannerSheet({ accounts, onNotify, jumpHit, onJumpHandle
                     {/* Account group header row — same pattern as the
                         Consolidated View account rows. */}
                     <tr className="h-6 bg-[#E7E6E6] text-[11px] font-semibold text-gray-800 border-y border-gray-300">
-                      <td colSpan={14} className="border border-gray-300 px-3 py-1">
+                      <td colSpan={15} className="border border-gray-300 px-3 py-1">
   <div className="flex items-center gap-3">
                             <button
                               type="button"
@@ -1348,7 +1371,7 @@ export default function PlannerSheet({ accounts, onNotify, jumpHit, onJumpHandle
                     {!isCollapsed && group.rows.length === 0 && (
                       <tr className="h-6">
                         <td
-                          colSpan={14}
+                          colSpan={15}
                           className="border border-gray-300 bg-gray-50 px-4 py-3 text-center italic text-gray-400"
                         >
                           No planned rows for {group.accountNumber} — press
@@ -1413,13 +1436,6 @@ export default function PlannerSheet({ accounts, onNotify, jumpHit, onJumpHandle
                                 ? money(row.currentMarketPrice)
                                 : "—"}
                             </td>
-                            <td
-                              data-field-kind="calculated"
-                              className={tdMoney}
-                              title="Auto-calculated: trunc(Amount ÷ Share Price)"
-                            >
-                              {row.shares ? qty(row.shares) : ""}
-                            </td>
                             {(() => {
                               const hasPrices =
                                 row.sharePrice > 0 && row.currentMarketPrice > 0;
@@ -1452,15 +1468,82 @@ export default function PlannerSheet({ accounts, onNotify, jumpHit, onJumpHandle
                                     }
                                     title={
                                       aboveEntry
-                                        ? `Market Price (${money(row.currentMarketPrice)}) still above Entry Point — waiting`
+                                        ? `Market Price (${money(row.currentMarketPrice)}) still above Buy Price — waiting`
                                         : reached
-                                          ? `Market Price (${money(row.currentMarketPrice)}) at or below Entry Point — buying point reached`
+                                          ? `Market Price (${money(row.currentMarketPrice)}) at or below Buy Price — buying point reached`
                                           : undefined
                                     }
                                 onCommit={(next) =>
                                   void commit(row.id, "sharePrice", num(next))
                                 }
                               />
+                                </td>
+                              );
+                            })()}
+                            <td
+                              data-field-kind="calculated"
+                              className={tdMoney}
+                              title="Auto-calculated: trunc(Amount ÷ Buy Price)"
+                            >
+                              {row.shares ? qty(row.shares) : ""}
+                            </td>
+                            {(() => {
+                              const hasTarget =
+                                row.targetPrice > 0 &&
+                                row.currentMarketPrice > 0;
+                              const targetHit =
+                                hasTarget &&
+                                row.currentMarketPrice >= row.targetPrice;
+                              const potentialGain =
+                                row.targetPrice > 0 && row.sharePrice > 0
+                                  ? (row.targetPrice - row.sharePrice) *
+                                    (row.shares || 0)
+                                  : 0;
+                              return (
+                                <td
+                                  data-field-kind="editable"
+                                  className={`${editableTd} ${
+                                    targetHit ? "!bg-[#DCEFE5]" : ""
+                                  }`}
+                                >
+                                  <PlannerEditCell
+                                    type="number"
+                                    align="right"
+                                    value={rowNumeric(row, "targetPrice")}
+                                    displayValue={
+                                      row.targetPrice
+                                        ? money(row.targetPrice)
+                                        : ""
+                                    }
+                                    placeholder="Target"
+                                    inputClassName={
+                                      targetHit
+                                        ? "font-bold text-emerald-700"
+                                        : undefined
+                                    }
+                                    title={
+                                      row.targetPrice > 0
+                                        ? `Target exit price ${money(row.targetPrice)}${
+                                            row.currentMarketPrice > 0
+                                              ? targetHit
+                                                ? ` — Market Price (${money(row.currentMarketPrice)}) reached the target`
+                                                : ` — Market Price (${money(row.currentMarketPrice)}) still below target`
+                                              : ""
+                                          }${
+                                            potentialGain !== 0
+                                              ? ` · Potential gain ${money(potentialGain)} on ${qty(row.shares)} shares`
+                                              : ""
+                                          }`
+                                        : "Editable — planned exit/target price per share. Potential gain = (Target Price − Buy Price) × ~ # of Shares."
+                                    }
+                                    onCommit={(next) =>
+                                      void commit(
+                                        row.id,
+                                        "targetPrice",
+                                        num(next),
+                                      )
+                                    }
+                                  />
                                 </td>
                               );
                             })()}
@@ -1559,7 +1642,7 @@ export default function PlannerSheet({ accounts, onNotify, jumpHit, onJumpHandle
                         {/* Cash Balance label merges 4 columns like the
                             Total - Account Level - Cash Allocation row. */}
                         <td
-                          colSpan={4}
+                          colSpan={5}
                           className={`${td} font-semibold italic text-slate-600`}
                         >
                           Cash Balance - Unallocated
@@ -1585,8 +1668,8 @@ export default function PlannerSheet({ accounts, onNotify, jumpHit, onJumpHandle
                     {!isCollapsed && (
                       <tr data-field-kind="calculated" className="h-6 bg-[#DCEFE5] font-bold">
                         <td className={td} />
-                        {/* Label spans Symbol + Market Price + ~ # of Shares + Share Price */}
-                        <td colSpan={4} className={`${td} text-emerald-950`}>
+                        {/* Label spans Symbol + Market Price + Buy Price + ~ # of Shares + Target Price */}
+                        <td colSpan={5} className={`${td} text-emerald-950`}>
                           Total - Account Level - Cash Allocation
                         </td>
                         <td

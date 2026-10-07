@@ -149,6 +149,8 @@ export const plannerTable = pgTable("portfolio_planner", {
   symbol: text("symbol").notNull().default(""),
   shares: doublePrecision("shares").notNull().default(0),
   sharePrice: doublePrecision("share_price").notNull().default(0),
+  /** Planned exit/target price for the symbol (editable, 0 = not set). */
+  targetPrice: doublePrecision("target_price").notNull().default(0),
   total: doublePrecision("total").notNull().default(0),
   /** NULL means "auto": derived from Total / account cash balance. */
   allocationPercent: doublePrecision("allocation_percent"),
