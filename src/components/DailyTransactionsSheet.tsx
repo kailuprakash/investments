@@ -211,7 +211,7 @@ function TransactionMultiFilter({
           aria-autocomplete="list"
           aria-label={`Filter by ${label}`}
           placeholder={
-            chosen.length ? `Add ${label.toLowerCase()}…` : `Filter ${label}`
+            chosen.length ? `Add ${label.toLowerCase()}…` : `Type to filter ${label}`
           }
           value={query}
           autoComplete="off"
@@ -530,12 +530,66 @@ export default function DailyTransactionsSheet({
   const [allSymbolFilter, setAllSymbolFilter] = useState<string[] | null>(null);
   const [allTypeFilter, setAllTypeFilter] = useState<string[] | null>(null);
   const [allDate, setAllDate] = useState<string>("");
+  const [allGainLossFilter, setAllGainLossFilter] = useState<"ALL" | "POSITIVE" | "NEGATIVE">("ALL");
   const [buyDate, setBuyDate] = useState<string>("");
   const [sellDate, setSellDate] = useState<string>("");
+  
   const [allSort, setAllSort] = useState<{
-    key: "dateTime" | "accountNumber" | "symbol" | "action" | "quantity" | "pricePerShare" | "totalAmount" | "gainLoss";
+    key: "dateTime" | "accountNumber" | "symbol" | "action" | "quantity" | "pricePerShare" | "totalAmount" | "gainLoss" | "averageCost" | "currentPrice" | "comments";
     dir: "asc" | "desc";
   }>({ key: "dateTime", dir: "desc" });
+
+  const [buySort, setBuySort] = useState<{
+    key: TradeColumnId;
+    dir: "asc" | "desc";
+  }>({ key: "dateTime", dir: "desc" });
+
+  const [sellSort, setSellSort] = useState<{
+    key: TradeColumnId;
+    dir: "asc" | "desc";
+  }>({ key: "dateTime", dir: "desc" });
+
+  function sortSideRows(
+    rows: DailyTransaction[],
+    sort: { key: TradeColumnId; dir: "asc" | "desc" } | null,
+  ) {
+    if (!sort) return rows;
+    const dir = sort.dir === "asc" ? 1 : -1;
+    const val = (row: DailyTransaction): string | number => {
+      const values = calculateTransactionValues(row);
+      switch (sort.key) {
+        case "symbol":
+          return row.symbol.toUpperCase();
+        case "dateTime":
+          return Date.parse(row.dateTime) || 0;
+        case "quantity":
+          return Number(row.quantity) || 0;
+        case "pricePerShare":
+          return Number(row.pricePerShare) || 0;
+        case "averageCost":
+          return Number(row.averageCost || row.costBasisPerShare || row.pricePerShare) || 0;
+        case "totalAmount":
+          return values.totalAmount;
+        case "currentPrice":
+          return Number(row.currentPrice) || 0;
+        case "gainLoss":
+          return values.gainLoss;
+        case "comments":
+          return (row.comments || "").toUpperCase();
+        default:
+          return 0;
+      }
+    };
+    return [...rows].sort((a, b) => {
+      const av = val(a);
+      const bv = val(b);
+      const cmp =
+        typeof av === "string" && typeof bv === "string"
+          ? av.localeCompare(bv, undefined, { numeric: true })
+          : Number(av) - Number(bv);
+      return (cmp || a.id - b.id) * dir;
+    });
+  }
   useEffect(() => {
     try {
       const saved = localStorage.getItem(TRADE_COLUMNS_STORAGE_KEY);
@@ -658,6 +712,21 @@ export default function DailyTransactionsSheet({
       ),
     [entries, sideAccountFilters.SELL, sellDate],
   );
+
+  const sortedBuyGroups = useMemo(() => {
+    return buyGroups.map((g) => ({
+      ...g,
+      rows: sortSideRows(g.rows, buySort),
+    }));
+  }, [buyGroups, buySort]);
+
+  const sortedSellGroups = useMemo(() => {
+    return sellGroups.map((g) => ({
+      ...g,
+      rows: sortSideRows(g.rows, sellSort),
+    }));
+  }, [sellGroups, sellSort]);
+
   const buyCount = buyGroups.reduce(
     (sum, group) => sum + group.rows.length,
     0,
@@ -666,6 +735,15 @@ export default function DailyTransactionsSheet({
     (sum, group) => sum + group.rows.length,
     0,
   );
+
+  function toggleSideSort(side: TradeSide, key: TradeColumnId) {
+    const setSort = side === "BUY" ? setBuySort : setSellSort;
+    setSort((cur) =>
+      cur.key === key
+        ? { key, dir: cur.dir === "asc" ? "desc" : "asc" }
+        : { key, dir: key === "dateTime" ? "desc" : "asc" },
+    );
+  }
 
   // Distinct account / symbol option lists for the "All" tab filters.
   const allAccountOptions = useMemo(
@@ -703,10 +781,16 @@ export default function DailyTransactionsSheet({
         });
         if (day !== allDate) return false;
       }
+      if (allGainLossFilter !== "ALL") {
+        const values = calculateTransactionValues(e);
+        if (allGainLossFilter === "POSITIVE" && values.gainLoss <= 0) return false;
+        if (allGainLossFilter === "NEGATIVE" && values.gainLoss >= 0) return false;
+      }
       return true;
     });
     const dir = allSort.dir === "asc" ? 1 : -1;
     const val = (row: DailyTransaction): string | number => {
+      const values = calculateTransactionValues(row);
       switch (allSort.key) {
         case "dateTime":
           return Date.parse(row.dateTime) || 0;
@@ -721,9 +805,17 @@ export default function DailyTransactionsSheet({
         case "pricePerShare":
           return Number(row.pricePerShare) || 0;
         case "totalAmount":
-          return calculateTransactionValues(row).totalAmount;
+          return values.totalAmount;
         case "gainLoss":
-          return calculateTransactionValues(row).gainLoss;
+          return values.gainLoss;
+        case "averageCost":
+          return Number(row.averageCost || row.costBasisPerShare || row.pricePerShare) || 0;
+        case "currentPrice":
+          return Number(row.currentPrice) || 0;
+        case "comments":
+          return (row.comments || "").toUpperCase();
+        default:
+          return 0;
       }
     };
     return [...filtered].sort((a, b) => {
@@ -741,6 +833,7 @@ export default function DailyTransactionsSheet({
     allSymbolFilter,
     allTypeFilter,
     allDate,
+    allGainLossFilter,
     allSort,
   ]);
   const allCount = allRows.length;
@@ -748,7 +841,8 @@ export default function DailyTransactionsSheet({
     allAccountFilter !== null ||
     allSymbolFilter !== null ||
     allTypeFilter !== null ||
-    allDate !== "";
+    allDate !== "" ||
+    allGainLossFilter !== "ALL";
 
   // Distinct transaction dates (YYYY-MM-DD, Eastern), oldest→newest, so the
   // prev/next buttons can step through only dates that actually have activity.
@@ -1002,11 +1096,11 @@ export default function DailyTransactionsSheet({
     { id: "dateTime", label: "Date/time", kind: "readonly", align: "center", width: 130, sortKey: "dateTime" },
     { id: "quantity", label: "Quantity", kind: "editable", align: "center", width: 100, sortKey: "quantity" },
     { id: "pricePerShare", label: "Price/Share", kind: "editable", align: "right", width: 128, sortKey: "pricePerShare" },
-    { id: "averageCost", label: "Avg. Cost/Share", kind: "readonly", align: "right", width: 138 },
-    { id: "currentPrice", label: "Market Price/Share", kind: "readonly", align: "right", width: 138 },
+    { id: "averageCost", label: "Avg. Cost/Share", kind: "readonly", align: "right", width: 138, sortKey: "averageCost" },
+    { id: "currentPrice", label: "Market Price/Share", kind: "readonly", align: "right", width: 138, sortKey: "currentPrice" },
     { id: "totalAmount", label: "Total Amount", kind: "calculated", align: "right", width: 138, sortKey: "totalAmount" },
     { id: "gainLoss", label: "Gain/Loss", kind: "calculated", align: "right", width: 148, sortKey: "gainLoss" },
-    { id: "comments", label: "Comments", kind: "editable", align: "left", width: 180 },
+    { id: "comments", label: "Comments", kind: "editable", align: "left", width: 180, sortKey: "comments" },
   ];
 
   function renderAllTable() {
@@ -1043,6 +1137,19 @@ export default function DailyTransactionsSheet({
             selected={allTypeFilter}
             onChange={setAllTypeFilter}
           />
+          <label className="analytics-gain-loss-filter" style={{ marginLeft: 4, marginRight: 4 }}>
+            <select
+              aria-label="Filter by Gain/Loss"
+              value={allGainLossFilter}
+              onChange={(event) =>
+                setAllGainLossFilter(event.target.value as "ALL" | "POSITIVE" | "NEGATIVE")
+              }
+            >
+              <option value="ALL">All</option>
+              <option value="POSITIVE">Positive</option>
+              <option value="NEGATIVE">Negative</option>
+            </select>
+          </label>
           <div
             className="transaction-date-stepper"
             role="group"
@@ -1096,6 +1203,7 @@ export default function DailyTransactionsSheet({
                 setAllSymbolFilter(null);
                 setAllTypeFilter(null);
                 setAllDate("");
+                setAllGainLossFilter("ALL");
               }}
             >
               <X size={13} /> Reset filters
@@ -1255,7 +1363,7 @@ export default function DailyTransactionsSheet({
   }
 
   function renderTable(side: TradeSide) {
-    const groups = side === "BUY" ? buyGroups : sellGroups;
+    const groups = side === "BUY" ? sortedBuyGroups : sortedSellGroups;
     const visible = columns[side].filter((col) => col.visible);
     const count = side === "BUY" ? buyCount : sellCount;
     const buy = side === "BUY";
@@ -1371,41 +1479,63 @@ export default function DailyTransactionsSheet({
             </colgroup>
             <thead>
               <tr>
-                {visible.map((col) => (
-                  <th
-                    key={col.id}
-                    scope="col"
-                    data-field={col.id}
-                    data-field-kind={col.kind}
-                    draggable={col.id !== "symbol"}
-                    onDragStart={() => setDragColumn({ side, id: col.id })}
-                    onDragOver={(event) => event.preventDefault()}
-                    onDrop={() => dropColumn(side, col.id)}
-                    onDragEnd={() => setDragColumn(null)}
-                    title={
-                      col.id === "gainLoss" && !buy
-                        ? "(Sell Price/Share − Avg. Purchase Price/Share) × Quantity"
-                        : col.id === "symbol"
-                          ? "Symbol stays visible when scrolling"
-                          : "Drag to rearrange this table's columns"
-                    }
-                  >
-                    <div className="transaction-column-heading">
-                      {col.id !== "symbol" && (
-                        <GripVertical size={12} aria-hidden="true" />
-                      )}
-                      <FieldHeader
-                        label={
-                          col.label ||
-                          DEFAULT_TRADE_COLUMNS[side].find(
-                            (item) => item.id === col.id,
-                          )?.label
-                        }
-                        kind={col.kind}
-                      />
-                    </div>
-                  </th>
-                ))}
+                {visible.map((col) => {
+                  const sort = side === "BUY" ? buySort : sellSort;
+                  const active = sort.key === col.id;
+                  const labelText =
+                    col.label ||
+                    DEFAULT_TRADE_COLUMNS[side].find(
+                      (item) => item.id === col.id,
+                    )?.label || "";
+
+                  return (
+                    <th
+                      key={col.id}
+                      scope="col"
+                      data-field={col.id}
+                      data-field-kind={col.kind}
+                      draggable={col.id !== "symbol"}
+                      onDragStart={() => setDragColumn({ side, id: col.id })}
+                      onDragOver={(event) => event.preventDefault()}
+                      onDrop={() => dropColumn(side, col.id)}
+                      onDragEnd={() => setDragColumn(null)}
+                      title={
+                        col.id === "gainLoss" && !buy
+                          ? "(Sell Price/Share − Avg. Purchase Price/Share) × Quantity"
+                          : col.id === "symbol"
+                            ? "Symbol stays visible when scrolling"
+                            : "Drag to rearrange this table's columns"
+                      }
+                    >
+                      <button
+                        type="button"
+                        className="transaction-sort-button"
+                        onClick={() => toggleSideSort(side, col.id)}
+                        title={`Sort by ${labelText}`}
+                      >
+                        <div className="transaction-column-heading">
+                          {col.id !== "symbol" && (
+                            <GripVertical size={12} aria-hidden="true" />
+                          )}
+                          <FieldHeader
+                            label={labelText}
+                            kind={col.kind}
+                          />
+                          <span
+                            className={`transaction-sort-icon ${active ? "is-active" : ""}`}
+                            aria-hidden="true"
+                          >
+                            {active && sort.dir === "desc" ? (
+                              <ChevronDown size={12} />
+                            ) : (
+                              <ChevronUp size={12} />
+                            )}
+                          </span>
+                        </div>
+                      </button>
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody>
